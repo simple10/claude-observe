@@ -61,7 +61,7 @@ echo -e "\n${BLUE}============================================${NC}"
 echo -e "${GREEN}Multi-Agent Observability System Started${NC}"
 echo -e "${BLUE}============================================${NC}"
 echo
-echo -e "Client URL: ${GREEN}http://localhost:$CLIENT_PORT${NC}"
+echo -e "Dashboard URL: ${GREEN}http://localhost:$CLIENT_PORT${NC}"
 echo -e "Server API: ${GREEN}http://localhost:$SERVER_PORT${NC}"
 echo -e "WebSocket:  ${GREEN}ws://localhost:$SERVER_PORT/stream${NC}"
 echo -e "Data dir:   ${GREEN}$PROJECT_ROOT/data${NC}"
