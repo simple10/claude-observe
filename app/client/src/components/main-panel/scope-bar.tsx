@@ -2,7 +2,14 @@ import { useAgents } from '@/hooks/use-agents'
 import { useUIStore } from '@/stores/ui-store'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { X, CornerDownRight, ArrowDownToLine, Trash2 } from 'lucide-react'
+import {
+  X,
+  CornerDownRight,
+  ArrowDownToLine,
+  Trash2,
+  ChevronsDownUp,
+  ChevronsUpDown,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { getAgentDisplayName } from '@/lib/agent-utils'
 import { useQueryClient } from '@tanstack/react-query'
@@ -18,6 +25,8 @@ export function ScopeBar() {
     toggleAgentId,
     autoFollow,
     setAutoFollow,
+    expandedEventIds,
+    collapseAllEvents,
   } = useUIStore()
   const { data: agents } = useAgents(selectedSessionId)
   const queryClient = useQueryClient()
@@ -104,6 +113,23 @@ export function ScopeBar() {
           title={autoFollow ? 'Auto-follow enabled' : 'Auto-follow disabled'}
         >
           <ArrowDownToLine className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => {
+            if (expandedEventIds.size > 0) {
+              collapseAllEvents()
+            }
+          }}
+          title={expandedEventIds.size > 0 ? 'Collapse all rows' : 'No rows expanded'}
+        >
+          {expandedEventIds.size > 0 ? (
+            <ChevronsDownUp className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/40" />
+          )}
         </Button>
         <Button
           variant="ghost"
