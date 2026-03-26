@@ -68,32 +68,31 @@ Add the following to your settings file:
 {
   "env": {
     "CLAUDE_OBSERVE_PROJECT_NAME": "my-project",
-    "CLAUDE_OBSERVE_EVENTS_ENDPOINT": "http://127.0.0.1:4001/api/events"
+    "CLAUDE_OBSERVE_EVENTS_ENDPOINT": "http://127.0.0.1:4001/api/events",
+    "CLAUDE_OBSERVE_HOOK_SCRIPT": "/absolute/path/to/claude-observe/app/hooks/send_event.mjs"
   },
   "hooks": {
     "PreToolUse": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "node /path/to/claude-observe/app/hooks/send_event.mjs" }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "node $CLAUDE_OBSERVE_HOOK_SCRIPT" }] }
     ],
     "PostToolUse": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "node /path/to/claude-observe/app/hooks/send_event.mjs" }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "node $CLAUDE_OBSERVE_HOOK_SCRIPT" }] }
     ],
     "Stop": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "node /path/to/claude-observe/app/hooks/send_event.mjs" }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "node $CLAUDE_OBSERVE_HOOK_SCRIPT" }] }
     ],
     "UserPromptSubmit": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "node /path/to/claude-observe/app/hooks/send_event.mjs" }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "node $CLAUDE_OBSERVE_HOOK_SCRIPT" }] }
     ],
     "SessionStart": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "node /path/to/claude-observe/app/hooks/send_event.mjs" }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "node $CLAUDE_OBSERVE_HOOK_SCRIPT" }] }
     ],
     "SubagentStop": [
-      { "matcher": "", "hooks": [{ "type": "command", "command": "node /path/to/claude-observe/app/hooks/send_event.mjs" }] }
+      { "matcher": "", "hooks": [{ "type": "command", "command": "node $CLAUDE_OBSERVE_HOOK_SCRIPT" }] }
     ]
   }
 }
 ```
-
-Replace `/path/to/claude-observe` with the absolute path to where you cloned this repo.
 
 **Environment variables:**
 
@@ -101,6 +100,7 @@ Replace `/path/to/claude-observe` with the absolute path to where you cloned thi
 |----------|---------|-------------|
 | `CLAUDE_OBSERVE_PROJECT_NAME` | (required) | Name shown in the dashboard for this project |
 | `CLAUDE_OBSERVE_EVENTS_ENDPOINT` | `http://127.0.0.1:4001/api/events` | Full URL for the events endpoint |
+| `CLAUDE_OBSERVE_HOOK_SCRIPT` | (required) | Absolute path to `app/hooks/send_event.mjs` |
 
 ### 3. Start the dashboard
 
@@ -126,7 +126,7 @@ cd app/client && npm run dev
 
 ### 4. Open the dashboard
 
-Navigate to **http://localhost:5174** (dev) or **http://localhost:4001** (Docker).
+Navigate to **<http://localhost:5174>** (dev) or **<http://localhost:4001>** (Docker).
 
 Start a Claude Code session in your configured project. Events will stream into the dashboard automatically.
 
