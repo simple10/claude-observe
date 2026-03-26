@@ -61,9 +61,19 @@ export function EventStream() {
   const filteredEvents = useMemo(() => {
     if (activeEventTypes.length === 0) return deduped;
     return deduped.filter((e) => {
-      const matchType = activeEventTypes.includes(e.type);
-      const matchSubtype = e.subtype && activeEventTypes.includes(e.subtype);
-      return matchType || matchSubtype;
+      for (const filter of activeEventTypes) {
+        // tool:ToolName — match by tool name (including MCP prefix match)
+        if (filter.startsWith('tool:')) {
+          const toolFilter = filter.slice(5);
+          if (e.toolName === toolFilter) return true;
+          // MCP prefix match: tool:mcp__chrome-devtools matches mcp__chrome-devtools__click
+          if (e.toolName?.startsWith(toolFilter + '__')) return true;
+          continue;
+        }
+        // Match by type or subtype
+        if (e.type === filter || e.subtype === filter) return true;
+      }
+      return false;
     });
   }, [deduped, activeEventTypes]);
 

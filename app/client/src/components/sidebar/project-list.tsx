@@ -3,12 +3,21 @@ import { useSessions } from '@/hooks/use-sessions';
 import { useUIStore } from '@/stores/ui-store';
 import { cn } from '@/lib/utils';
 import { ChevronDown, ChevronRight, Folder } from 'lucide-react';
-import { AgentTree } from './agent-tree';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ProjectListProps {
   collapsed: boolean;
+}
+
+function formatRelativeTime(ts: number): string {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
 export function ProjectList({ collapsed }: ProjectListProps) {
@@ -73,7 +82,7 @@ export function ProjectList({ collapsed }: ProjectListProps) {
                   </Badge>
                 )}
               </button>
-              {isSelected && <SessionAgentList projectId={project.id} />}
+              {isSelected && <SessionList projectId={project.id} />}
             </div>
           );
         })}
@@ -82,18 +91,49 @@ export function ProjectList({ collapsed }: ProjectListProps) {
   );
 }
 
-function SessionAgentList({ projectId }: { projectId: string }) {
+function SessionList({ projectId }: { projectId: string }) {
   const { data: sessions } = useSessions(projectId);
-  const { selectedSessionId } = useUIStore();
-  const effectiveSessionId = selectedSessionId || sessions?.[0]?.id;
+  const { selectedSessionId, setSelectedSessionId } = useUIStore();
 
   if (!sessions?.length) {
     return <div className="text-xs text-muted-foreground pl-6 py-1">No sessions</div>;
   }
 
   return (
-    <div className="ml-4 mt-1">
-      {effectiveSessionId && <AgentTree sessionId={effectiveSessionId} />}
+    <div className="ml-4 mt-1 space-y-0.5">
+      {sessions.map((session) => {
+        const isSelected = selectedSessionId === session.id;
+        const label = session.slug || session.id.slice(0, 8);
+
+        return (
+          <button
+            key={session.id}
+            className={cn(
+              'flex items-center gap-1.5 w-full rounded-md px-2 py-1 text-xs transition-colors',
+              isSelected
+                ? 'bg-accent text-accent-foreground'
+                : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+            )}
+            onClick={() => setSelectedSessionId(isSelected ? null : session.id)}
+          >
+            <span
+              className={cn(
+                'h-2 w-2 shrink-0 rounded-full',
+                session.status === 'active' ? 'bg-green-500' : 'bg-muted-foreground/40'
+              )}
+            />
+            <span className="truncate">{label}</span>
+            <span className="text-[10px] text-muted-foreground/60 ml-auto shrink-0">
+              {formatRelativeTime(session.startedAt)}
+            </span>
+            {session.eventCount != null && (
+              <Badge variant="outline" className="text-[9px] h-3.5 px-1 shrink-0">
+                {session.eventCount}
+              </Badge>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
