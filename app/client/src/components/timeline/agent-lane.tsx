@@ -78,6 +78,7 @@ export function AgentLane({ agentName, events, isSubagent, color }: AgentLanePro
       <div
         className={cn('w-28 shrink-0 text-[10px] truncate px-2', color)}
         style={{ opacity: isSubagent ? 0.5 : 0.7 }}
+        title={agentName}
       >
         {isSubagent ? '↳ ' : ''}
         {agentName}
