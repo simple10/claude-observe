@@ -223,10 +223,6 @@ const server = Bun.serve({
       console.log('[WS] Client disconnected');
       removeClient(ws);
     },
-    error(ws, error) {
-      console.error('[WS] Error:', error);
-      removeClient(ws);
-    },
   },
 });
 
