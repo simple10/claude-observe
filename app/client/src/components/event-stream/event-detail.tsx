@@ -72,9 +72,11 @@ export function EventDetail({ event }: EventDetailProps) {
 
       {/* Collapsible raw payload */}
       <div>
-        <button
-          className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+        <div
+          className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
           onClick={() => setShowPayload(!showPayload)}
+          role="button"
+          tabIndex={0}
         >
           {showPayload ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
           <span>Raw payload</span>
@@ -89,7 +91,7 @@ export function EventDetail({ event }: EventDetailProps) {
           >
             {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
           </Button>
-        </button>
+        </div>
         {showPayload && (
           <pre className="overflow-x-auto rounded bg-muted/50 p-2 font-mono text-[10px] leading-relaxed mt-1">
             {payloadStr}

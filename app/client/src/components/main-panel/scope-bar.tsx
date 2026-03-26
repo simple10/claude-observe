@@ -3,6 +3,17 @@ import { useUIStore } from '@/stores/ui-store'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import {
   X,
   CornerDownRight,
   ArrowDownToLine,
@@ -131,20 +142,40 @@ export function ScopeBar() {
             <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground/40" />
           )}
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-          onClick={async () => {
-            if (selectedSessionId && window.confirm('Clear all events for this session?')) {
-              await api.clearSessionEvents(selectedSessionId)
-              queryClient.invalidateQueries({ queryKey: ['events'] })
-            }
-          }}
-          title="Clear session events"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+              title="Clear session events"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Clear session events?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will delete all events for the current session. The session itself will remain.
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={async () => {
+                  if (selectedSessionId) {
+                    await api.clearSessionEvents(selectedSessionId)
+                    queryClient.invalidateQueries({ queryKey: ['events'] })
+                  }
+                }}
+              >
+                Clear events
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   )
