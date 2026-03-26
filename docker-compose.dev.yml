@@ -3,4 +3,5 @@ services:
     volumes:
       - ./data:/data
       - ./app/server/src:/app/server/src
-    command: npx --prefix server tsx watch server/src/index.ts
+    working_dir: /app/server
+    command: npx tsx watch src/index.ts

@@ -18,4 +18,5 @@ COPY app/server/tsconfig.json server/
 
 EXPOSE 4001
 
-CMD ["npx", "--prefix", "server", "tsx", "server/src/index.ts"]
+WORKDIR /app/server
+CMD ["npx", "tsx", "src/index.ts"]
