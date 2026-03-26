@@ -52,10 +52,15 @@ export function EventRow({ event, agentMap, showAgentLabel }: EventRowProps) {
 
   const isTool = event.subtype === 'PreToolUse' || event.subtype === 'PostToolUse';
   const isCompleted = event.status === 'completed';
-  const displayLabel = isTool ? 'Tool' : (event.subtype || event.type);
-  const displaySummary = isTool
-    ? event.summary || ''
-    : event.summary || '';
+
+  // Friendly display labels for subtypes
+  const LABEL_MAP: Record<string, string> = {
+    UserPromptSubmit: 'UserPrompt',
+    stop_hook_summary: 'Stop',
+  };
+  const rawLabel = isTool ? 'Tool' : (event.subtype || event.type);
+  const displayLabel = LABEL_MAP[rawLabel] || rawLabel;
+  const displaySummary = event.summary || '';
 
   useEffect(() => {
     if (scrollToEventId === event.id && rowRef.current) {
@@ -72,7 +77,7 @@ export function EventRow({ event, agentMap, showAgentLabel }: EventRowProps) {
     <div ref={rowRef} className="transition-shadow">
       <button
         className={cn(
-          'flex flex-col w-full text-left px-3 py-1.5 border-l-2 transition-colors hover:bg-accent/50',
+          'flex flex-col w-full text-left px-3 py-1.5 border-l-2 transition-colors hover:bg-accent/50 overflow-hidden',
           isSubagent ? 'bg-muted/20' : '',
           colorClass.split(' ')[1]
         )}
