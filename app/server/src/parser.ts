@@ -56,14 +56,7 @@ export function parseRawEvent(raw: Record<string, unknown>): ParsedRawEvent {
         type = 'tool';
         subtype = 'PreToolUse';
         toolName = hookToolName || null;
-        if (toolName) {
-          const desc = toolInput?.description as string | undefined;
-          const cmd = toolInput?.command as string | undefined;
-          summary = toolName;
-          if (desc) summary += ` — ${truncate(desc, 80)}`;
-          else if (cmd) summary += ` — ${truncate(cmd, 80)}`;
-        }
-        // Detect Agent tool spawning a subagent
+        summary = toolName ? extractToolSummary(toolName, toolInput) : null;
         if (toolName === 'Agent') {
           subAgentName = toolInput?.description as string | undefined || null;
         }
@@ -72,9 +65,7 @@ export function parseRawEvent(raw: Record<string, unknown>): ParsedRawEvent {
         type = 'tool';
         subtype = 'PostToolUse';
         toolName = hookToolName || null;
-        if (toolName) {
-          summary = `${toolName} — completed`;
-        }
+        summary = toolName ? extractToolSummary(toolName, toolInput) : null;
         break;
       case 'Stop':
         type = 'system';
@@ -232,4 +223,55 @@ function parseTimestamp(ts: unknown): number {
 function truncate(s: string, maxLen: number): string {
   if (s.length <= maxLen) return s
   return s.slice(0, maxLen - 3) + '...'
+}
+
+// Extract a useful one-line summary from tool_input based on tool type
+function extractToolSummary(
+  toolName: string,
+  toolInput: Record<string, unknown> | undefined
+): string {
+  if (!toolInput) return toolName
+
+  switch (toolName) {
+    case 'Bash': {
+      const desc = toolInput.description as string | undefined
+      const cmd = toolInput.command as string | undefined
+      return desc || (cmd ? truncate(cmd, 80) : toolName)
+    }
+    case 'Read':
+    case 'Write':
+    case 'Edit': {
+      const fp = toolInput.file_path as string | undefined
+      return fp ? shortPath(fp) : toolName
+    }
+    case 'Grep': {
+      const pattern = toolInput.pattern as string | undefined
+      const path = toolInput.path as string | undefined
+      if (pattern && path) return `/${pattern}/ in ${shortPath(path)}`
+      if (pattern) return `/${pattern}/`
+      return toolName
+    }
+    case 'Glob': {
+      const pattern = toolInput.pattern as string | undefined
+      return pattern || toolName
+    }
+    case 'Agent': {
+      const desc = toolInput.description as string | undefined
+      return desc ? truncate(desc, 80) : toolName
+    }
+    default: {
+      const desc = toolInput.description as string | undefined
+      if (desc) return truncate(desc, 80)
+      const cmd = toolInput.command as string | undefined
+      if (cmd) return truncate(cmd, 80)
+      return toolName
+    }
+  }
+}
+
+// Shorten a file path to just the last 2-3 segments
+function shortPath(fp: string): string {
+  const parts = fp.split('/')
+  if (parts.length <= 3) return fp
+  return '.../' + parts.slice(-3).join('/')
 }

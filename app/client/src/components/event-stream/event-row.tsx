@@ -50,6 +50,18 @@ export function EventRow({ event, agentMap, showAgentLabel }: EventRowProps) {
   const colorClass = getAgentColor(event.agentId);
   const icon = getEventIcon(event.subtype, event.toolName);
 
+  // Merge PreToolUse/PostToolUse into a cleaner display
+  const isTool = event.subtype === 'PreToolUse' || event.subtype === 'PostToolUse';
+  const isCompleted = event.subtype === 'PostToolUse';
+  const displayLabel = isTool
+    ? event.toolName || 'Tool'
+    : event.subtype || event.type;
+  const displaySummary = isTool
+    ? event.summary || ''
+    : event.toolName && event.summary
+      ? `${event.toolName} — ${event.summary}`
+      : event.summary || '';
+
   useEffect(() => {
     if (scrollToEventId === event.id && rowRef.current) {
       rowRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -81,13 +93,24 @@ export function EventRow({ event, agentMap, showAgentLabel }: EventRowProps) {
           <span className="text-sm shrink-0" title={event.subtype || event.type}>
             {icon}
           </span>
-          <span className="text-xs font-medium w-28 shrink-0 truncate text-muted-foreground">
-            {event.subtype || event.type}
+          <span className={cn(
+            'text-xs font-medium w-20 shrink-0 truncate',
+            isTool && isCompleted ? 'text-green-500/70' : 'text-muted-foreground'
+          )}>
+            {displayLabel}
           </span>
+          {isTool && (
+            <span className={cn(
+              'text-[10px] shrink-0 px-1 rounded',
+              isCompleted
+                ? 'text-green-500/70'
+                : 'text-yellow-500/70'
+            )}>
+              {isCompleted ? '✓' : '…'}
+            </span>
+          )}
           <span className="text-xs text-muted-foreground truncate flex-1">
-            {event.toolName && event.summary
-              ? `${event.toolName} — ${event.summary}`
-              : event.summary || ''}
+            {displaySummary}
           </span>
           <span className="text-[10px] text-muted-foreground/60 tabular-nums shrink-0">
             {formatTime(event.timestamp)}
