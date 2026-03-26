@@ -2,7 +2,8 @@
 // Dumb pipe: reads JSONL from stdin, adds project_name, POSTs to server.
 // No dependencies -- uses only Node.js built-ins.
 
-import { request } from 'node:http'
+import { request } from 'node:http';
+import { readFileSync } from 'node:fs';
 
 const projectName = process.env.CLAUDE_OBSERVE_PROJECT_NAME
 if (!projectName) {
@@ -26,7 +27,22 @@ process.stdin.on('end', () => {
     process.exit(0) // Silently skip malformed input
   }
 
-  payload.project_name = projectName
+  payload.project_name = projectName;
+
+  // On Stop events, read the transcript file and attach as chat
+  if (payload.hook_event_name === 'Stop' && payload.transcript_path) {
+    try {
+      const lines = readFileSync(payload.transcript_path, 'utf8')
+        .split('\n')
+        .filter(Boolean);
+      payload.chat = lines.map(line => {
+        try { return JSON.parse(line); }
+        catch { return null; }
+      }).filter(Boolean);
+    } catch {
+      // Transcript file not readable — skip
+    }
+  }
 
   const body = JSON.stringify(payload)
   const req = request(

@@ -17,7 +17,7 @@ export function EventDetail({ event }: EventDetailProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const chat = (event.payload as any).message?.chat || (event.payload as any).chat;
+  const chat = (event.payload as any).chat || (event.payload as any).message?.chat;
 
   return (
     <div className="px-4 py-2 bg-muted/30 border-t border-border text-xs space-y-2">
