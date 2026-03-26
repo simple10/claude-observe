@@ -12,8 +12,9 @@ RUN cd app/client && npm install
 COPY app/client/ app/client/
 RUN cd app/client && npm run build
 
-# Copy server source
-COPY app/server/ app/server/
+# Copy server source ONLY (not node_modules — those were built above for Linux)
+COPY app/server/src app/server/src
+COPY app/server/tsconfig.json app/server/
 
 EXPOSE 4001
 
