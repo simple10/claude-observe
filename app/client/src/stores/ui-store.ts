@@ -1,5 +1,25 @@
 import { create } from 'zustand'
 
+function parseHash(): { projectId: string | null; sessionId: string | null } {
+  const hash = window.location.hash.slice(1) // remove #
+  if (!hash || hash === '/') return { projectId: null, sessionId: null }
+  const parts = hash.split('/').filter(Boolean)
+  return {
+    projectId: parts[0] || null,
+    sessionId: parts[1] || null,
+  }
+}
+
+function updateHash(projectId: string | null, sessionId: string | null) {
+  if (!projectId) {
+    window.history.replaceState(null, '', '#/')
+  } else if (!sessionId) {
+    window.history.replaceState(null, '', `#/${projectId}`)
+  } else {
+    window.history.replaceState(null, '', `#/${projectId}/${sessionId}`)
+  }
+}
+
 interface UIState {
   sidebarCollapsed: boolean
   sidebarWidth: number
@@ -32,18 +52,25 @@ interface UIState {
   setScrollToEventId: (id: number | null) => void
 }
 
-export const useUIStore = create<UIState>((set) => ({
+const { projectId: initialProjectId, sessionId: initialSessionId } = parseHash()
+
+export const useUIStore = create<UIState>((set, get) => ({
   sidebarCollapsed: false,
   sidebarWidth: 260,
   setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
   setSidebarWidth: (width) => set({ sidebarWidth: width }),
 
-  selectedProjectId: null,
-  selectedSessionId: null,
+  selectedProjectId: initialProjectId,
+  selectedSessionId: initialSessionId,
   selectedAgentIds: [],
-  setSelectedProjectId: (id) =>
-    set({ selectedProjectId: id, selectedSessionId: null, selectedAgentIds: [] }),
-  setSelectedSessionId: (id) => set({ selectedSessionId: id, selectedAgentIds: [] }),
+  setSelectedProjectId: (id) => {
+    set({ selectedProjectId: id, selectedSessionId: null, selectedAgentIds: [] })
+    updateHash(id, null)
+  },
+  setSelectedSessionId: (id) => {
+    set({ selectedSessionId: id, selectedAgentIds: [] })
+    updateHash(get().selectedProjectId, id)
+  },
   setSelectedAgentIds: (ids) => set({ selectedAgentIds: ids }),
   toggleAgentId: (id) =>
     set((s) => ({
@@ -81,3 +108,16 @@ export const useUIStore = create<UIState>((set) => ({
     }),
   setScrollToEventId: (id) => set({ scrollToEventId: id }),
 }))
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('hashchange', () => {
+    const { projectId, sessionId } = parseHash()
+    const state = useUIStore.getState()
+    if (projectId !== state.selectedProjectId) {
+      state.setSelectedProjectId(projectId)
+    }
+    if (sessionId !== state.selectedSessionId) {
+      state.setSelectedSessionId(sessionId)
+    }
+  })
+}
