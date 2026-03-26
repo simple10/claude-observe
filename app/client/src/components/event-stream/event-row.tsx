@@ -111,12 +111,17 @@ export function EventRow({ event, allEvents, agentMap, showAgentLabel }: EventRo
               {event.toolName}
             </span>
           )}
-          <span className={cn(
-            'text-xs text-muted-foreground flex-1 min-w-0',
-            displaySummary.includes('\n') ? 'whitespace-pre-line line-clamp-2' : 'truncate'
-          )}>
-            {displaySummary}
-          </span>
+          {displaySummary.includes('\n') ? (
+            <div className="text-xs text-muted-foreground flex-1 min-w-0">
+              {displaySummary.split('\n').map((line, i) => (
+                <div key={i} className="truncate">{line}</div>
+              ))}
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground truncate flex-1 min-w-0">
+              {displaySummary}
+            </span>
+          )}
           <span className="text-[10px] text-muted-foreground/60 tabular-nums shrink-0">
             {formatTime(event.timestamp)}
           </span>
