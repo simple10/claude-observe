@@ -1,4 +1,5 @@
 // app/server/src/index.ts
+import type { Server } from 'http'
 import { serve } from '@hono/node-server'
 import { createApp } from './app'
 import { createStore } from './storage'
@@ -15,4 +16,4 @@ const server = serve({ fetch: app.fetch, port: PORT }, () => {
   console.log(`POST events: http://localhost:${PORT}/api/events`)
 })
 
-attachWebSocket(server, WS_ENABLED)
+attachWebSocket(server as unknown as Server, WS_ENABLED)
