@@ -27,7 +27,11 @@ export function EventDetail({ event }: EventDetailProps) {
     api.getThread(event.id).then(setThread).catch(() => setThread(null)).finally(() => setLoadingThread(false));
   }, [event.id, showThread]);
 
-  const payloadStr = JSON.stringify(event.payload, null, 2);
+  const postPayloadObj = (event as any)._postPayload as Record<string, any> | undefined;
+  const fullPayload = postPayloadObj
+    ? { request: event.payload, response: postPayloadObj }
+    : event.payload;
+  const payloadStr = JSON.stringify(fullPayload, null, 2);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(payloadStr);
