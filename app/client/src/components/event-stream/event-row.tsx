@@ -2,6 +2,7 @@ import { useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { getEventIcon } from '@/config/event-icons';
 import { getEventSummary } from '@/lib/event-summary';
+import { getAgentDisplayName } from '@/lib/agent-utils';
 import { useUIStore } from '@/stores/ui-store';
 import { EventDetail } from './event-detail';
 import type { ParsedEvent, Agent } from '@/types';
@@ -47,7 +48,7 @@ export function EventRow({ event, allEvents, agentMap, showAgentLabel }: EventRo
   const rowRef = useRef<HTMLDivElement>(null);
 
   const agent = agentMap.get(event.agentId);
-  const agentName = agent?.slug || agent?.name || event.agentId.slice(0, 8);
+  const agentName = agent ? getAgentDisplayName(agent) : event.agentId.slice(0, 8);
   const isSubagent = agent?.parentAgentId != null;
   const colorClass = getAgentColor(event.agentId);
   const icon = getEventIcon(event.subtype, event.toolName);

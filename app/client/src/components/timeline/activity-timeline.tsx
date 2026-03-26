@@ -3,6 +3,7 @@ import { useUIStore } from '@/stores/ui-store';
 import { useEvents } from '@/hooks/use-events';
 import { useAgents } from '@/hooks/use-agents';
 import { useSessions } from '@/hooks/use-sessions';
+import { getAgentDisplayName } from '@/lib/agent-utils';
 import { AgentLane } from './agent-lane';
 import { Button } from '@/components/ui/button';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -119,7 +120,7 @@ export function ActivityTimeline() {
           {flatAgents.map(({ agent, isSubagent }, idx) => (
             <AgentLane
               key={agent.id}
-              agentName={agent.slug || agent.name || agent.id.slice(0, 8)}
+              agentName={getAgentDisplayName(agent)}
               events={eventsByAgent.get(agent.id) || []}
               isSubagent={isSubagent}
               color={getColor(idx)}

@@ -3,6 +3,7 @@ import { useUIStore } from '@/stores/ui-store';
 import { Badge } from '@/components/ui/badge';
 import { X, CornerDownRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getAgentDisplayName } from '@/lib/agent-utils';
 import type { Agent } from '@/types';
 
 export function ScopeBar() {
@@ -53,7 +54,7 @@ export function ScopeBar() {
                   agent.status === 'active' ? 'bg-green-500' : 'bg-muted-foreground/40'
                 )}
               />
-              {agent.slug || agent.name || agent.id.slice(0, 8)}
+              {getAgentDisplayName(agent)}
               {selectedAgentIds.length > 0 && (
                 <button
                   className="ml-0.5 hover:text-foreground"
