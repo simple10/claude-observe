@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { WS_URL } from '@/config/api';
-import type { WSMessage, ParsedEvent } from '@/types';
+import type { WSMessage } from '@/types';
 
 export function useWebSocket() {
   const queryClient = useQueryClient();
@@ -10,6 +10,11 @@ export function useWebSocket() {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
+    // Prevent StrictMode double-connect
+    if (wsRef.current && wsRef.current.readyState <= WebSocket.OPEN) {
+      return;
+    }
+
     function connect() {
       const ws = new WebSocket(WS_URL);
       wsRef.current = ws;
@@ -24,17 +29,17 @@ export function useWebSocket() {
           const msg: WSMessage = JSON.parse(event.data);
 
           if (msg.type === 'event') {
-            const evt = msg.data as ParsedEvent;
-            queryClient.setQueriesData<ParsedEvent[]>(
-              { queryKey: ['events'] },
-              (old) => (old ? [...old, evt] : [evt])
-            );
-            queryClient.invalidateQueries({ queryKey: ['agents', evt.sessionId] });
+            // Invalidate queries so they refetch from server (single source of truth).
+            // Don't optimistically append — that causes duplicates when the refetch
+            // also returns the new event.
+            queryClient.invalidateQueries({ queryKey: ['events'] });
+            queryClient.invalidateQueries({ queryKey: ['agents'] });
             queryClient.invalidateQueries({ queryKey: ['sessions'] });
+            queryClient.invalidateQueries({ queryKey: ['projects'] });
           }
 
           if (msg.type === 'agent_update') {
-            queryClient.invalidateQueries({ queryKey: ['agents', msg.data.sessionId] });
+            queryClient.invalidateQueries({ queryKey: ['agents'] });
           }
 
           if (msg.type === 'session_update') {
@@ -48,6 +53,7 @@ export function useWebSocket() {
 
       ws.onclose = () => {
         setConnected(false);
+        wsRef.current = null;
         console.log('[WS] Disconnected, reconnecting in 3s...');
         reconnectTimeoutRef.current = setTimeout(connect, 3000);
       };
@@ -62,6 +68,7 @@ export function useWebSocket() {
     return () => {
       clearTimeout(reconnectTimeoutRef.current);
       wsRef.current?.close();
+      wsRef.current = null;
     };
   }, [queryClient]);
 
