@@ -406,5 +406,6 @@ export class SqliteAdapter implements EventStore {
 
   async clearSessionEvents(sessionId: string): Promise<void> {
     this.db.prepare('DELETE FROM events WHERE session_id = ?').run(sessionId)
+    this.db.prepare('DELETE FROM agents WHERE session_id = ?').run(sessionId)
   }
 }

@@ -55,10 +55,13 @@ export function ScopeBar() {
   }
   collectAgents(agents)
 
+  // Hide agents with no events (e.g. after clearing logs)
+  const agentsWithEvents = allAgents.filter((a) => (a.eventCount ?? 0) > 0)
+
   const visibleAgents =
     selectedAgentIds.length > 0
-      ? allAgents.filter((a) => selectedAgentIds.includes(a.id))
-      : allAgents
+      ? agentsWithEvents.filter((a) => selectedAgentIds.includes(a.id))
+      : agentsWithEvents
 
   const sortedAgents = [...visibleAgents].sort((a, b) => {
     // Main (root) always first

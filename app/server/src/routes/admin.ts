@@ -16,11 +16,12 @@ router.delete('/sessions/:id', async (c) => {
   return c.json({ ok: true })
 })
 
-// DELETE /sessions/:id/events — clear events for a specific session
+// DELETE /sessions/:id/events — clear events and agents for a specific session
 router.delete('/sessions/:id/events', async (c) => {
   const store = c.get('store')
   const sessionId = c.req.param('id')
   await store.clearSessionEvents(sessionId)
+  removeSessionRootAgent(sessionId)
   return c.json({ ok: true })
 })
 

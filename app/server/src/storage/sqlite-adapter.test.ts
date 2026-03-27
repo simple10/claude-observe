@@ -92,6 +92,74 @@ describe('SqliteAdapter', () => {
     expect(projects).toHaveLength(0)
   })
 
+  test('deleteSession removes session, agents, and events', async () => {
+    await store.upsertProject('proj1', 'Project 1')
+    await store.upsertSession('sess1', 'proj1', null, null, Date.now())
+    await store.upsertAgent('a1', 'sess1', null, null, null, Date.now())
+    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', Date.now())
+    await store.insertEvent({
+      agentId: 'a1',
+      sessionId: 'sess1',
+      type: 'user',
+      subtype: 'UserPromptSubmit',
+      toolName: null,
+      summary: null,
+      timestamp: Date.now(),
+      payload: {},
+    })
+
+    await store.deleteSession('sess1')
+
+    const sessions = await store.getSessionsForProject('proj1')
+    expect(sessions).toHaveLength(0)
+    const agents = await store.getAgentsForSession('sess1')
+    expect(agents).toHaveLength(0)
+    const events = await store.getEventsForSession('sess1')
+    expect(events).toHaveLength(0)
+    // Project should still exist
+    const projects = await store.getProjects()
+    expect(projects).toHaveLength(1)
+  })
+
+  test('clearSessionEvents removes events and agents but keeps the session', async () => {
+    await store.upsertProject('proj1', 'Project 1')
+    await store.upsertSession('sess1', 'proj1', 'my-session', null, Date.now())
+    await store.upsertAgent('a1', 'sess1', null, null, null, Date.now())
+    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', Date.now())
+    await store.insertEvent({
+      agentId: 'a1',
+      sessionId: 'sess1',
+      type: 'user',
+      subtype: 'UserPromptSubmit',
+      toolName: null,
+      summary: null,
+      timestamp: Date.now(),
+      payload: {},
+    })
+    await store.insertEvent({
+      agentId: 'a2',
+      sessionId: 'sess1',
+      type: 'tool',
+      subtype: 'PreToolUse',
+      toolName: 'Bash',
+      summary: null,
+      timestamp: Date.now(),
+      payload: {},
+    })
+
+    await store.clearSessionEvents('sess1')
+
+    // Session should remain
+    const session = await store.getSessionById('sess1')
+    expect(session).not.toBeNull()
+    // Events should be gone
+    const events = await store.getEventsForSession('sess1')
+    expect(events).toHaveLength(0)
+    // Agents should also be gone
+    const agents = await store.getAgentsForSession('sess1')
+    expect(agents).toHaveLength(0)
+  })
+
   test('getEventsSince returns events after timestamp', async () => {
     await store.upsertProject('proj1', 'Project 1')
     await store.upsertSession('sess1', 'proj1', null, null, 1000)
