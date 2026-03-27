@@ -16,11 +16,18 @@ export function EventFilterBar() {
     searchQuery,
     setSearchQuery,
     selectedSessionId,
+    selectedAgentIds,
   } = useUIStore()
 
   const { data: events } = useEvents(selectedSessionId)
 
-  const dynamicNames = useMemo(() => getDynamicFilterNames(events || []), [events])
+  const dynamicNames = useMemo(() => {
+    if (!events) return []
+    const filtered = selectedAgentIds.length > 0
+      ? events.filter((e) => selectedAgentIds.includes(e.agentId))
+      : events
+    return getDynamicFilterNames(filtered)
+  }, [events, selectedAgentIds])
 
   const hasAnyFilter = activeStaticFilters.length > 0 || activeToolFilters.length > 0
 
