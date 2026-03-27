@@ -13,6 +13,9 @@
   - Logs rows should show the hook type + tool_name (if present) and then the raw payload json
 - [ ] Fix the expand sidebar button in collapsed mode - it's currently overlapping with "Filters:"
   - use devtools to debug - discuss options if shadcn doesn't already offer a standard UX pattern for solving this
+- [x] Add Events status bar above the events stream
+- [ ] Add a loader (spinner) element to the Logs modal - it should immediately open and then show loading state
+  - Currently, there's a lot of lag when the Logs modal is opened in a session with 1000+ events
 
 ## COMPLETED TASKS
 

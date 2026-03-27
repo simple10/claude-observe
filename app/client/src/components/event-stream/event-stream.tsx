@@ -4,6 +4,7 @@ import { useAgents } from '@/hooks/use-agents'
 import { useUIStore } from '@/stores/ui-store'
 import { EventRow } from './event-row'
 import { eventMatchesFilters } from '@/config/filters'
+import { format } from 'timeago.js'
 import type { Agent, ParsedEvent } from '@/types'
 
 export function EventStream() {
@@ -96,19 +97,34 @@ export function EventStream() {
     )
   }
 
+  const firstTs = filteredEvents[0]?.timestamp
+  const lastTs = filteredEvents[filteredEvents.length - 1]?.timestamp
+
   return (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto">
-      <div className="divide-y divide-border/50">
-        {filteredEvents.map((event) => (
-          <EventRow
-            key={event.id}
-            event={event}
-            allEvents={filteredEvents}
-            agentMap={agentMap}
-            showAgentLabel={showAgentLabel}
-          />
-        ))}
-        <div className="h-8" />
+    <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-1 border-b border-border/50 shrink-0">
+        <span className="text-xs text-muted-foreground">
+          Events: <span className="text-foreground">{filteredEvents.length}</span>
+        </span>
+        {firstTs && lastTs && (
+          <span className="text-[10px] text-muted-foreground/50">
+            {format(firstTs)} — {format(lastTs)}
+          </span>
+        )}
+      </div>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        <div className="divide-y divide-border/50">
+          {filteredEvents.map((event) => (
+            <EventRow
+              key={event.id}
+              event={event}
+              allEvents={filteredEvents}
+              agentMap={agentMap}
+              showAgentLabel={showAgentLabel}
+            />
+          ))}
+          <div className="h-8" />
+        </div>
       </div>
     </div>
   )
