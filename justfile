@@ -78,13 +78,20 @@ dev-client-build:
 
 # ─── Testing ────────────────────────────────────────────
 
-# Run server tests
+# Run all tests (server + client)
 test:
     cd {{ server }} && npm test
+    cd {{ client }} && npm test
 
-# Run server tests in watch mode
+# Run all tests in watch mode
 test-watch:
-    cd {{ server }} && npm run test:watch
+    #!/usr/bin/env bash
+    cd {{ server }} && npm run test:watch &
+    pid1=$!
+    cd {{ client }} && npm run test:watch &
+    pid2=$!
+    trap 'kill $pid1 $pid2 2>/dev/null; wait $pid1 $pid2 2>/dev/null; exit 0' INT TERM
+    wait
 
 # Send a test event to the server
 test-event:
