@@ -86,7 +86,7 @@ export function ScopeBar() {
             <AlertDialogHeader>
               <AlertDialogTitle>Delete or clear session?</AlertDialogTitle>
               <AlertDialogDescription>
-                Choose an action for this session. This cannot be undone.
+                This only affects Observe logs. Your original Claude session files are not modified.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

@@ -2,14 +2,16 @@
 
 ## QUEUED TASKS
 
-- [ ] Fix Icons modal in Settings - needs to be scrollable
-- [ ] Add a color wheel picker option to the color pallette - shadcn probably has one?
-  - user should be able to select color from the pallette (current behavior) or select custom
-  - custom should show a color wheel and option for hex value
-- [ ] Add a clarifying message to the Project delete confirmation that it only deletes the observe logs and not the original jsonl files in claude
+- [ ] Add Result (final message) to Prompt expanded summary event - same as the Stop event
 
 ## COMPLETED TASKS
 
+- [x] Add clarifying message to delete confirmation modals (only deletes Observe logs, not Claude session files)
+- [x] Improve performance of activity pane and sidebar resizing (direct DOM updates during drag, commit on mouseUp)
+- [x] Add Tool:TaskCreate and Tool:TaskUpdate to the Tasks static filter
+
+- [x] Fix Icons modal in Settings - needs to be scrollable
+- [x] Add a color wheel picker option to the color pallette
 - [x] Sync the agent colors in Activity, agent dropdown, and event stream
 - [x] In Activity Timeline:
   - [x] Add new agents directly underneath Main agent

@@ -18,20 +18,27 @@ export function Sidebar({ connected }: SidebarProps) {
   const resizing = useRef(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
+  const sidebarRef = useRef<HTMLDivElement>(null)
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (sidebarCollapsed) return
       e.preventDefault()
       resizing.current = true
+      // Disable CSS transition during drag for smooth resizing
+      if (sidebarRef.current) sidebarRef.current.style.transition = 'none'
 
       const onMouseMove = (e: MouseEvent) => {
         if (!resizing.current) return
         const newWidth = Math.max(200, Math.min(400, e.clientX))
-        setSidebarWidth(newWidth)
+        if (sidebarRef.current) sidebarRef.current.style.width = `${newWidth}px`
       }
 
-      const onMouseUp = () => {
+      const onMouseUp = (e: MouseEvent) => {
         resizing.current = false
+        if (sidebarRef.current) sidebarRef.current.style.transition = ''
+        const finalWidth = Math.max(200, Math.min(400, e.clientX))
+        setSidebarWidth(finalWidth)
         document.removeEventListener('mousemove', onMouseMove)
         document.removeEventListener('mouseup', onMouseUp)
       }
@@ -44,6 +51,7 @@ export function Sidebar({ connected }: SidebarProps) {
 
   return (
     <div
+      ref={sidebarRef}
       className={cn(
         'relative flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200',
         sidebarCollapsed ? 'w-12' : '',

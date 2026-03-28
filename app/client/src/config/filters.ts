@@ -28,7 +28,11 @@ export const STATIC_FILTERS: StaticFilter[] = [
     subtypes: ['SubagentStart', 'SubagentStop'],
     match: (e) => e.toolName === 'Agent',
   },
-  { label: 'Tasks', subtypes: ['TaskCreated', 'TaskCompleted'] },
+  {
+    label: 'Tasks',
+    subtypes: ['TaskCreated', 'TaskCompleted'],
+    match: (e) => e.toolName === 'TaskCreate' || e.toolName === 'TaskUpdate',
+  },
   { label: 'Session', subtypes: ['SessionStart', 'SessionEnd'] },
   {
     label: 'MCP',

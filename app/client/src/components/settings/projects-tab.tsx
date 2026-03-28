@@ -114,8 +114,8 @@ export function ProjectsTab() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirmDelete?.type === 'all'
-                ? 'This will permanently delete all projects, sessions, agents, and events. This action cannot be undone.'
-                : 'This will permanently delete this project and all its sessions, agents, and events. This action cannot be undone.'}
+                ? 'This will permanently delete all Observe logs (projects, sessions, agents, and events). Your original Claude session files are not modified.'
+                : 'This will permanently delete this project and all its Observe logs. Your original Claude session files are not modified.'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

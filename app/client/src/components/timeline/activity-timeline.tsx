@@ -73,6 +73,8 @@ export function ActivityTimeline() {
     return map
   }, [events])
 
+  const containerRef = useRef<HTMLDivElement>(null)
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault()
@@ -83,11 +85,21 @@ export function ActivityTimeline() {
       const onMouseMove = (e: MouseEvent) => {
         if (!resizing.current) return
         const delta = e.clientY - startY.current
-        setTimelineHeight(Math.max(60, Math.min(400, startHeight.current + delta)))
+        const newHeight = Math.max(60, Math.min(400, startHeight.current + delta))
+        // Update DOM directly during drag to avoid React re-renders
+        if (containerRef.current) {
+          containerRef.current.style.height = `${newHeight}px`
+          const scrollArea = containerRef.current.querySelector('[data-scroll-area]') as HTMLElement
+          if (scrollArea) scrollArea.style.height = `${newHeight - 32}px`
+        }
       }
 
-      const onMouseUp = () => {
+      const onMouseUp = (e: MouseEvent) => {
         resizing.current = false
+        const delta = e.clientY - startY.current
+        const finalHeight = Math.max(60, Math.min(400, startHeight.current + delta))
+        // Commit final height to React state
+        setTimelineHeight(finalHeight)
         document.removeEventListener('mousemove', onMouseMove)
         document.removeEventListener('mouseup', onMouseUp)
       }
@@ -104,7 +116,7 @@ export function ActivityTimeline() {
 
   return (
     <TooltipProvider>
-      <div className="border-b border-border" style={{ height: timelineHeight }}>
+      <div ref={containerRef} className="border-b border-border" style={{ height: timelineHeight }}>
         <div className="flex items-center justify-between px-3 py-1 border-b border-border/50">
           <span className="text-xs text-muted-foreground font-medium">Activity</span>
           <div className="flex gap-1">
@@ -122,7 +134,7 @@ export function ActivityTimeline() {
           </div>
         </div>
 
-        <div className="overflow-y-auto" style={{ height: timelineHeight - 32 }}>
+        <div data-scroll-area className="overflow-y-auto" style={{ height: timelineHeight - 32 }}>
           {flatAgents.map(({ agent, isSubagent }, idx) => (
             <AgentLane
               key={agent.id}
