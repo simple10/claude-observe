@@ -37,10 +37,15 @@ export interface StoredEvent {
 }
 
 export interface EventStore {
-  upsertProject(id: string, name: string): Promise<void>
+  createProject(slug: string, name: string, transcriptPath: string | null): Promise<number>
+  getProjectBySlug(slug: string): Promise<any | null>
+  getProjectByTranscriptPath(transcriptPath: string): Promise<any | null>
+  updateProjectName(projectId: number, name: string): Promise<void>
+  isSlugAvailable(slug: string): Promise<boolean>
+  deleteProject(projectId: number): Promise<void>
   upsertSession(
     id: string,
-    projectId: string,
+    projectId: number,
     slug: string | null,
     metadata: Record<string, unknown> | null,
     timestamp: number,
@@ -59,10 +64,9 @@ export interface EventStore {
   updateSessionStatus(id: string, status: string): Promise<void>
   updateSessionSlug(sessionId: string, slug: string): Promise<void>
   updateAgentSlug(agentId: string, slug: string): Promise<void>
-  updateProjectDisplayName(projectId: string, displayName: string): Promise<void>
   insertEvent(params: InsertEventParams): Promise<number>
   getProjects(): Promise<any[]>
-  getSessionsForProject(projectId: string): Promise<any[]>
+  getSessionsForProject(projectId: number): Promise<any[]>
   getSessionById(sessionId: string): Promise<any | null>
   getAgentById(agentId: string): Promise<any | null>
   getAgentsForSession(sessionId: string): Promise<any[]>
@@ -71,7 +75,6 @@ export interface EventStore {
   getThreadForEvent(eventId: number): Promise<StoredEvent[]>
   getEventsSince(sessionId: string, sinceTimestamp: number): Promise<StoredEvent[]>
   deleteSession(sessionId: string): Promise<void>
-  deleteProject(projectId: string): Promise<void>
   clearAllData(): Promise<void>
   clearSessionEvents(sessionId: string): Promise<void>
   getRecentSessions(limit?: number): Promise<any[]>

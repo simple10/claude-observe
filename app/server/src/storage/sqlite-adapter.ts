@@ -20,8 +20,10 @@ export class SqliteAdapter implements EventStore {
     // Create tables
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS projects (
-        id TEXT PRIMARY KEY,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug TEXT UNIQUE NOT NULL,
         name TEXT NOT NULL,
+        transcript_path TEXT,
         created_at INTEGER NOT NULL
       )
     `)
@@ -29,13 +31,12 @@ export class SqliteAdapter implements EventStore {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
-        project_id TEXT NOT NULL,
+        project_id INTEGER NOT NULL REFERENCES projects(id),
         slug TEXT,
         status TEXT DEFAULT 'active',
         started_at INTEGER NOT NULL,
         stopped_at INTEGER,
-        metadata TEXT,
-        FOREIGN KEY (project_id) REFERENCES projects(id)
+        metadata TEXT
       )
     `)
 
@@ -71,12 +72,6 @@ export class SqliteAdapter implements EventStore {
       )
     `)
 
-    // Migration: add columns if missing (for existing DBs)
-    const projectCols = this.db.pragma('table_info(projects)') as any[]
-    if (!projectCols.some((c: any) => c.name === 'display_name')) {
-      this.db.exec('ALTER TABLE projects ADD COLUMN display_name TEXT')
-    }
-
     const cols = this.db.pragma('table_info(events)') as any[]
     if (!cols.some((c: any) => c.name === 'tool_use_id')) {
       this.db.exec('ALTER TABLE events ADD COLUMN tool_use_id TEXT')
@@ -86,6 +81,8 @@ export class SqliteAdapter implements EventStore {
     }
 
     // Create indexes
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug)')
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_projects_transcript_path ON projects(transcript_path)')
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id, timestamp)')
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_events_agent ON events(agent_id, timestamp)')
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_events_type ON events(type, subtype)')
@@ -96,20 +93,42 @@ export class SqliteAdapter implements EventStore {
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id)')
   }
 
-  async upsertProject(id: string, name: string): Promise<void> {
-    this.db
+  async createProject(slug: string, name: string, transcriptPath: string | null): Promise<number> {
+    const result = this.db
       .prepare(
         `
-      INSERT INTO projects (id, name, created_at) VALUES (?, ?, ?)
-      ON CONFLICT(id) DO NOTHING
+      INSERT INTO projects (slug, name, transcript_path, created_at) VALUES (?, ?, ?, ?)
     `,
       )
-      .run(id, name, Date.now())
+      .run(slug, name, transcriptPath, Date.now())
+    return result.lastInsertRowid as number
+  }
+
+  async getProjectBySlug(slug: string): Promise<any | null> {
+    return this.db.prepare(`SELECT * FROM projects WHERE slug = ?`).get(slug) || null
+  }
+
+  async getProjectByTranscriptPath(transcriptPath: string): Promise<any | null> {
+    return (
+      this.db.prepare(`SELECT * FROM projects WHERE transcript_path = ?`).get(transcriptPath) ||
+      null
+    )
+  }
+
+  async updateProjectName(projectId: number, name: string): Promise<void> {
+    this.db.prepare(`UPDATE projects SET name = ? WHERE id = ?`).run(name, projectId)
+  }
+
+  async isSlugAvailable(slug: string): Promise<boolean> {
+    const row = this.db
+      .prepare(`SELECT id FROM projects WHERE slug = ?`)
+      .get(slug) as { id: number } | undefined
+    return row === undefined
   }
 
   async upsertSession(
     id: string,
-    projectId: string,
+    projectId: number,
     slug: string | null,
     metadata: Record<string, unknown> | null,
     timestamp: number,
@@ -194,16 +213,6 @@ export class SqliteAdapter implements EventStore {
       .run(slug, agentId)
   }
 
-  async updateProjectDisplayName(projectId: string, displayName: string): Promise<void> {
-    this.db
-      .prepare(
-        `
-      UPDATE projects SET display_name = ? WHERE id = ?
-    `,
-      )
-      .run(displayName, projectId)
-  }
-
   async insertEvent(params: InsertEventParams): Promise<number> {
     const result = this.db
       .prepare(
@@ -232,7 +241,8 @@ export class SqliteAdapter implements EventStore {
     return this.db
       .prepare(
         `
-      SELECT p.*, COUNT(DISTINCT s.id) as session_count
+      SELECT p.id, p.slug, p.name, p.transcript_path, p.created_at,
+        COUNT(DISTINCT s.id) as session_count
       FROM projects p
       LEFT JOIN sessions s ON s.project_id = p.id
       GROUP BY p.id
@@ -242,7 +252,7 @@ export class SqliteAdapter implements EventStore {
       .all()
   }
 
-  async getSessionsForProject(projectId: string): Promise<any[]> {
+  async getSessionsForProject(projectId: number): Promise<any[]> {
     return this.db
       .prepare(
         `
@@ -369,7 +379,7 @@ export class SqliteAdapter implements EventStore {
         .all(agentId) as StoredEvent[]
     }
 
-    // For root agent events: find the turn boundary (Prompt → Stop)
+    // For root agent events: find the turn boundary (Prompt -> Stop)
     const prevPrompt = this.db
       .prepare(
         `SELECT timestamp FROM events
@@ -423,7 +433,7 @@ export class SqliteAdapter implements EventStore {
     this.db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId)
   }
 
-  async deleteProject(projectId: string): Promise<void> {
+  async deleteProject(projectId: number): Promise<void> {
     // Get all session IDs for this project
     const sessions = this.db
       .prepare('SELECT id FROM sessions WHERE project_id = ?')
@@ -453,8 +463,8 @@ export class SqliteAdapter implements EventStore {
       .prepare(
         `
       SELECT s.*,
+        p.slug as project_slug,
         p.name as project_name,
-        p.display_name as project_display_name,
         COUNT(DISTINCT a.id) as agent_count,
         COUNT(DISTINCT CASE WHEN a.status = 'active' THEN a.id END) as active_agent_count,
         COUNT(DISTINCT e.id) as event_count,
