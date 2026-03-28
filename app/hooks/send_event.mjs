@@ -12,9 +12,9 @@ if (!projectName) {
 }
 
 const eventsEndpoint =
-  process.env.CLAUDE_OBSERVE_EVENTS_ENDPOINT || 'http://127.0.0.1:4001/api/events'
+  process.env.CLAUDE_OBSERVE_EVENTS_ENDPOINT || 'http://127.0.0.1:4981/api/events'
 const endpointUrl = new URL(eventsEndpoint)
-const baseUrl = endpointUrl.origin // e.g. http://127.0.0.1:4001
+const baseUrl = endpointUrl.origin // e.g. http://127.0.0.1:4981
 
 // ── HTTP helpers ──────────────────────────────────────────
 

@@ -9,7 +9,7 @@
 set dotenv-load := true
 set quiet := true
 
-port := env("SERVER_PORT", "4001")
+port := env("SERVER_PORT", "4981")
 client_port := env("CLIENT_PORT", "5174")
 project_root := justfile_directory()
 server := project_root / "app" / "server"

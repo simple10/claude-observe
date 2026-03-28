@@ -16,7 +16,7 @@ RUN cd client && npm run build
 COPY app/server/src server/src
 COPY app/server/tsconfig.json server/
 
-EXPOSE 4001
+EXPOSE 4981
 
 WORKDIR /app/server
 CMD ["npx", "tsx", "src/index.ts"]

@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
-const serverPort = process.env.SERVER_PORT || '4001'
+const serverPort = process.env.SERVER_PORT || '4981'
 const clientPort = Number(process.env.CLIENT_PORT || '5174')
 
 const customBanner = {

@@ -1,6 +1,6 @@
 # Claude Observe
 
-Real-time observability for Claude Code agents.
+Real-time observability for Claude Code agents with powerful filtering, searching, and visualization of multi-agent sessions.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/simple10/claude-observe/main/docs/assets/dashboard2.png" alt="Claude Observe Dashboard Screenshot" />
@@ -8,6 +8,8 @@ Real-time observability for Claude Code agents.
 <p align="center">
   <img src="https://raw.githubusercontent.com/simple10/claude-observe/main/docs/assets/dashboard1.png" alt="Claude Observe Dashboard Screenshot" />
 </p>
+
+The server and dashboard run locally or remotely, allowing multiple Claude Code instances to log full session data using hooks.
 
 ## Why observability matters
 
@@ -82,7 +84,7 @@ This prints a JSON snippet with all paths pre-filled. Copy it into your Claude C
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CLAUDE_OBSERVE_PROJECT_NAME` | (required) | Name shown in the dashboard for this project |
-| `CLAUDE_OBSERVE_EVENTS_ENDPOINT` | `http://127.0.0.1:4001/api/events` | Full URL for the events endpoint |
+| `CLAUDE_OBSERVE_EVENTS_ENDPOINT` | `http://127.0.0.1:4981/api/events` | Full URL for the events endpoint |
 | `CLAUDE_OBSERVE_HOOK_SCRIPT` | (required) | Absolute path to `app/hooks/send_event.mjs` |
 
 ### 3. Verify it works
@@ -95,7 +97,7 @@ just health
 just test-event
 ```
 
-Navigate to **<http://localhost:5174>** (dev) or **<http://localhost:4001>** (Docker). You should see the test event appear. Start a Claude Code session in your configured project and events will stream in automatically.
+Navigate to **<http://localhost:5174>** (dev) or **<http://localhost:4981>** (Docker). You should see the test event appear. Start a Claude Code session in your configured project and events will stream in automatically.
 
 ## Commands
 
