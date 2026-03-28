@@ -1,8 +1,8 @@
 import { API_BASE } from '@/config/api';
 import type { Project, Session, RecentSession, Agent, ParsedEvent } from '@/types';
 
-async function fetchJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`);
+async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, init);
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
@@ -11,8 +11,8 @@ export const api = {
   getProjects: () => fetchJson<Project[]>('/projects'),
   getRecentSessions: (limit?: number) =>
     fetchJson<RecentSession[]>(`/sessions/recent${limit ? `?limit=${limit}` : ''}`),
-  getSessions: (projectId: string) =>
-    fetchJson<Session[]>(`/projects/${encodeURIComponent(projectId)}/sessions`),
+  getSessions: (projectId: number) =>
+    fetchJson<Session[]>(`/projects/${projectId}/sessions`),
   getSession: (sessionId: string) =>
     fetchJson<Session>(`/sessions/${encodeURIComponent(sessionId)}`),
   getAgents: (sessionId: string) =>
@@ -46,8 +46,8 @@ export const api = {
     fetch(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),
   clearSessionEvents: (sessionId: string) =>
     fetch(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}/events`, { method: 'DELETE' }),
-  deleteProject: (projectId: string) =>
-    fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}`, { method: 'DELETE' }),
+  deleteProject: (projectId: number) =>
+    fetchJson<void>(`/projects/${projectId}`, { method: 'DELETE' }),
   deleteAllData: () =>
     fetch(`${API_BASE}/data`, { method: 'DELETE' }),
   updateAgentMetadata: (agentId: string, data: { agentType?: string; slug?: string }) =>
@@ -62,10 +62,10 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ slug }),
     }),
-  updateProjectDisplayName: (projectId: string, displayName: string) =>
-    fetch(`${API_BASE}/projects/${encodeURIComponent(projectId)}/metadata`, {
+  renameProject: (projectId: number, name: string) =>
+    fetch(`${API_BASE}/projects/${projectId}/rename`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ displayName }),
+      body: JSON.stringify({ name }),
     }),
 };

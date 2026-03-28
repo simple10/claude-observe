@@ -1,7 +1,7 @@
 export interface Project {
-  id: string
+  id: number
+  slug: string
   name: string
-  displayName?: string | null
   createdAt: number
   sessionCount?: number
   activeAgentCount?: number
@@ -9,7 +9,7 @@ export interface Project {
 
 export interface Session {
   id: string
-  projectId: string
+  projectId: number
   slug: string | null
   status: string
   startedAt: number
@@ -49,9 +49,9 @@ export interface ParsedEvent {
 
 export interface RecentSession {
   id: string
-  projectId: string
+  projectId: number
+  projectSlug: string
   projectName: string
-  projectDisplayName?: string | null
   slug: string | null
   status: string
   startedAt: number
@@ -60,7 +60,7 @@ export interface RecentSession {
   agentCount?: number
   activeAgentCount?: number
   eventCount?: number
-  lastActivity: number | null
+  lastActivity: number
 }
 
 export type WSMessage =
