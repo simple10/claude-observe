@@ -96,7 +96,7 @@ export function ProjectList({ collapsed }: ProjectListProps) {
   const { selectedProjectId, setSelectedProjectId } = useUIStore()
   const queryClient = useQueryClient()
 
-  const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
+  const [editingProjectId, setEditingProjectId] = useState<number | null>(null)
   const [editValue, setEditValue] = useState('')
   const projectInputRef = useRef<HTMLInputElement>(null)
 
@@ -107,7 +107,7 @@ export function ProjectList({ collapsed }: ProjectListProps) {
     }
   }, [editingProjectId])
 
-  const startEditingProject = useCallback((projectId: string, currentName: string, e: React.MouseEvent) => {
+  const startEditingProject = useCallback((projectId: number, currentName: string, e: React.MouseEvent) => {
     e.stopPropagation()
     setEditingProjectId(projectId)
     setEditValue(currentName)
@@ -118,10 +118,10 @@ export function ProjectList({ collapsed }: ProjectListProps) {
     setEditValue('')
   }, [])
 
-  const saveProjectDisplayName = useCallback(async (projectId: string) => {
+  const saveProjectName = useCallback(async (projectId: number) => {
     const trimmed = editValue.trim()
     if (trimmed) {
-      await api.updateProjectDisplayName(projectId, trimmed)
+      await api.renameProject(projectId, trimmed)
       await queryClient.invalidateQueries({ queryKey: ['projects'] })
       await queryClient.invalidateQueries({ queryKey: ['recentSessions'] })
     }
@@ -146,7 +146,7 @@ export function ProjectList({ collapsed }: ProjectListProps) {
         {projects.map((project) => {
           const isSelected = selectedProjectId === project.id
           const isEditingThis = editingProjectId === project.id
-          const displayLabel = project.displayName || project.name
+          const displayLabel = project.name
 
           if (collapsed) {
             return (
@@ -193,13 +193,13 @@ export function ProjectList({ collapsed }: ProjectListProps) {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault()
-                        saveProjectDisplayName(project.id)
+                        saveProjectName(project.id)
                       } else if (e.key === 'Escape') {
                         e.preventDefault()
                         cancelEditingProject()
                       }
                     }}
-                    onBlur={() => saveProjectDisplayName(project.id)}
+                    onBlur={() => saveProjectName(project.id)}
                     onClick={(e) => e.stopPropagation()}
                   />
                 ) : (
@@ -232,7 +232,7 @@ function shortenCwd(cwd: string): string {
   return cwd.replace(/^\/(?:Users|home)\/[^/]+/, '~')
 }
 
-function SessionList({ projectId }: { projectId: string }) {
+function SessionList({ projectId }: { projectId: number }) {
   const { data: sessions } = useSessions(projectId)
   const { selectedSessionId, setSelectedSessionId } = useUIStore()
   const queryClient = useQueryClient()

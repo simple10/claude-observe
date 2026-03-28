@@ -27,12 +27,12 @@ vi.mock('@/hooks/use-sessions', () => ({
 }))
 
 const mockUpdateSessionSlug = vi.fn((_id: string, _slug: string) => Promise.resolve({ ok: true }))
-const mockUpdateProjectDisplayName = vi.fn((_id: string, _name: string) => Promise.resolve({ ok: true }))
+const mockRenameProject = vi.fn((_id: number, _name: string) => Promise.resolve({ ok: true }))
 
 vi.mock('@/lib/api-client', () => ({
   api: {
     updateSessionSlug: (id: string, slug: string) => mockUpdateSessionSlug(id, slug),
-    updateProjectDisplayName: (id: string, name: string) => mockUpdateProjectDisplayName(id, name),
+    renameProject: (id: number, name: string) => mockRenameProject(id, name),
     getProjects: vi.fn(() => Promise.resolve([])),
     getSessions: vi.fn(() => Promise.resolve([])),
   },
@@ -51,7 +51,7 @@ function setMockSessions(sessions: Session[]) {
 function makeSession(overrides: Partial<Session> = {}): Session {
   return {
     id: 'sess-1',
-    projectId: 'proj-1',
+    projectId: 1,
     slug: 'my-session',
     status: 'active',
     startedAt: Date.now() - 60000,
@@ -66,16 +66,16 @@ beforeEach(() => {
   mockProjects.length = 0
   mockSessions.length = 0
   mockUpdateSessionSlug.mockClear()
-  mockUpdateProjectDisplayName.mockClear()
+  mockRenameProject.mockClear()
 
   setMockProjects([
-    { id: 'proj-1', name: 'Test Project', createdAt: Date.now(), sessionCount: 1 },
+    { id: 1, slug: 'test-project', name: 'Test Project', createdAt: Date.now(), sessionCount: 1 },
   ])
 
   setMockSessions([makeSession()])
 
   useUIStore.setState({
-    selectedProjectId: 'proj-1',
+    selectedProjectId: 1,
     selectedSessionId: null,
     sidebarCollapsed: false,
   })
@@ -192,24 +192,13 @@ describe('ProjectList - Project rename', () => {
   it('should render a pencil edit icon on project items', () => {
     renderWithProviders(<ProjectList collapsed={false} />)
 
-    const editIcon = screen.getByTestId('edit-project-proj-1')
+    const editIcon = screen.getByTestId('edit-project-1')
     expect(editIcon).toBeInTheDocument()
   })
 
-  it('should display displayName when available instead of name', () => {
+  it('should display project name', () => {
     setMockProjects([
-      { id: 'proj-1', name: 'test-project', displayName: 'My Custom Name', createdAt: Date.now(), sessionCount: 1 },
-    ])
-
-    renderWithProviders(<ProjectList collapsed={false} />)
-
-    expect(screen.getByText('My Custom Name')).toBeInTheDocument()
-    expect(screen.queryByText('test-project')).not.toBeInTheDocument()
-  })
-
-  it('should fall back to name when displayName is null', () => {
-    setMockProjects([
-      { id: 'proj-1', name: 'Test Project', displayName: null, createdAt: Date.now(), sessionCount: 1 },
+      { id: 1, slug: 'test-project', name: 'Test Project', createdAt: Date.now(), sessionCount: 1 },
     ])
 
     renderWithProviders(<ProjectList collapsed={false} />)
@@ -220,7 +209,7 @@ describe('ProjectList - Project rename', () => {
   it('should enter edit mode when project pencil icon is clicked', () => {
     renderWithProviders(<ProjectList collapsed={false} />)
 
-    const editIcon = screen.getByTestId('edit-project-proj-1')
+    const editIcon = screen.getByTestId('edit-project-1')
     fireEvent.click(editIcon)
 
     const input = screen.getByDisplayValue('Test Project')
@@ -228,10 +217,10 @@ describe('ProjectList - Project rename', () => {
     expect(input.tagName).toBe('INPUT')
   })
 
-  it('should save the display name when Enter is pressed', async () => {
+  it('should save the name when Enter is pressed', async () => {
     renderWithProviders(<ProjectList collapsed={false} />)
 
-    const editIcon = screen.getByTestId('edit-project-proj-1')
+    const editIcon = screen.getByTestId('edit-project-1')
     fireEvent.click(editIcon)
 
     const input = screen.getByDisplayValue('Test Project')
@@ -239,14 +228,14 @@ describe('ProjectList - Project rename', () => {
     fireEvent.keyDown(input, { key: 'Enter' })
 
     await waitFor(() => {
-      expect(mockUpdateProjectDisplayName).toHaveBeenCalledWith('proj-1', 'Renamed Project')
+      expect(mockRenameProject).toHaveBeenCalledWith(1, 'Renamed Project')
     })
   })
 
   it('should cancel editing when Escape is pressed without saving', () => {
     renderWithProviders(<ProjectList collapsed={false} />)
 
-    const editIcon = screen.getByTestId('edit-project-proj-1')
+    const editIcon = screen.getByTestId('edit-project-1')
     fireEvent.click(editIcon)
 
     const input = screen.getByDisplayValue('Test Project')
@@ -254,13 +243,13 @@ describe('ProjectList - Project rename', () => {
     fireEvent.keyDown(input, { key: 'Escape' })
 
     expect(screen.queryByDisplayValue('Renamed Project')).not.toBeInTheDocument()
-    expect(mockUpdateProjectDisplayName).not.toHaveBeenCalled()
+    expect(mockRenameProject).not.toHaveBeenCalled()
   })
 
-  it('should save the display name on blur', async () => {
+  it('should save the name on blur', async () => {
     renderWithProviders(<ProjectList collapsed={false} />)
 
-    const editIcon = screen.getByTestId('edit-project-proj-1')
+    const editIcon = screen.getByTestId('edit-project-1')
     fireEvent.click(editIcon)
 
     const input = screen.getByDisplayValue('Test Project')
@@ -268,14 +257,14 @@ describe('ProjectList - Project rename', () => {
     fireEvent.blur(input)
 
     await waitFor(() => {
-      expect(mockUpdateProjectDisplayName).toHaveBeenCalledWith('proj-1', 'Blur Saved')
+      expect(mockRenameProject).toHaveBeenCalledWith(1, 'Blur Saved')
     })
   })
 
-  it('should not call API when saving an empty display name', async () => {
+  it('should not call API when saving an empty name', async () => {
     renderWithProviders(<ProjectList collapsed={false} />)
 
-    const editIcon = screen.getByTestId('edit-project-proj-1')
+    const editIcon = screen.getByTestId('edit-project-1')
     fireEvent.click(editIcon)
 
     const input = screen.getByDisplayValue('Test Project')
@@ -286,18 +275,18 @@ describe('ProjectList - Project rename', () => {
       expect(screen.queryByDisplayValue('  ')).not.toBeInTheDocument()
     })
 
-    expect(mockUpdateProjectDisplayName).not.toHaveBeenCalled()
+    expect(mockRenameProject).not.toHaveBeenCalled()
   })
 
   it('should not toggle project expand/collapse when clicking the pencil icon', () => {
-    // Project is already expanded (selectedProjectId = 'proj-1')
+    // Project is already expanded (selectedProjectId = 1)
     renderWithProviders(<ProjectList collapsed={false} />)
 
-    const editIcon = screen.getByTestId('edit-project-proj-1')
+    const editIcon = screen.getByTestId('edit-project-1')
     fireEvent.click(editIcon)
 
     // Should still be expanded (selectedProjectId should not have changed)
     const state = useUIStore.getState()
-    expect(state.selectedProjectId).toBe('proj-1')
+    expect(state.selectedProjectId).toBe(1)
   })
 })

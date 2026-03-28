@@ -28,7 +28,7 @@ interface SessionListProps {
 export function SessionList({ sessions, showProject = false }: SessionListProps) {
   const { setSelectedProjectId, setSelectedSessionId } = useUIStore()
 
-  const handleSessionClick = (projectId: string, sessionId: string) => {
+  const handleSessionClick = (projectId: number, sessionId: string) => {
     setSelectedProjectId(projectId)
     setTimeout(() => setSelectedSessionId(sessionId), 0)
   }
@@ -53,8 +53,7 @@ export function SessionList({ sessions, showProject = false }: SessionListProps)
             : null
         const activeAgents = session.activeAgentCount ?? 0
         const lastTime = ('lastActivity' in session && session.lastActivity) || session.startedAt
-        const projectDisplayName = 'projectDisplayName' in session ? session.projectDisplayName : null
-        const projectName = projectDisplayName || ('projectName' in session ? session.projectName : null)
+        const projectName = 'projectName' in session ? session.projectName : null
 
         return (
           <button
