@@ -41,23 +41,23 @@ else
   # Ensure data directory exists
   mkdir -p "$DATA_DIR"
 
-  # Check for stopped container
+  # Check for stopped container — remove it so we always use the latest image
   if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-    log "Starting stopped container..."
-    docker start "$CONTAINER_NAME" >/dev/null
-  else
-    log "Pulling image and starting container..."
-    docker pull "$IMAGE" 2>&1 | tail -1 >&2
-    docker run -d \
-      --name "$CONTAINER_NAME" \
-      -p "${PORT}:${PORT}" \
-      -e "SERVER_PORT=${PORT}" \
-      -e "DB_PATH=/data/observe.db" \
-      -e "CLIENT_DIST_PATH=/app/client/dist" \
-      -e "ENABLE_WEBSOCKET=true" \
-      -v "${DATA_DIR}:/data" \
-      "$IMAGE" >/dev/null
+    log "Removing stopped container to pull latest image..."
+    docker rm "$CONTAINER_NAME" >/dev/null 2>&1
   fi
+
+  log "Pulling image and starting container..."
+  docker pull "$IMAGE" 2>&1 | tail -1 >&2
+  docker run -d \
+    --name "$CONTAINER_NAME" \
+    -p "${PORT}:${PORT}" \
+    -e "SERVER_PORT=${PORT}" \
+    -e "DB_PATH=/data/observe.db" \
+    -e "CLIENT_DIST_PATH=/app/client/dist" \
+    -e "ENABLE_WEBSOCKET=true" \
+    -v "${DATA_DIR}:/data" \
+    "$IMAGE" >/dev/null
 
   # Wait for health check
   log "Waiting for server to start..."

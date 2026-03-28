@@ -230,7 +230,7 @@ Run `/observe status` to check if the server is running. If the container doesn'
 
 1. **Is the server running?** Run `just health` to check.
 2. **Is the hook script configured?** Run `just setup-hooks my-project` and verify the output matches your `.claude/settings.json`.
-3. **Is `CLAUDE_OBSERVE_PROJECT_NAME` set?** If this env var is missing, the hook script will log a warning and skip events.
+3. **Is `CLAUDE_OBSERVE_PROJECT_NAME` set?** If this env var is missing, the hook script derives the project name from the working directory basename. Set it explicitly if you want a custom name.
 4. **Can the hook reach the server?** Run `just test-event` — if the event appears in the dashboard, the server is reachable.
 5. **Is the hook script path correct?** The `CLAUDE_OBSERVE_HOOK_SCRIPT` must be an absolute path to `hooks/scripts/send_event.mjs`. Check for typos.
 

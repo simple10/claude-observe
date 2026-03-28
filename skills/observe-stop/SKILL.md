@@ -12,7 +12,7 @@ Stop the Claude Observe Docker container.
 
 1. Run this command to stop and remove the container:
    ```bash
-   docker stop claude-observe 2>/dev/null && docker rm claude-observe 2>/dev/null
+   docker stop claude-observe 2>/dev/null; docker rm claude-observe 2>/dev/null
    ```
 
 2. If successful:
