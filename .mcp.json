@@ -1,0 +1,6 @@
+{
+  "claude-observe": {
+    "command": "bash",
+    "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/scripts/manage_server.sh"]
+  }
+}
