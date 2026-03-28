@@ -39,19 +39,20 @@ describe('ui-store', () => {
       expect(state.selectedSessionId).toBeNull()
     })
 
-    it('should update hash when setting project', () => {
-      useUIStore.getState().setSelectedProjectId('proj-1')
-      expect(window.location.hash).toBe('#/proj-1')
+    it('should update hash when setting project (no session)', () => {
+      useUIStore.getState().setSelectedProjectId(1)
+      // Session-first routing: hash only includes session, not project
+      expect(window.location.hash).toBe('#/')
     })
 
     it('should update hash when setting session', () => {
-      useUIStore.getState().setSelectedProjectId('proj-1')
+      useUIStore.getState().setSelectedProjectId(1)
       useUIStore.getState().setSelectedSessionId('sess-1')
-      expect(window.location.hash).toBe('#/proj-1/sess-1')
+      expect(window.location.hash).toBe('#/sess-1')
     })
 
     it('should clear session from hash when project is set to null', () => {
-      useUIStore.getState().setSelectedProjectId('proj-1')
+      useUIStore.getState().setSelectedProjectId(1)
       useUIStore.getState().setSelectedSessionId('sess-1')
       useUIStore.getState().setSelectedProjectId(null)
       expect(window.location.hash).toBe('#/')
@@ -59,11 +60,11 @@ describe('ui-store', () => {
     })
 
     it('should clear session when a new project is selected', () => {
-      useUIStore.getState().setSelectedProjectId('proj-1')
+      useUIStore.getState().setSelectedProjectId(1)
       useUIStore.getState().setSelectedSessionId('sess-1')
-      useUIStore.getState().setSelectedProjectId('proj-2')
+      useUIStore.getState().setSelectedProjectId(2)
       expect(useUIStore.getState().selectedSessionId).toBeNull()
-      expect(window.location.hash).toBe('#/proj-2')
+      expect(window.location.hash).toBe('#/')
     })
   })
 
@@ -72,15 +73,15 @@ describe('ui-store', () => {
   describe('project/session selection state transitions', () => {
     it('should set project ID and clear session and agent IDs', () => {
       useUIStore.getState().setSelectedAgentIds(['agent-1'])
-      useUIStore.getState().setSelectedProjectId('proj-1')
+      useUIStore.getState().setSelectedProjectId(1)
       const state = useUIStore.getState()
-      expect(state.selectedProjectId).toBe('proj-1')
+      expect(state.selectedProjectId).toBe(1)
       expect(state.selectedSessionId).toBeNull()
       expect(state.selectedAgentIds).toEqual([])
     })
 
     it('should set session ID and clear agent IDs', () => {
-      useUIStore.getState().setSelectedProjectId('proj-1')
+      useUIStore.getState().setSelectedProjectId(1)
       useUIStore.getState().setSelectedAgentIds(['agent-1'])
       useUIStore.getState().setSelectedSessionId('sess-1')
       const state = useUIStore.getState()
@@ -89,7 +90,7 @@ describe('ui-store', () => {
     })
 
     it('should deselect session when set to null', () => {
-      useUIStore.getState().setSelectedProjectId('proj-1')
+      useUIStore.getState().setSelectedProjectId(1)
       useUIStore.getState().setSelectedSessionId('sess-1')
       useUIStore.getState().setSelectedSessionId(null)
       expect(useUIStore.getState().selectedSessionId).toBeNull()
@@ -100,7 +101,7 @@ describe('ui-store', () => {
 
   describe('per-session filter state save/restore', () => {
     it('should save filter state when switching sessions', () => {
-      useUIStore.getState().setSelectedProjectId('proj-1')
+      useUIStore.getState().setSelectedProjectId(1)
       useUIStore.getState().setSelectedSessionId('sess-1')
 
       // Apply some filters in session 1
@@ -121,22 +122,22 @@ describe('ui-store', () => {
     })
 
     it('should save filter state when switching projects', () => {
-      useUIStore.getState().setSelectedProjectId('proj-1')
+      useUIStore.getState().setSelectedProjectId(1)
       useUIStore.getState().setSelectedSessionId('sess-1')
       useUIStore.getState().toggleStaticFilter('Prompts')
 
       // Switch to a different project -- session filters saved
-      useUIStore.getState().setSelectedProjectId('proj-2')
+      useUIStore.getState().setSelectedProjectId(2)
       expect(useUIStore.getState().activeStaticFilters).toEqual([])
 
       // Come back to proj-1, sess-1
-      useUIStore.getState().setSelectedProjectId('proj-1')
+      useUIStore.getState().setSelectedProjectId(1)
       useUIStore.getState().setSelectedSessionId('sess-1')
       expect(useUIStore.getState().activeStaticFilters).toEqual(['Prompts'])
     })
 
     it('should save searchQuery per session', () => {
-      useUIStore.getState().setSelectedProjectId('proj-1')
+      useUIStore.getState().setSelectedProjectId(1)
       useUIStore.getState().setSelectedSessionId('sess-1')
       useUIStore.getState().setSearchQuery('hello')
 

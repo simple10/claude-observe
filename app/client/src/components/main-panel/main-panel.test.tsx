@@ -54,7 +54,7 @@ describe('MainPanel routing', () => {
   })
 
   it('should render ProjectPage when project is selected but no session', () => {
-    useUIStore.setState({ selectedProjectId: 'proj-1' })
+    useUIStore.setState({ selectedProjectId: 1 })
 
     renderWithProviders(<MainPanel />)
 
@@ -66,7 +66,7 @@ describe('MainPanel routing', () => {
 
   it('should render full session view when project and session are selected', () => {
     useUIStore.setState({
-      selectedProjectId: 'proj-1',
+      selectedProjectId: 1,
       selectedSessionId: 'sess-1',
     })
 
@@ -82,7 +82,7 @@ describe('MainPanel routing', () => {
 
   it('should transition from session view back to ProjectPage when session is deselected', () => {
     useUIStore.setState({
-      selectedProjectId: 'proj-1',
+      selectedProjectId: 1,
       selectedSessionId: 'sess-1',
     })
 
@@ -98,7 +98,7 @@ describe('MainPanel routing', () => {
   })
 
   it('should transition from ProjectPage to HomePage when project is deselected', () => {
-    useUIStore.setState({ selectedProjectId: 'proj-1' })
+    useUIStore.setState({ selectedProjectId: 1 })
 
     const { rerender } = renderWithProviders(<MainPanel />)
     expect(screen.getByTestId('project-page')).toBeInTheDocument()

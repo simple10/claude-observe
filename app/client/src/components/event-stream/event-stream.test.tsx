@@ -79,7 +79,7 @@ beforeEach(() => {
 
   // Reset UI store
   useUIStore.setState({
-    selectedProjectId: 'proj-1',
+    selectedProjectId: 1,
     selectedSessionId: 'sess-1',
     selectedAgentIds: [],
     activeStaticFilters: [],
