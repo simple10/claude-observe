@@ -3,10 +3,10 @@
 Real-time observability for Claude Code agents with powerful filtering, searching, and visualization of multi-agent sessions.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/simple10/claude-observe/main/docs/assets/dashboard2.png" alt="Claude Observe Dashboard Screenshot" />
+  <img src="https://raw.githubusercontent.com/simple10/claude-observe/main/docs/assets/dashboard1.png" alt="Claude Observe Dashboard Screenshot" />
 </p>
 <p align="center">
-  <img src="https://raw.githubusercontent.com/simple10/claude-observe/main/docs/assets/dashboard1.png" alt="Claude Observe Dashboard Screenshot" />
+  <img src="https://raw.githubusercontent.com/simple10/claude-observe/main/docs/assets/dashboard2.png" alt="Claude Observe Dashboard Screenshot - Expanded Row" />
 </p>
 
 The server and dashboard run locally or remotely, allowing multiple Claude Code instances to log full session data using hooks.
@@ -21,18 +21,20 @@ The server and dashboard run locally or remotely, allowing multiple Claude Code 
 ### Install
 
 1. Add the marketplace:
+
    ```bash
    claude plugin marketplace add simple10/claude-observe
    ```
 
 2. Install the plugin:
+
    ```bash
    claude plugin install claude-observe
    ```
 
 3. Restart Claude Code.
 
-That's it. On your next session, the server auto-starts as a Docker container and hooks begin capturing events. Open **http://localhost:4981** to see the dashboard.
+That's it. On your next session, the server auto-starts as a Docker container and hooks begin capturing events. Open **<http://localhost:4981>** to see the dashboard.
 
 ## Plugin Skills
 
@@ -83,12 +85,15 @@ The hook script is a dumb pipe — it reads the raw event from stdin, adds the p
 git clone https://github.com/simple10/claude-observe.git claude-observe
 cd claude-observe
 
-# For local dev
+# Install just if needed
+brew install just
+
+# Start the docker container
+just start
+
+# Or start local dev servers
 just install
 just dev
-
-# Or start as a docker container
-just start
 ```
 
 See [justfile](./justfile) for additional commands.
@@ -218,6 +223,7 @@ The plugin requires Docker to run the server. Make sure Docker Desktop (or the D
 **Port 4981 in use?**
 
 If another process is using port 4981, stop it or remove a stale container:
+
 ```bash
 docker stop claude-observe && docker rm claude-observe
 ```
