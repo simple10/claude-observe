@@ -28,7 +28,8 @@ router.delete('/sessions/:id/events', async (c) => {
 // DELETE /projects/:id — delete a project and all its sessions, agents, events
 router.delete('/projects/:id', async (c) => {
   const store = c.get('store')
-  const projectId = decodeURIComponent(c.req.param('id'))
+  const projectId = Number(c.req.param('id'))
+  if (isNaN(projectId)) return c.json({ error: 'Invalid project ID' }, 400)
   await store.deleteProject(projectId)
   return c.json({ ok: true })
 })

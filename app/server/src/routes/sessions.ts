@@ -23,7 +23,7 @@ router.get('/sessions/recent', async (c) => {
     id: r.id,
     projectId: r.project_id,
     projectName: r.project_name,
-    projectDisplayName: r.project_display_name || null,
+    projectSlug: r.project_slug,
     slug: r.slug,
     status: r.status,
     startedAt: r.started_at,
