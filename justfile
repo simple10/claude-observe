@@ -29,7 +29,7 @@ start:
     @echo ""
     @echo "Waiting for server..."
     @for i in $(seq 1 15); do \
-      if curl -sf http://localhost:{{ port }}/api/projects >/dev/null 2>&1; then \
+      if curl -sf http://localhost:{{ port }}/api/health >/dev/null 2>&1; then \
         echo "Ready: http://localhost:{{ port }}"; \
         break; \
       fi; \
@@ -123,7 +123,7 @@ setup-hooks project_name:
 
 # Check server health
 health:
-    @curl -sf http://localhost:{{ port }}/api/projects > /dev/null 2>&1 \
+    @curl -sf http://localhost:{{ port }}/api/health > /dev/null 2>&1 \
       && echo "Server: UP (http://localhost:{{ port }})" \
       || echo "Server: DOWN (port {{ port }})"
 

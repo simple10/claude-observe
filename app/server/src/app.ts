@@ -12,6 +12,7 @@ import sessionsRouter from './routes/sessions'
 import agentsRouter from './routes/agents'
 import adminRouter from './routes/admin'
 import pollRouter from './routes/poll'
+import healthRouter from './routes/health'
 
 type Env = { Variables: { store: EventStore; broadcast: (msg: object) => void } }
 
@@ -33,6 +34,7 @@ export function createApp(store: EventStore, broadcast: (msg: object) => void) {
   app.route('/api', agentsRouter)
   app.route('/api', adminRouter)
   app.route('/api', pollRouter)
+  app.route('/api', healthRouter)
 
   // Serve built client static files when CLIENT_DIST_PATH is set
   const clientDistPath = process.env.CLIENT_DIST_PATH

@@ -9,7 +9,7 @@ CONTAINER_NAME="claude-observe"
 IMAGE="ghcr.io/simple10/claude-observe:latest"
 PORT=4981
 DATA_DIR="$HOME/.claude-observe/data"
-HEALTH_URL="http://127.0.0.1:${PORT}/api/projects"
+HEALTH_URL="http://127.0.0.1:${PORT}/api/health"
 
 log() { echo "[claude-observe] $*" >&2; }
 

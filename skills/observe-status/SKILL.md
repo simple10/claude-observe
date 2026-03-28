@@ -16,7 +16,7 @@ Check the Claude Observe server status.
    docker ps -a --filter name=claude-observe --format "Name: {{.Names}}\nStatus: {{.Status}}\nPorts: {{.Ports}}"
    echo ""
    echo "=== Health Check ==="
-   curl -sf http://127.0.0.1:4981/api/projects && echo "Server: healthy" || echo "Server: not responding"
+   curl -sf http://127.0.0.1:4981/api/health && echo "Server: healthy" || echo "Server: not responding"
    ```
 
 2. Report the results to the user:

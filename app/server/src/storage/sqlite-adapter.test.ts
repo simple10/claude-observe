@@ -1033,3 +1033,13 @@ describe('SqliteAdapter — deletion', () => {
     expect(agents).toHaveLength(0)
   })
 })
+
+// ---------------------------------------------------------------------------
+// Health check
+// ---------------------------------------------------------------------------
+describe('SqliteAdapter — healthCheck', () => {
+  test('returns ok for a healthy database', async () => {
+    const result = await store.healthCheck()
+    expect(result).toEqual({ ok: true })
+  })
+})

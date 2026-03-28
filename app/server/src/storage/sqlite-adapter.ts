@@ -470,4 +470,26 @@ export class SqliteAdapter implements EventStore {
       )
       .all(limit)
   }
+
+  async healthCheck(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      const row = this.db.prepare('SELECT 1 AS ok').get() as { ok: number } | undefined
+      if (row?.ok !== 1) return { ok: false, error: 'SQLite query returned unexpected result' }
+
+      // Verify tables exist
+      const tables = this.db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('projects','sessions','events','agents')")
+        .all() as { name: string }[]
+      if (tables.length < 4) {
+        const missing = ['projects', 'sessions', 'events', 'agents'].filter(
+          (t) => !tables.some((r) => r.name === t),
+        )
+        return { ok: false, error: `Missing tables: ${missing.join(', ')}` }
+      }
+
+      return { ok: true }
+    } catch (err: any) {
+      return { ok: false, error: err.message || 'Unknown database error' }
+    }
+  }
 }

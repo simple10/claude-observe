@@ -12,7 +12,7 @@ Check if the Claude Observe server is running and show the dashboard URL.
 
 1. Run this command to check if the server is running:
    ```bash
-   curl -sf http://127.0.0.1:4981/api/projects
+   curl -sf http://127.0.0.1:4981/api/health
    ```
 
 2. If the command succeeds (exit code 0):
