@@ -49,10 +49,7 @@ sed -i '' "s|ghcr.io/simple10/claude-observe:[^'\"]*|ghcr.io/simple10/claude-obs
 
 echo ""
 echo "=== Running tests ==="
-cd app/server && npm test
-cd ../..
-cd app/client && npm test
-cd ../..
+npm test
 
 echo ""
 echo "=== Building Docker image ==="
