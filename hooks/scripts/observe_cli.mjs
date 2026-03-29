@@ -110,7 +110,8 @@ function hookCommand() {
 async function healthCommand() {
   const result = await getJson(`${config.apiBaseUrl}/health`)
   if (result.status === 200 && result.body?.ok) {
-    console.log(`Claude Observe is running (v${result.body.version}). Dashboard: ${config.baseOrigin}`)
+    const ver = result.body.version ? ` (v${result.body.version})` : ''
+    console.log(`Claude Observe is running${ver}. Dashboard: ${config.baseOrigin}`)
     process.exit(0)
   } else if (result.status === 0) {
     console.log(`Claude Observe server is not running at ${config.baseOrigin}`)
