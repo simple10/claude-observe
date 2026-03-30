@@ -24,7 +24,8 @@ export class SqliteAdapter implements EventStore {
         slug TEXT UNIQUE NOT NULL,
         name TEXT NOT NULL,
         transcript_path TEXT,
-        created_at INTEGER NOT NULL
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
       )
     `)
 
@@ -36,7 +37,9 @@ export class SqliteAdapter implements EventStore {
         status TEXT DEFAULT 'active',
         started_at INTEGER NOT NULL,
         stopped_at INTEGER,
-        metadata TEXT
+        metadata TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
       )
     `)
 
@@ -47,10 +50,9 @@ export class SqliteAdapter implements EventStore {
         parent_agent_id TEXT,
         slug TEXT,
         name TEXT,
-        status TEXT DEFAULT 'active',
-        started_at INTEGER NOT NULL,
-        stopped_at INTEGER,
         agent_type TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
         FOREIGN KEY (session_id) REFERENCES sessions(id),
         FOREIGN KEY (parent_agent_id) REFERENCES agents(id)
       )
@@ -67,18 +69,12 @@ export class SqliteAdapter implements EventStore {
         summary TEXT,
         timestamp INTEGER NOT NULL,
         payload TEXT NOT NULL,
+        tool_use_id TEXT,
+        status TEXT DEFAULT 'pending',
         FOREIGN KEY (agent_id) REFERENCES agents(id),
         FOREIGN KEY (session_id) REFERENCES sessions(id)
       )
     `)
-
-    const cols = this.db.pragma('table_info(events)') as any[]
-    if (!cols.some((c: any) => c.name === 'tool_use_id')) {
-      this.db.exec('ALTER TABLE events ADD COLUMN tool_use_id TEXT')
-    }
-    if (!cols.some((c: any) => c.name === 'status')) {
-      this.db.exec("ALTER TABLE events ADD COLUMN status TEXT DEFAULT 'pending'")
-    }
 
     // Create indexes
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug)')
@@ -94,13 +90,10 @@ export class SqliteAdapter implements EventStore {
   }
 
   async createProject(slug: string, name: string, transcriptPath: string | null): Promise<number> {
+    const now = Date.now()
     const result = this.db
-      .prepare(
-        `
-      INSERT INTO projects (slug, name, transcript_path, created_at) VALUES (?, ?, ?, ?)
-    `,
-      )
-      .run(slug, name, transcriptPath, Date.now())
+      .prepare('INSERT INTO projects (slug, name, transcript_path, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
+      .run(slug, name, transcriptPath, now, now)
     return result.lastInsertRowid as number
   }
 
@@ -116,7 +109,7 @@ export class SqliteAdapter implements EventStore {
   }
 
   async updateProjectName(projectId: number, name: string): Promise<void> {
-    this.db.prepare(`UPDATE projects SET name = ? WHERE id = ?`).run(name, projectId)
+    this.db.prepare('UPDATE projects SET name = ?, updated_at = ? WHERE id = ?').run(name, Date.now(), projectId)
   }
 
   async isSlugAvailable(slug: string): Promise<boolean> {
@@ -133,17 +126,19 @@ export class SqliteAdapter implements EventStore {
     metadata: Record<string, unknown> | null,
     timestamp: number,
   ): Promise<void> {
+    const now = Date.now()
     this.db
       .prepare(
         `
-      INSERT INTO sessions (id, project_id, slug, status, started_at, metadata)
-      VALUES (?, ?, ?, 'active', ?, ?)
+      INSERT INTO sessions (id, project_id, slug, status, started_at, metadata, created_at, updated_at)
+      VALUES (?, ?, ?, 'active', ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         slug = COALESCE(excluded.slug, sessions.slug),
-        metadata = COALESCE(excluded.metadata, sessions.metadata)
+        metadata = COALESCE(excluded.metadata, sessions.metadata),
+        updated_at = ?
     `,
       )
-      .run(id, projectId, slug, timestamp, metadata ? JSON.stringify(metadata) : null)
+      .run(id, projectId, slug, timestamp, metadata ? JSON.stringify(metadata) : null, now, now, now)
   }
 
   async upsertAgent(
@@ -152,35 +147,26 @@ export class SqliteAdapter implements EventStore {
     parentAgentId: string | null,
     slug: string | null,
     name: string | null,
-    timestamp: number,
     agentType?: string | null,
   ): Promise<void> {
+    const now = Date.now()
     this.db
       .prepare(
         `
-      INSERT INTO agents (id, session_id, parent_agent_id, slug, name, status, started_at, agent_type)
-      VALUES (?, ?, ?, ?, ?, 'active', ?, ?)
+      INSERT INTO agents (id, session_id, parent_agent_id, slug, name, agent_type, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         slug = COALESCE(excluded.slug, agents.slug),
         name = COALESCE(excluded.name, agents.name),
-        agent_type = COALESCE(excluded.agent_type, agents.agent_type)
+        agent_type = COALESCE(excluded.agent_type, agents.agent_type),
+        updated_at = ?
     `,
       )
-      .run(id, sessionId, parentAgentId, slug, name, timestamp, agentType ?? null)
+      .run(id, sessionId, parentAgentId, slug, name, agentType ?? null, now, now, now)
   }
 
   async updateAgentType(id: string, agentType: string): Promise<void> {
-    this.db.prepare(`UPDATE agents SET agent_type = ? WHERE id = ?`).run(agentType, id)
-  }
-
-  async updateAgentStatus(id: string, status: string): Promise<void> {
-    this.db
-      .prepare(
-        `
-      UPDATE agents SET status = ?, stopped_at = ? WHERE id = ?
-    `,
-      )
-      .run(status, status === 'stopped' ? Date.now() : null, id)
+    this.db.prepare('UPDATE agents SET agent_type = ?, updated_at = ? WHERE id = ?').run(agentType, Date.now(), id)
   }
 
   async updateSessionStatus(id: string, status: string): Promise<void> {
@@ -204,13 +190,7 @@ export class SqliteAdapter implements EventStore {
   }
 
   async updateAgentSlug(agentId: string, slug: string): Promise<void> {
-    this.db
-      .prepare(
-        `
-      UPDATE agents SET slug = ? WHERE id = ?
-    `,
-      )
-      .run(slug, agentId)
+    this.db.prepare('UPDATE agents SET slug = ?, updated_at = ? WHERE id = ?').run(slug, Date.now(), agentId)
   }
 
   async insertEvent(params: InsertEventParams): Promise<number> {
@@ -258,7 +238,6 @@ export class SqliteAdapter implements EventStore {
         `
       SELECT s.*,
         COUNT(DISTINCT a.id) as agent_count,
-        COUNT(DISTINCT CASE WHEN a.status = 'active' THEN a.id END) as active_agent_count,
         COUNT(DISTINCT e.id) as event_count
       FROM sessions s
       LEFT JOIN agents a ON a.session_id = s.id
@@ -278,7 +257,6 @@ export class SqliteAdapter implements EventStore {
           `
       SELECT s.*,
         COUNT(DISTINCT a.id) as agent_count,
-        COUNT(DISTINCT CASE WHEN a.status = 'active' THEN a.id END) as active_agent_count,
         COUNT(DISTINCT e.id) as event_count
       FROM sessions s
       LEFT JOIN agents a ON a.session_id = s.id
@@ -297,17 +275,7 @@ export class SqliteAdapter implements EventStore {
 
   async getAgentsForSession(sessionId: string): Promise<any[]> {
     return this.db
-      .prepare(
-        `
-      SELECT a.*,
-        COUNT(DISTINCT e.id) as event_count
-      FROM agents a
-      LEFT JOIN events e ON e.agent_id = a.id
-      WHERE a.session_id = ?
-      GROUP BY a.id
-      ORDER BY a.started_at ASC
-    `,
-      )
+      .prepare('SELECT * FROM agents WHERE session_id = ? ORDER BY created_at ASC')
       .all(sessionId)
   }
 
@@ -466,7 +434,6 @@ export class SqliteAdapter implements EventStore {
         p.slug as project_slug,
         p.name as project_name,
         COUNT(DISTINCT a.id) as agent_count,
-        COUNT(DISTINCT CASE WHEN a.status = 'active' THEN a.id END) as active_agent_count,
         COUNT(DISTINCT e.id) as event_count,
         MAX(e.timestamp) as last_activity
       FROM sessions s
