@@ -1,19 +1,54 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { WS_URL } from '@/config/api'
-import type { WSMessage } from '@/types'
+import type { WSMessage, WSClientMessage, ParsedEvent } from '@/types'
 
-export function useWebSocket() {
+const WS_URL = `ws://${window.location.host}/api/events/stream`
+
+export function useWebSocket(sessionId: string | null) {
   const queryClient = useQueryClient()
   const wsRef = useRef<WebSocket | null>(null)
   const [connected, setConnected] = useState(false)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const sessionIdRef = useRef(sessionId)
+  sessionIdRef.current = sessionId
 
-  const invalidateAll = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['events'] })
-    queryClient.invalidateQueries({ queryKey: ['agents'] })
-    queryClient.invalidateQueries({ queryKey: ['sessions'] })
-    queryClient.invalidateQueries({ queryKey: ['projects'] })
+  const sendMessage = useCallback((msg: WSClientMessage) => {
+    const ws = wsRef.current
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(msg))
+    }
+  }, [])
+
+  // Send subscribe/unsubscribe when sessionId changes
+  useEffect(() => {
+    if (!connected) return
+    if (sessionId) {
+      sendMessage({ type: 'subscribe', sessionId })
+    } else {
+      sendMessage({ type: 'unsubscribe' })
+    }
+  }, [sessionId, connected, sendMessage])
+
+  const handleMessage = useCallback((msg: WSMessage) => {
+    if (msg.type === 'event') {
+      // Append directly to the events cache for the current session
+      const event = msg.data as ParsedEvent
+      const currentSessionId = sessionIdRef.current
+      if (currentSessionId && event.sessionId === currentSessionId) {
+        queryClient.setQueryData<ParsedEvent[]>(
+          ['events', currentSessionId],
+          (old) => old ? [...old, event] : [event],
+        )
+      }
+      // Also invalidate agents — new events may introduce new subagents
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+    } else if (msg.type === 'agent_update') {
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+    } else if (msg.type === 'session_update') {
+      queryClient.invalidateQueries({ queryKey: ['sessions'] })
+    } else if (msg.type === 'project_update') {
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    }
   }, [queryClient])
 
   useEffect(() => {
@@ -29,18 +64,17 @@ export function useWebSocket() {
         ws.onopen = () => {
           setConnected(true)
           console.log('[WS] Connected')
+          // Subscribe to current session on reconnect
+          const sid = sessionIdRef.current
+          if (sid) {
+            ws.send(JSON.stringify({ type: 'subscribe', sessionId: sid }))
+          }
         }
 
-        ws.onmessage = (event) => {
+        ws.onmessage = (wsEvent) => {
           try {
-            const msg: WSMessage = JSON.parse(event.data)
-            if (
-              msg.type === 'event' ||
-              msg.type === 'agent_update' ||
-              msg.type === 'session_update'
-            ) {
-              invalidateAll()
-            }
+            const msg: WSMessage = JSON.parse(wsEvent.data)
+            handleMessage(msg)
           } catch {}
         }
 
@@ -66,7 +100,7 @@ export function useWebSocket() {
       wsRef.current?.close()
       wsRef.current = null
     }
-  }, [invalidateAll])
+  }, [handleMessage])
 
   return { connected }
 }
