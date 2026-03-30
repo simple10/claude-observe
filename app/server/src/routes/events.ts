@@ -8,7 +8,8 @@ import { resolveProject } from '../services/project-resolver'
 type Env = {
   Variables: {
     store: EventStore
-    broadcast: (msg: object) => void
+    broadcastToSession: (sessionId: string, msg: object) => void
+    broadcastToAll: (msg: object) => void
   }
 }
 
@@ -50,7 +51,8 @@ async function ensureRootAgent(
 // POST /events
 router.post('/events', async (c) => {
   const store = c.get('store')
-  const broadcast = c.get('broadcast')
+  const broadcastToSession = c.get('broadcastToSession')
+  const broadcastToAll = c.get('broadcastToAll')
 
   try {
     const body = await c.req.json()
@@ -213,18 +215,18 @@ router.post('/events', async (c) => {
     // Session status is independent: only SessionEnd marks a session as stopped.
     if (parsed.subtype === 'Stop' || parsed.subtype === 'stop_hook_summary') {
       await store.updateAgentStatus(rootAgentId, 'stopped')
-      broadcast({
+      broadcastToSession(parsed.sessionId, {
         type: 'agent_update',
         data: { id: rootAgentId, status: 'stopped', sessionId: parsed.sessionId },
       })
     } else if (parsed.subtype === 'SessionEnd') {
       await store.updateAgentStatus(rootAgentId, 'stopped')
       await store.updateSessionStatus(parsed.sessionId, 'stopped')
-      broadcast({
+      broadcastToSession(parsed.sessionId, {
         type: 'agent_update',
         data: { id: rootAgentId, status: 'stopped', sessionId: parsed.sessionId },
       })
-      broadcast({
+      broadcastToAll({
         type: 'session_update',
         data: { id: parsed.sessionId, status: 'stopped' },
       })
@@ -233,7 +235,7 @@ router.post('/events', async (c) => {
       const agent = await store.getAgentById(rootAgentId)
       if (agent && agent.status === 'stopped') {
         await store.updateAgentStatus(rootAgentId, 'active')
-        broadcast({
+        broadcastToSession(parsed.sessionId, {
           type: 'agent_update',
           data: { id: rootAgentId, status: 'active', sessionId: parsed.sessionId },
         })
@@ -241,7 +243,7 @@ router.post('/events', async (c) => {
       const session = await store.getSessionById(parsed.sessionId)
       if (session && session.status === 'stopped') {
         await store.updateSessionStatus(parsed.sessionId, 'active')
-        broadcast({
+        broadcastToAll({
           type: 'session_update',
           data: { id: parsed.sessionId, status: 'active' },
         })
@@ -291,7 +293,7 @@ router.post('/events', async (c) => {
       payload: parsed.raw,
     }
 
-    broadcast({ type: 'event', data: event })
+    broadcastToSession(parsed.sessionId, { type: 'event', data: event })
 
     // Build response -- request local data if the server is missing info
     const requests: Array<{ cmd: string; args: Record<string, unknown>; callback: string }> = []

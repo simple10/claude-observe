@@ -6,7 +6,8 @@ import type { Agent, ParsedEvent } from '../types'
 type Env = {
   Variables: {
     store: EventStore
-    broadcast: (msg: object) => void
+    broadcastToSession: (sessionId: string, msg: object) => void
+    broadcastToAll: (msg: object) => void
   }
 }
 
@@ -166,7 +167,7 @@ router.get('/sessions/:id/events', async (c) => {
 // POST /sessions/:id/metadata
 router.post('/sessions/:id/metadata', async (c) => {
   const store = c.get('store')
-  const broadcast = c.get('broadcast')
+  const broadcastToAll = c.get('broadcastToAll')
 
   try {
     const sessionId = decodeURIComponent(c.req.param('id'))
@@ -181,7 +182,7 @@ router.post('/sessions/:id/metadata', async (c) => {
       }
 
       // Notify clients
-      broadcast({ type: 'session_update', data: { id: sessionId, slug: data.slug } as any })
+      broadcastToAll({ type: 'session_update', data: { id: sessionId, slug: data.slug } as any })
     }
 
     return c.json({ ok: true })

@@ -13,9 +13,19 @@ import agentsRouter from './routes/agents'
 import adminRouter from './routes/admin'
 import healthRouter from './routes/health'
 
-type Env = { Variables: { store: EventStore; broadcast: (msg: object) => void } }
+type Env = {
+  Variables: {
+    store: EventStore
+    broadcastToSession: (sessionId: string, msg: object) => void
+    broadcastToAll: (msg: object) => void
+  }
+}
 
-export function createApp(store: EventStore, broadcast: (msg: object) => void) {
+export function createApp(
+  store: EventStore,
+  broadcastToSession: (sessionId: string, msg: object) => void,
+  broadcastToAll: (msg: object) => void,
+) {
   const app = new Hono<Env>()
 
   app.use('*', cors())
@@ -23,7 +33,8 @@ export function createApp(store: EventStore, broadcast: (msg: object) => void) {
   // Inject store and broadcast into all routes
   app.use('*', async (c, next) => {
     c.set('store', store)
-    c.set('broadcast', broadcast)
+    c.set('broadcastToSession', broadcastToSession)
+    c.set('broadcastToAll', broadcastToAll)
     await next()
   })
 

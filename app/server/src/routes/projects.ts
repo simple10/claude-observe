@@ -2,7 +2,13 @@ import { Hono } from 'hono'
 import type { EventStore } from '../storage/types'
 import type { Project } from '../types'
 
-type Env = { Variables: { store: EventStore; broadcast: (msg: object) => void } }
+type Env = {
+  Variables: {
+    store: EventStore
+    broadcastToSession: (sessionId: string, msg: object) => void
+    broadcastToAll: (msg: object) => void
+  }
+}
 
 const router = new Hono<Env>()
 
@@ -42,7 +48,7 @@ router.get('/projects/:id/sessions', async (c) => {
 
 router.post('/projects/:id/rename', async (c) => {
   const store = c.get('store')
-  const broadcast = c.get('broadcast')
+  const broadcastToAll = c.get('broadcastToAll')
   const projectId = Number(c.req.param('id'))
   if (isNaN(projectId)) return c.json({ error: 'Invalid project ID' }, 400)
 
@@ -52,7 +58,7 @@ router.post('/projects/:id/rename', async (c) => {
       return c.json({ error: 'name is required' }, 400)
     }
     await store.updateProjectName(projectId, name.trim())
-    broadcast({ type: 'project_update', data: { id: projectId, name: name.trim() } })
+    broadcastToAll({ type: 'project_update', data: { id: projectId, name: name.trim() } })
     return c.json({ ok: true })
   } catch {
     return c.json({ error: 'Invalid request' }, 400)
