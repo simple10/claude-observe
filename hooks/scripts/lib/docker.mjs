@@ -99,7 +99,6 @@ export async function startServer(config) {
     '-e', `CLAUDE_OBSERVE_SERVER_PORT=${containerPort}`,
     '-e', 'CLAUDE_OBSERVE_DB_PATH=/data/observe.db',
     '-e', 'CLAUDE_OBSERVE_CLIENT_DIST_PATH=/app/client/dist',
-    '-e', 'CLAUDE_OBSERVE_WEBSOCKET=true',
     '-v', `${config.dataDir}:/data`,
     config.dockerImage,
   ])
@@ -116,8 +115,7 @@ export async function startServer(config) {
       '-e', `CLAUDE_OBSERVE_SERVER_PORT=${containerPort}`,
       '-e', 'CLAUDE_OBSERVE_DB_PATH=/data/observe.db',
       '-e', 'CLAUDE_OBSERVE_CLIENT_DIST_PATH=/app/client/dist',
-      '-e', 'CLAUDE_OBSERVE_WEBSOCKET=true',
-      '-v', `${config.dataDir}:/data`,
+        '-v', `${config.dataDir}:/data`,
       config.dockerImage,
     ])
 
