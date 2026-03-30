@@ -2,7 +2,8 @@ import { memo, useRef, useEffect, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { getEventIcon, getEventColor } from '@/config/event-icons'
 import { getEventSummary } from '@/lib/event-summary'
-import { getAgentDisplayName, getAgentColorById } from '@/lib/agent-utils'
+import { getAgentColorById } from '@/lib/agent-utils'
+import { AgentLabel } from '@/components/shared/agent-label'
 import { useUIStore } from '@/stores/ui-store'
 import { EventDetail } from './event-detail'
 import { Check, X, Loader } from 'lucide-react'
@@ -71,8 +72,8 @@ export const EventRow = memo(function EventRow({ event, agentMap, agentColorMap,
   }, [event.id, onRowRef])
 
   const agent = agentMap.get(event.agentId)
-  const agentName = agent ? getAgentDisplayName(agent) : event.agentId.slice(0, 8)
   const isSubagent = agent?.parentAgentId != null
+  const parentAgent = agent?.parentAgentId ? agentMap.get(agent.parentAgentId) : null
   const agentColors = getAgentColorById(event.agentId, agentColorMap)
   const Icon = getEventIcon(event.subtype, event.toolName)
   const { iconColor, customHex } = getEventColor(event.subtype, event.toolName)
@@ -137,7 +138,11 @@ export const EventRow = memo(function EventRow({ event, agentMap, agentColorMap,
         {showAgentLabel && (
           <div className={cn('text-[10px] opacity-90 dark:opacity-60 leading-tight', agentColors.textOnly)}>
             {isSubagent ? '↳ ' : ''}
-            {agentName}
+            {agent ? (
+              <AgentLabel agent={agent} parentAgent={parentAgent} />
+            ) : (
+              event.agentId.slice(0, 8)
+            )}
           </div>
         )}
 

@@ -4,7 +4,8 @@ import { getEventIcon, getEventColor } from '@/config/event-icons'
 import { getEventSummary } from '@/lib/event-summary'
 import { useUIStore } from '@/stores/ui-store'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import type { ParsedEvent } from '@/types'
+import { AgentLabel } from '@/components/shared/agent-label'
+import type { Agent, ParsedEvent } from '@/types'
 
 // Renders event dots with CSS-driven drift animation.
 // Each dot mounts at its current position and CSS-transitions to -5% (off-screen).
@@ -65,8 +66,8 @@ function DotContainer({
 }
 
 interface AgentLaneProps {
-  agentId: string
-  agentName: string
+  agent: Agent
+  parentAgent?: Agent | null
   events: ParsedEvent[]
   allEvents: ParsedEvent[]
   isSubagent: boolean
@@ -86,7 +87,8 @@ function tooltipLabel(event: ParsedEvent): string {
   return map[event.subtype || ''] || event.subtype || event.type
 }
 
-export function AgentLane({ agentId, agentName, events, allEvents, isSubagent, color }: AgentLaneProps) {
+export function AgentLane({ agent, parentAgent, events, allEvents, isSubagent, color }: AgentLaneProps) {
+  const agentId = agent.id
   const { timeRange, setScrollToEventId, iconCustomizationVersion } = useUIStore()
 
   const rangeMs = useMemo(() => {
@@ -149,11 +151,10 @@ export function AgentLane({ agentId, agentName, events, allEvents, isSubagent, c
     <div className="flex items-center h-8 border-b border-border/30">
       <button
         className={cn('w-40 shrink-0 text-[10px] truncate px-2 text-left cursor-pointer hover:underline', color, isSubagent ? 'opacity-80 dark:opacity-50' : 'opacity-100 dark:opacity-70')}
-        title={agentName}
         onClick={handleAgentNameClick}
       >
         {isSubagent ? '↳ ' : ''}
-        {agentName}
+        <AgentLabel agent={agent} parentAgent={parentAgent} />
       </button>
 
       <div className="flex-1 relative h-full overflow-hidden">

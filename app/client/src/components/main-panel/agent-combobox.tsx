@@ -3,6 +3,7 @@ import { useEvents } from '@/hooks/use-events'
 import { useAgents } from '@/hooks/use-agents'
 import { useUIStore } from '@/stores/ui-store'
 import { getAgentDisplayName, buildAgentColorMap, getAgentColorById } from '@/lib/agent-utils'
+import { AgentLabel } from '@/components/shared/agent-label'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -66,6 +67,7 @@ export function AgentCombobox() {
   }, [open, agents])
 
   const agentColorMap = useMemo(() => buildAgentColorMap(agents), [agents])
+  const agentMap = useMemo(() => new Map(agents.map((a) => [a.id, a])), [agents])
 
   const activeCount = agents.filter((a) => a.status === 'active').length
   const selectedAgents = agents.filter((a) => selectedAgentIds.includes(a.id))
@@ -125,7 +127,6 @@ export function AgentCombobox() {
               <CommandGroup heading={`${agents.length} agents`}>
                 {sortedAgents.map((agent) => {
                   const isSelected = selectedAgentIds.includes(agent.id)
-                  const displayName = getAgentDisplayName(agent)
                   const isMain = !agent.parentAgentId
                   const agentColor = getAgentColorById(agent.id, agentColorMap)
 
@@ -151,9 +152,11 @@ export function AgentCombobox() {
                         )}
                       />
                       <div className="flex flex-col min-w-0 flex-1">
-                        <span className={cn('truncate', isMain && 'font-medium', agentColor.textOnly)}>
-                          {displayName}
-                        </span>
+                        <AgentLabel
+                          agent={agent}
+                          parentAgent={agent.parentAgentId ? agentMap.get(agent.parentAgentId) : null}
+                          className={cn('truncate', isMain && 'font-medium', agentColor.textOnly)}
+                        />
                         {!isMain && (
                           <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/50 font-mono">
                             {agent.agentType && <span>{agent.agentType}</span>}
@@ -193,7 +196,11 @@ export function AgentCombobox() {
               agent.status === 'active' ? 'bg-green-500' : 'bg-muted-foreground/40',
             )}
           />
-          <span className={chipColor.textOnly}>{getAgentDisplayName(agent)}</span>
+          <AgentLabel
+            agent={agent}
+            parentAgent={agent.parentAgentId ? agentMap.get(agent.parentAgentId) : null}
+            className={chipColor.textOnly}
+          />
           <button
             className="ml-0.5 hover:text-foreground"
             onClick={(e) => {
