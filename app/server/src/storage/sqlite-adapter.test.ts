@@ -13,7 +13,7 @@ beforeEach(() => {
 async function seedBasic() {
   const projectId = await store.createProject('proj1', 'Project 1', '/path/proj1')
   await store.upsertSession('sess1', projectId, 'my-session', null, 1000)
-  await store.upsertAgent('a1', 'sess1', null, null, null, 1000)
+  await store.upsertAgent('a1', 'sess1', null, null, null)
   return { projectId, sessionId: 'sess1', rootAgentId: 'a1' }
 }
 
@@ -138,8 +138,8 @@ describe('SqliteAdapter — sessions', () => {
   test('getSessionsForProject returns aggregated counts', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, 1000)
-    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', 1000)
+    await store.upsertAgent('a1', 'sess1', null, null, null)
+    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub')
     await store.insertEvent({
       agentId: 'a1',
       sessionId: 'sess1',
@@ -199,8 +199,8 @@ describe('SqliteAdapter — agents', () => {
   test('upsert agent with parent and name', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, 'root-slug', null, 1000)
-    await store.upsertAgent('a2', 'sess1', 'a1', null, 'ls-subagent', 1000)
+    await store.upsertAgent('a1', 'sess1', null, 'root-slug', null)
+    await store.upsertAgent('a2', 'sess1', 'a1', null, 'ls-subagent')
 
     const agents = await store.getAgentsForSession('sess1')
     expect(agents).toHaveLength(2)
@@ -212,7 +212,7 @@ describe('SqliteAdapter — agents', () => {
   test('upsertAgent with agentType', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, 1000, 'code-writer')
+    await store.upsertAgent('a1', 'sess1', null, null, null, 'code-writer')
 
     const agent = await store.getAgentById('a1')
     expect(agent).not.toBeNull()
@@ -222,10 +222,10 @@ describe('SqliteAdapter — agents', () => {
   test('upsertAgent updates agent_type via COALESCE on conflict', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, 1000)
+    await store.upsertAgent('a1', 'sess1', null, null, null)
     expect((await store.getAgentById('a1')).agent_type).toBeNull()
 
-    await store.upsertAgent('a1', 'sess1', null, null, null, 1000, 'researcher')
+    await store.upsertAgent('a1', 'sess1', null, null, null, 'researcher')
     expect((await store.getAgentById('a1')).agent_type).toBe('researcher')
   })
 
@@ -237,42 +237,19 @@ describe('SqliteAdapter — agents', () => {
   test('getAgentById returns a single agent', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, 'my-slug', 'my-agent', 1000)
+    await store.upsertAgent('a1', 'sess1', null, 'my-slug', 'my-agent')
 
     const agent = await store.getAgentById('a1')
     expect(agent.id).toBe('a1')
     expect(agent.session_id).toBe('sess1')
     expect(agent.slug).toBe('my-slug')
     expect(agent.name).toBe('my-agent')
-    expect(agent.status).toBe('active')
-  })
-
-  test('updateAgentStatus sets status and stopped_at for "stopped"', async () => {
-    const projId = await store.createProject('proj1', 'Project 1', null)
-    await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, 1000)
-
-    await store.updateAgentStatus('a1', 'stopped')
-    const agent = await store.getAgentById('a1')
-    expect(agent.status).toBe('stopped')
-    expect(agent.stopped_at).toBeGreaterThan(0)
-  })
-
-  test('updateAgentStatus with non-stopped status sets stopped_at to null', async () => {
-    const projId = await store.createProject('proj1', 'Project 1', null)
-    await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, 1000)
-
-    await store.updateAgentStatus('a1', 'active')
-    const agent = await store.getAgentById('a1')
-    expect(agent.status).toBe('active')
-    expect(agent.stopped_at).toBeNull()
   })
 
   test('updateAgentSlug', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, 'old-slug', null, 1000)
+    await store.upsertAgent('a1', 'sess1', null, 'old-slug', null)
 
     await store.updateAgentSlug('a1', 'new-slug')
     const agent = await store.getAgentById('a1')
@@ -282,17 +259,17 @@ describe('SqliteAdapter — agents', () => {
   test('updateAgentType', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, 1000)
+    await store.upsertAgent('a1', 'sess1', null, null, null)
 
     await store.updateAgentType('a1', 'debugger')
     const agent = await store.getAgentById('a1')
     expect(agent.agent_type).toBe('debugger')
   })
 
-  test('getAgentsForSession includes event_count', async () => {
+  test('getAgentsForSession returns agents', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, 1000)
+    await store.upsertAgent('a1', 'sess1', null, null, null)
     await store.insertEvent({
       agentId: 'a1',
       sessionId: 'sess1',
@@ -316,7 +293,6 @@ describe('SqliteAdapter — agents', () => {
 
     const agents = await store.getAgentsForSession('sess1')
     expect(agents).toHaveLength(1)
-    expect(agents[0].event_count).toBe(2)
   })
 })
 
@@ -391,8 +367,8 @@ describe('SqliteAdapter — events', () => {
   test('getEventsForAgent returns only that agent events', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, 1000)
-    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', 1000)
+    await store.upsertAgent('a1', 'sess1', null, null, null)
+    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub')
 
     await store.insertEvent({
       agentId: 'a1',
@@ -472,8 +448,8 @@ describe('SqliteAdapter — event filtering', () => {
   async function seedWithMixedEvents() {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, 1000)
-    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', 1000)
+    await store.upsertAgent('a1', 'sess1', null, null, null)
+    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub')
 
     await store.insertEvent({
       agentId: 'a1',
@@ -607,8 +583,8 @@ describe('SqliteAdapter — getThreadForEvent', () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
     // Root agent has same id as session
-    await store.upsertAgent('sess1', 'sess1', null, null, null, 1000)
-    await store.upsertAgent('sub1', 'sess1', 'sess1', null, 'sub', 1000)
+    await store.upsertAgent('sess1', 'sess1', null, null, null)
+    await store.upsertAgent('sub1', 'sess1', 'sess1', null, 'sub')
 
     await store.insertEvent({
       agentId: 'sess1',
@@ -660,8 +636,8 @@ describe('SqliteAdapter — getThreadForEvent', () => {
   test('SubagentStop event: returns all events for that agent', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('sess1', 'sess1', null, null, null, 1000)
-    await store.upsertAgent('sub1', 'sess1', 'sess1', null, 'sub', 1000)
+    await store.upsertAgent('sess1', 'sess1', null, null, null)
+    await store.upsertAgent('sub1', 'sess1', 'sess1', null, 'sub')
 
     await store.insertEvent({
       agentId: 'sub1',
@@ -699,7 +675,7 @@ describe('SqliteAdapter — getThreadForEvent', () => {
   test('root agent event: returns turn between UserPromptSubmit and Stop', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('sess1', 'sess1', null, null, null, 1000)
+    await store.upsertAgent('sess1', 'sess1', null, null, null)
 
     // Turn 1
     await store.insertEvent({
@@ -770,7 +746,7 @@ describe('SqliteAdapter — getThreadForEvent', () => {
   test('root agent event with no subsequent boundary returns all remaining events', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('sess1', 'sess1', null, null, null, 1000)
+    await store.upsertAgent('sess1', 'sess1', null, null, null)
 
     await store.insertEvent({
       agentId: 'sess1',
@@ -812,7 +788,7 @@ describe('SqliteAdapter — getThreadForEvent', () => {
   test('root agent event with no preceding UserPromptSubmit uses startTs=0', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 500)
-    await store.upsertAgent('sess1', 'sess1', null, null, null, 500)
+    await store.upsertAgent('sess1', 'sess1', null, null, null)
 
     // No UserPromptSubmit, just a tool event
     const toolId = await store.insertEvent({
@@ -851,8 +827,8 @@ describe('SqliteAdapter — getRecentSessions', () => {
     await store.upsertSession('sess1', projId, 'first', null, 1000)
     await store.upsertSession('sess2', projId, 'second', null, 2000)
 
-    await store.upsertAgent('a1', 'sess1', null, null, null, 1000)
-    await store.upsertAgent('a2', 'sess2', null, null, null, 2000)
+    await store.upsertAgent('a1', 'sess1', null, null, null)
+    await store.upsertAgent('a2', 'sess2', null, null, null)
 
     await store.insertEvent({
       agentId: 'a1',
@@ -897,8 +873,8 @@ describe('SqliteAdapter — getRecentSessions', () => {
   test('returns aggregated counts', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, 1000)
-    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', 1000)
+    await store.upsertAgent('a1', 'sess1', null, null, null)
+    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub')
 
     await store.insertEvent({
       agentId: 'a1',
@@ -921,7 +897,7 @@ describe('SqliteAdapter — getRecentSessions', () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess-no-events', projId, null, null, 9000)
     await store.upsertSession('sess-with-events', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess-with-events', null, null, null, 1000)
+    await store.upsertAgent('a1', 'sess-with-events', null, null, null)
     await store.insertEvent({
       agentId: 'a1',
       sessionId: 'sess-with-events',
@@ -949,8 +925,8 @@ describe('SqliteAdapter — deletion', () => {
   test('deleteSession removes session, agents, and events but keeps project', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, 1000)
-    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', 1000)
+    await store.upsertAgent('a1', 'sess1', null, null, null)
+    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub')
     await store.insertEvent({
       agentId: 'a1',
       sessionId: 'sess1',
@@ -978,8 +954,8 @@ describe('SqliteAdapter — deletion', () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
     await store.upsertSession('sess2', projId, null, null, 2000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, 1000)
-    await store.upsertAgent('a2', 'sess2', null, null, null, 2000)
+    await store.upsertAgent('a1', 'sess1', null, null, null)
+    await store.upsertAgent('a2', 'sess2', null, null, null)
     await store.insertEvent({
       agentId: 'a1',
       sessionId: 'sess1',
@@ -1027,7 +1003,7 @@ describe('SqliteAdapter — deletion', () => {
   test('clearAllData empties all tables', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, 1000)
+    await store.upsertAgent('a1', 'sess1', null, null, null)
     await store.insertEvent({
       agentId: 'a1',
       sessionId: 'sess1',
@@ -1047,7 +1023,7 @@ describe('SqliteAdapter — deletion', () => {
   test('clearSessionEvents removes events and agents but keeps the session', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, 'my-session', null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, 1000)
+    await store.upsertAgent('a1', 'sess1', null, null, null)
     await store.insertEvent({
       agentId: 'a1',
       sessionId: 'sess1',
