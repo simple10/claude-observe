@@ -16,7 +16,6 @@ export function EventStream() {
     selectedAgentIds,
     activeStaticFilters,
     activeToolFilters,
-    searchQuery,
     autoFollow,
     expandAllCounter,
     expandAllEvents,
@@ -29,20 +28,9 @@ export function EventStream() {
 
   const queryClient = useQueryClient()
 
-  const { data: events } = useEvents(selectedSessionId, {
-    search: searchQuery || undefined,
-  })
+  const { data: events } = useEvents(selectedSessionId)
 
   const { data: agents } = useAgents(selectedSessionId)
-
-  // After events load, refetch sessions so the server's lazy status
-  // correction (in GET /sessions/:id/events) is reflected in the sidebar
-  const eventsLength = events?.length ?? 0
-  useEffect(() => {
-    if (eventsLength > 0) {
-      queryClient.invalidateQueries({ queryKey: ['sessions'] })
-    }
-  }, [selectedSessionId, eventsLength, queryClient])
 
   const agentMap = useMemo(() => {
     const map = new Map<string, Agent>()
