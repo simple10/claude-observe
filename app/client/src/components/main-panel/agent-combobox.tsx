@@ -170,18 +170,16 @@ export function AgentCombobox() {
                         <Badge variant="outline" className="text-[9px] h-3.5 px-1">
                           {agent.eventCount}
                         </Badge>
-                        {!isMain && (
-                          <button
-                            className="opacity-40 hover:opacity-100 transition-opacity"
-                            title="Copy agent ID"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              navigator.clipboard.writeText(agent.id)
-                            }}
-                          >
-                            <Copy className="h-3 w-3" />
-                          </button>
-                        )}
+                        <button
+                          className="opacity-40 hover:opacity-100 transition-opacity"
+                          title="Copy agent ID"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            navigator.clipboard.writeText(agent.id)
+                          }}
+                        >
+                          <Copy className="h-3 w-3" />
+                        </button>
                       </div>
                     </CommandItem>
                   )
