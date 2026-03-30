@@ -16,6 +16,7 @@ export function EventStream() {
     selectedAgentIds,
     activeStaticFilters,
     activeToolFilters,
+    searchQuery,
     autoFollow,
     expandAllCounter,
     expandAllEvents,
@@ -25,6 +26,7 @@ export function EventStream() {
   // Defer filter values so the UI stays responsive during filter changes
   const deferredStaticFilters = useDeferredValue(activeStaticFilters)
   const deferredToolFilters = useDeferredValue(activeToolFilters)
+  const deferredSearchQuery = useDeferredValue(searchQuery)
 
   const queryClient = useQueryClient()
 
@@ -115,8 +117,21 @@ export function EventStream() {
       filtered = filtered.filter((e) => eventMatchesFilters(e, deferredStaticFilters, deferredToolFilters))
     }
 
+    // Text search — case-insensitive substring match across key fields and payload
+    if (deferredSearchQuery) {
+      const q = deferredSearchQuery.toLowerCase()
+      filtered = filtered.filter((e) => {
+        if (e.toolName?.toLowerCase().includes(q)) return true
+        if (e.subtype?.toLowerCase().includes(q)) return true
+        if (e.type?.toLowerCase().includes(q)) return true
+        // Search stringified payload
+        if (JSON.stringify(e.payload).toLowerCase().includes(q)) return true
+        return false
+      })
+    }
+
     return filtered
-  }, [deduped, selectedAgentIds, spawnToolUseIds, deferredStaticFilters, deferredToolFilters])
+  }, [deduped, selectedAgentIds, spawnToolUseIds, deferredStaticFilters, deferredToolFilters, deferredSearchQuery])
 
   // Auto-detect agent types from event payloads and patch agents missing their type.
   // Sources: SubagentStart payload.agent_type, event-level payload.agent_type
