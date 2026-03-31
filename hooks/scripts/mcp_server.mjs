@@ -10,7 +10,6 @@ import { createLogger } from './lib/logger.mjs'
 
 const config = getConfig()
 const log = createLogger('mcp.log')
-const persist = (process.env.AGENTS_OBSERVE_SERVER_PERSIST || 'true').toLowerCase() !== 'false'
 
 async function main() {
   const actualPort = await startServer(config)
@@ -22,7 +21,7 @@ async function main() {
   log.info(`Dashboard: http://127.0.0.1:${actualPort}`)
 
   const cleanup = async () => {
-    if (!persist) {
+    if (!config.mcpPersist) {
       await stopServer(config)
     }
     process.exit(0)

@@ -4,10 +4,16 @@
 import { request } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 
+// Auto timeout requests if they don't return in 5 seconds
+const HTTP_DEFAULT_TIMEOUT = 5000
+
 export function httpRequest(url, options, body) {
   const parsed = new URL(url)
   const transport = parsed.protocol === 'https:' ? httpsRequest : request
   const fireAndForget = options.fireAndForget || false
+  const log = options.log
+
+  log && log.trace(`Sending HTTP ${options.method} request: ${url}`)
 
   return new Promise((resolve) => {
     const req = transport(
@@ -17,7 +23,7 @@ export function httpRequest(url, options, body) {
         path: parsed.pathname + parsed.search,
         method: options.method || 'GET',
         headers: options.headers || {},
-        timeout: 5000,
+        timeout: HTTP_DEFAULT_TIMEOUT,
       },
       (res) => {
         let data = ''
@@ -35,15 +41,18 @@ export function httpRequest(url, options, body) {
     )
 
     if (fireAndForget) {
+      log && log.trace('HTTP fire and forget enabled: unref socket to exit early')
       req.on('socket', (socket) => {
         socket.unref()
       })
     }
 
     req.on('error', (err) => {
+      log && log.error(`HTTP request failed: ${err}`)
       resolve({ status: 0, body: null, error: err.message })
     })
     req.on('timeout', () => {
+      log && log.warn(`HTTP request timed out: ${url}`)
       req.destroy()
       resolve({ status: 0, body: null, error: 'timeout' })
     })
@@ -52,7 +61,7 @@ export function httpRequest(url, options, body) {
   })
 }
 
-export function postJson(url, data, opts = {}) {
+export function postJson(url, data, { fireAndForget = false, log } = {}) {
   const body = JSON.stringify(data)
   return httpRequest(
     url,
@@ -62,12 +71,13 @@ export function postJson(url, data, opts = {}) {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body),
       },
-      fireAndForget: opts.fireAndForget || false,
+      fireAndForget,
+      log,
     },
     body,
   )
 }
 
-export function getJson(url) {
-  return httpRequest(url, { method: 'GET' }, null)
+export function getJson(url, { log } = {}) {
+  return httpRequest(url, { method: 'GET', log }, null)
 }
