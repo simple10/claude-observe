@@ -8,8 +8,11 @@
   "private": true,
   "scripts": {
     "start": "node start.mjs",
-    "test": "cd app/server && npm test && cd ../client && npm test",
+    "test": "vitest run && cd app/server && npm test && cd ../client && npm test",
     "test:server:watch": "cd app/server && npm run test:watch",
     "test:client:watch": "cd app/server && npm run test:watch"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
   }
 }
