@@ -51,7 +51,6 @@ export function SessionList({ sessions, showProject = false }: SessionListProps)
           typeof session.metadata?.cwd === 'string'
             ? session.metadata.cwd
             : null
-        const activeAgents = session.activeAgentCount ?? 0
         const lastTime = ('lastActivity' in session && session.lastActivity) || session.startedAt
         const projectName = 'projectName' in session ? session.projectName : null
 
@@ -79,14 +78,6 @@ export function SessionList({ sessions, showProject = false }: SessionListProps)
                 {label}
               </span>
               <div className="flex items-center gap-1.5 ml-auto shrink-0">
-                {activeAgents > 0 && (
-                  <Badge
-                    variant="secondary"
-                    className="text-[10px] h-4 px-1.5 border-green-500/30"
-                  >
-                    {activeAgents} active
-                  </Badge>
-                )}
                 {session.eventCount != null && session.eventCount > 0 && (
                   <Badge
                     variant="outline"

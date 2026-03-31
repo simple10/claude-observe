@@ -32,7 +32,6 @@ router.get('/sessions/recent', async (c) => {
     stoppedAt: r.stopped_at,
     metadata: r.metadata ? JSON.parse(r.metadata) : null,
     agentCount: r.agent_count,
-    activeAgentCount: r.active_agent_count,
     eventCount: r.event_count,
     lastActivity: r.last_activity,
   }))
@@ -54,7 +53,6 @@ router.get('/sessions/:id', async (c) => {
     stoppedAt: row.stopped_at,
     metadata: row.metadata ? JSON.parse(row.metadata) : null,
     agentCount: row.agent_count,
-    activeAgentCount: row.active_agent_count,
     eventCount: row.event_count,
   })
 })

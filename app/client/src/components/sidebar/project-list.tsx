@@ -292,13 +292,10 @@ function SessionList({ projectId }: { projectId: number }) {
             const isEditing = editingSessionId === session.id
             const label = session.slug || session.id.slice(0, 8)
             const cwd = typeof session.metadata?.cwd === 'string' ? session.metadata.cwd : null
-            const activeAgents = session.activeAgentCount ?? 0
-
             const statusLabel = session.status === 'active' ? 'Active' : 'Ended'
             const tooltipLines = [
               statusLabel,
               cwd,
-              activeAgents > 0 ? `${activeAgents} active agent${activeAgents !== 1 ? 's' : ''}` : null,
             ].filter(Boolean)
 
             return (

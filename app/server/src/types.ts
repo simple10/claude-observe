@@ -3,30 +3,36 @@
 // === Database Row Types ===
 
 export interface ProjectRow {
-  id: string
+  id: number
+  slug: string
   name: string
+  transcript_path: string | null
   created_at: number
+  updated_at: number
 }
 
 export interface SessionRow {
   id: string
-  project_id: string
+  project_id: number
   slug: string | null
   status: string
   started_at: number
   stopped_at: number | null
   metadata: string | null
+  created_at: number
+  updated_at: number
 }
 
 export interface AgentRow {
   id: string
   session_id: string
   parent_agent_id: string | null
-  slug: string | null
   name: string | null
-  status: string
-  started_at: number
-  stopped_at: number | null
+  description: string | null
+  agent_type: string | null
+  agent_class: string
+  created_at: number
+  updated_at: number
 }
 
 export interface EventRow {
@@ -39,6 +45,8 @@ export interface EventRow {
   summary: string | null
   timestamp: number
   payload: string
+  tool_use_id: string | null
+  status: string
 }
 
 // === API Response Types ===
@@ -50,7 +58,6 @@ export interface Project {
   transcriptPath?: string | null
   createdAt: number
   sessionCount?: number
-  activeAgentCount?: number
 }
 
 export interface Session {
@@ -62,7 +69,6 @@ export interface Session {
   stoppedAt: number | null
   metadata: Record<string, unknown> | null
   agentCount?: number
-  activeAgentCount?: number
   eventCount?: number
 }
 

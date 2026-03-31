@@ -4,7 +4,6 @@ export interface Project {
   name: string
   createdAt: number
   sessionCount?: number
-  activeAgentCount?: number
 }
 
 export interface Session {
@@ -16,7 +15,6 @@ export interface Session {
   stoppedAt: number | null
   metadata: Record<string, unknown> | null
   agentCount?: number
-  activeAgentCount?: number
   eventCount?: number
 }
 
@@ -62,7 +60,6 @@ export interface RecentSession {
   stoppedAt: number | null
   metadata: Record<string, unknown> | null
   agentCount?: number
-  activeAgentCount?: number
   eventCount?: number
   lastActivity: number
 }
