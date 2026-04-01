@@ -6,6 +6,7 @@
 import { createInterface } from 'node:readline'
 import { getConfig } from './lib/config.mjs'
 import { startServer, stopServer } from './lib/docker.mjs'
+import { getJson } from './lib/http.mjs'
 import { createLogger } from './lib/logger.mjs'
 
 const config = getConfig()
@@ -21,6 +22,7 @@ async function main() {
   log.info(`Dashboard: http://127.0.0.1:${actualPort}`)
 
   const cleanup = async () => {
+    clearInterval(healthInterval)
     if (!config.mcpPersist) {
       await stopServer(config)
     }
@@ -28,6 +30,31 @@ async function main() {
   }
   process.on('SIGTERM', cleanup)
   process.on('SIGINT', cleanup)
+
+  // Periodic health check — exit if the Docker container goes down
+  const HEALTH_CHECK_INTERVAL = 10_000
+  const HEALTH_CHECK_MAX_FAILURES = 3
+  let healthFailures = 0
+  const healthUrl = `http://127.0.0.1:${actualPort}/api/health`
+
+  const healthInterval = setInterval(async () => {
+    try {
+      const result = await getJson(healthUrl)
+      if (result.status === 200 && result.body?.ok) {
+        healthFailures = 0
+      } else {
+        healthFailures++
+        log.warn(`Health check failed (${healthFailures}/${HEALTH_CHECK_MAX_FAILURES})`)
+      }
+    } catch {
+      healthFailures++
+      log.warn(`Health check error (${healthFailures}/${HEALTH_CHECK_MAX_FAILURES})`)
+    }
+    if (healthFailures >= HEALTH_CHECK_MAX_FAILURES) {
+      log.error('Docker container is unreachable, exiting MCP server')
+      await cleanup()
+    }
+  }, HEALTH_CHECK_INTERVAL)
 
   // MCP JSON-RPC protocol on stdio
   const rl = createInterface({ input: process.stdin })
