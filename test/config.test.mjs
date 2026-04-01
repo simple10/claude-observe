@@ -94,8 +94,8 @@ describe('config', () => {
     expect(cfg.logLevel).toBe('trace')
   })
 
-  it('defaults logLevel to empty string', async () => {
+  it('defaults logLevel to warn', async () => {
     const cfg = await loadConfig()
-    expect(cfg.logLevel).toBe('')
+    expect(cfg.logLevel).toBe('warn')
   })
 })

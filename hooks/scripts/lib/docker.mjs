@@ -165,6 +165,5 @@ export async function startServer(config) {
 export async function stopServer(config) {
   log('Stopping server...')
   await run('docker', ['stop', config.containerName])
-  await run('docker', ['rm', config.containerName])
   removeMcpPort(config)
 }

@@ -5,56 +5,64 @@
 
 import { createInterface } from 'node:readline'
 import { getConfig } from './lib/config.mjs'
-import { startServer, stopServer } from './lib/docker.mjs'
-import { getJson } from './lib/http.mjs'
+import { startServer } from './lib/docker.mjs'
+import { postJson } from './lib/http.mjs'
 import { createLogger } from './lib/logger.mjs'
 
-const config = getConfig()
+const config = { ...getConfig() }
+
+// Override log level to enable all logs to the mcp.log file
+config.logLevel = 'trace'
 const log = createLogger('mcp.log', config)
 
 async function main() {
+  log.info(`Starting server...`)
+
   const actualPort = await startServer(config)
   if (!actualPort) {
     log.error('Failed to start server')
     process.exit(1)
   }
 
-  log.info(`Dashboard: http://127.0.0.1:${actualPort}`)
+  log.info(`Server running at: http://127.0.0.1:${actualPort}`)
+
+  const consumerId = `mcp-${process.pid}`
+  const heartbeatUrl = `http://127.0.0.1:${actualPort}/api/consumer/heartbeat`
+  const deregisterUrl = `http://127.0.0.1:${actualPort}/api/consumer/deregister`
 
   const cleanup = async () => {
-    clearInterval(healthInterval)
-    if (!config.mcpPersist) {
-      await stopServer(config)
-    }
+    clearInterval(heartbeatInterval)
+    await postJson(deregisterUrl, { id: consumerId }, { log })
+    log.info('Deregistered from server')
     process.exit(0)
   }
   process.on('SIGTERM', cleanup)
   process.on('SIGINT', cleanup)
 
-  // Periodic health check — exit if the Docker container goes down
-  const HEALTH_CHECK_INTERVAL = 10_000
-  const HEALTH_CHECK_MAX_FAILURES = 3
-  let healthFailures = 0
-  const healthUrl = `http://127.0.0.1:${actualPort}/api/health`
+  // Heartbeat loop — registers this MCP process and detects server going down
+  const HEARTBEAT_INTERVAL = 10_000
+  const HEARTBEAT_MAX_FAILURES = 3
+  let heartbeatFailures = 0
 
-  const healthInterval = setInterval(async () => {
-    try {
-      const result = await getJson(healthUrl)
-      if (result.status === 200 && result.body?.ok) {
-        healthFailures = 0
-      } else {
-        healthFailures++
-        log.warn(`Health check failed (${healthFailures}/${HEALTH_CHECK_MAX_FAILURES})`)
-      }
-    } catch {
-      healthFailures++
-      log.warn(`Health check error (${healthFailures}/${HEALTH_CHECK_MAX_FAILURES})`)
+  async function sendHeartbeat() {
+    const result = await postJson(heartbeatUrl, { id: consumerId }, { log })
+    if (result.status === 200) {
+      heartbeatFailures = 0
+    } else {
+      heartbeatFailures++
+      log.warn(`Heartbeat failed (${heartbeatFailures}/${HEARTBEAT_MAX_FAILURES})`)
     }
-    if (healthFailures >= HEALTH_CHECK_MAX_FAILURES) {
-      log.error('Docker container is unreachable, exiting MCP server')
-      await cleanup()
+    if (heartbeatFailures >= HEARTBEAT_MAX_FAILURES) {
+      log.error('Server is unreachable, exiting MCP process')
+      clearInterval(heartbeatInterval)
+      process.exit(1)
     }
-  }, HEALTH_CHECK_INTERVAL)
+  }
+
+  // Initial heartbeat to register immediately
+  await sendHeartbeat()
+
+  const heartbeatInterval = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL)
 
   // MCP JSON-RPC protocol on stdio
   const rl = createInterface({ input: process.stdin })
@@ -71,6 +79,8 @@ async function main() {
 
 function handleMessage(msg) {
   const { method, id } = msg
+
+  log.debug(`Received message: ${JSON.stringify(msg)}`)
 
   if (method === 'initialize') {
     send({

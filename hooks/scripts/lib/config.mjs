@@ -107,8 +107,6 @@ export function getConfig(overrides = {}) {
     API_ID: 'agents-observe',
     expectedVersion: version,
 
-    /* Persist mcp server when claude code session ends */
-    mcpPersist: (process.env.AGENTS_OBSERVE_SERVER_PERSIST || 'true').toLowerCase() !== 'false',
     mcpPortFile,
   }
 }

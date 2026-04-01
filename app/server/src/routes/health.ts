@@ -3,6 +3,8 @@
 import { Hono } from 'hono'
 import type { EventStore } from '../storage/types'
 import { config } from '../config'
+import { getConsumerCount } from '../consumer-tracker'
+import { getClientCount } from '../websocket'
 
 type Env = { Variables: { store: EventStore } }
 
@@ -20,6 +22,8 @@ router.get('/health', async (c) => {
       logLevel: config.logLevel,
       runtime: config.runtime,
       dbPath: config.dbPath,
+      activeConsumers: getConsumerCount(),
+      activeClients: getClientCount(),
       ...(result.error ? { error: result.error } : {}),
     },
     result.ok ? 200 : 503,

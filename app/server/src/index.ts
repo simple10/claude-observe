@@ -5,6 +5,7 @@ import { createApp } from './app'
 import { createStore } from './storage'
 import { attachWebSocket, broadcastToSession, broadcastToAll } from './websocket'
 import { config } from './config'
+import { startConsumerSweep } from './consumer-tracker'
 
 const store = createStore()
 const PORT = config.port
@@ -28,6 +29,7 @@ function start(retries = 3) {
   })
 
   attachWebSocket(server as unknown as Server)
+  startConsumerSweep()
 }
 
 start()
