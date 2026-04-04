@@ -81,13 +81,45 @@ function hookCommand() {
     }
 
     // Send hook payload to API server
+    // Disable fireAndForget for SessionStart so the process stays alive during auto-start
     postJson(`${config.apiBaseUrl}/events`, envelope, {
-      fireAndForget: config.allowedCallbacks.size === 0,
+      fireAndForget: config.allowedCallbacks.size === 0 && hookEvent !== 'SessionStart',
       log,
     })
-      .then((result) => {
+      .then(async (result) => {
         if (result.status === 0) {
-          log.error(`Server unreachable at ${config.baseOrigin}: ${result.error}`)
+          // Auto-start server on SessionStart if it's not running
+          if (hookEvent === 'SessionStart') {
+            log.info('Server not running on SessionStart, auto-starting...')
+            const actualPort = await startServer(config, log)
+            if (actualPort) {
+              log.info(`Server auto-started on port ${actualPort}`)
+              // Retry sending the SessionStart event
+              const retryUrl = `http://127.0.0.1:${actualPort}/api/events`
+              const retry = await postJson(retryUrl, envelope, { log })
+              if (retry.status !== 0) {
+                log.info('SessionStart event delivered after auto-start')
+              } else {
+                log.error(`SessionStart event failed after auto-start: ${retry.error}`)
+              }
+            } else {
+              // Another hook may have started the server concurrently
+              const health = await getJson(`${config.apiBaseUrl}/health`, { log })
+              if (health.status === 200 && health.body?.ok) {
+                log.info('Server started by another hook, retrying event...')
+                const retry = await postJson(`${config.apiBaseUrl}/events`, envelope, { log })
+                if (retry.status !== 0) {
+                  log.info('SessionStart event delivered after concurrent start')
+                } else {
+                  log.error(`SessionStart event failed after concurrent start: ${retry.error}`)
+                }
+              } else {
+                log.error('Auto-start failed')
+              }
+            }
+          } else {
+            log.error(`Server unreachable at ${config.baseOrigin}: ${result.error}`)
+          }
           return
         }
         log.trace(`Server response: status=${result.status} hasRequests=${!!result.body?.requests}`)
