@@ -174,7 +174,7 @@ echo ""
 echo "Creating GitHub release..."
 
 # Extract just this version's entry from CHANGELOG.md for the release body
-RELEASE_BODY=$(sed -n "/^## $TAG/,/^## v/{ /^## v[0-9]/!p; }" CHANGELOG.md | sed '$ { /^$/d }')
+RELEASE_BODY=$(awk "/^## ${TAG//./\\.}/{found=1; next} /^## v[0-9]/{found=0} found" CHANGELOG.md)
 
 gh release create "$TAG" \
   --title "$TAG" \
