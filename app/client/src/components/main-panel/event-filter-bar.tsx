@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useUIStore } from '@/stores/ui-store'
 import { useEvents } from '@/hooks/use-events'
 import { cn } from '@/lib/utils'
-import { Search } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { STATIC_FILTERS, getDynamicFilterNames, getDynamicDisplayName, getFiltersWithMatches } from '@/config/filters'
 
@@ -75,13 +75,29 @@ export function EventFilterBar() {
         <div className="flex-1" />
 
         <div className="relative w-48">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Search className={cn(
+            "absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5",
+            searchQuery ? 'text-primary' : 'text-muted-foreground',
+          )} />
           <Input
             placeholder="Search events..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-7 pl-7 text-xs"
+            className={cn(
+              'h-7 pl-7 text-xs',
+              searchQuery && 'border-primary ring-1 ring-primary/30',
+              searchQuery && (searchQuery !== searchQuery.trim()) && 'bg-primary/5',
+              searchQuery && 'pr-7',
+            )}
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 h-4 w-4 flex items-center justify-center rounded-sm text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          )}
         </div>
       </div>
 

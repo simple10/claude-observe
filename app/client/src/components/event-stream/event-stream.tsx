@@ -108,7 +108,8 @@ export function EventStream() {
     }
 
     // Text search — case-insensitive substring match across key fields and payload
-    if (deferredSearchQuery) {
+    // Skip search if query is only whitespace (don't trim — users may want leading/trailing spaces)
+    if (deferredSearchQuery && deferredSearchQuery.trim().length > 0) {
       const q = deferredSearchQuery.toLowerCase()
       filtered = filtered.filter((e) => {
         if (e.toolName?.toLowerCase().includes(q)) return true
