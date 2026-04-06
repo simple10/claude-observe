@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Release script for Claude Observe.
-# Bumps version, commits, tags, and pushes.
+# Release script for agents-observe.
+# Bumps version, generates changelog via Claude, opens editor for review,
+# then commits, tags, and pushes.
 #
 # Usage: scripts/release.sh <version>
-#   e.g.  scripts/release.sh 0.6.0
-#         scripts/release.sh v0.6.0
+#   e.g.  scripts/release.sh 0.8.0
+#         scripts/release.sh v0.8.0
 
 set -euo pipefail
 
@@ -12,7 +13,7 @@ cd "$(git rev-parse --show-toplevel)"
 
 VERSION="${1:-}"
 if [ -z "$VERSION" ]; then
-  echo "Usage: scripts/release.sh <version>  (e.g. 0.6.0)"
+  echo "Usage: scripts/release.sh <version>  (e.g. 0.8.0)"
   exit 1
 fi
 
@@ -30,10 +31,84 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
-echo "=== Releasing $TAG ==="
+# Find the previous tag for git log range
+PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+if [ -z "$PREV_TAG" ]; then
+  echo "Warning: no previous tag found, changelog will cover full history"
+  LOG_RANGE="HEAD"
+else
+  LOG_RANGE="${PREV_TAG}..HEAD"
+fi
+
+echo "=== Releasing $TAG (previous: ${PREV_TAG:-none}) ==="
+
+# ── Generate changelog ──────────────────────────────────
+
+echo ""
+echo "=== Generating changelog entry ==="
+
+COMMIT_LOG=$(git log "$LOG_RANGE" --oneline --no-decorate)
+COMMIT_COUNT=$(echo "$COMMIT_LOG" | wc -l | tr -d ' ')
+echo "Found $COMMIT_COUNT commits since $PREV_TAG"
+
+# Use Claude to write the changelog entry
+CHANGELOG_ENTRY=$(claude -p "$(cat <<PROMPT
+Write a CHANGELOG.md entry for version $VERSION of agents-observe.
+
+Here are the commits since the last release ($PREV_TAG):
+
+$COMMIT_LOG
+
+Rules:
+- Start with: ## $TAG — <one-line summary of the release theme>
+- Below that, group changes under headings: ### Features, ### Fixes, ### Other (omit empty groups)
+- Each item is a single concise line in user-facing language (not commit messages — rewrite for clarity)
+- Collapse related commits into one item (e.g. 5 README updates = one "Updated documentation" line)
+- Do NOT include commit SHAs, author names, or dates on individual items
+- Do NOT include the release: commit itself
+- Output ONLY the markdown entry, no preamble or explanation
+PROMPT
+)" 2>/dev/null)
+
+if [ -z "$CHANGELOG_ENTRY" ]; then
+  echo "Error: Claude failed to generate changelog entry"
+  echo "You can write it manually in CHANGELOG.md and re-run"
+  exit 1
+fi
+
+# Prepend the new entry to CHANGELOG.md (create if needed)
+if [ -f CHANGELOG.md ]; then
+  EXISTING=$(cat CHANGELOG.md)
+  printf '%s\n\n%s\n' "$CHANGELOG_ENTRY" "$EXISTING" > CHANGELOG.md
+else
+  printf '# Changelog\n\n%s\n' "$CHANGELOG_ENTRY" > CHANGELOG.md
+fi
+
+echo ""
+echo "Draft changelog entry:"
+echo "─────────────────────────────────"
+echo "$CHANGELOG_ENTRY"
+echo "─────────────────────────────────"
+
+# Open in editor for review
+EDITOR="${VISUAL:-${EDITOR:-vi}}"
+echo ""
+echo "Opening CHANGELOG.md in $EDITOR for review..."
+echo "Save and close when done. Ctrl-C to abort the release."
+"$EDITOR" CHANGELOG.md
+
+# Verify the new version appears in CHANGELOG.md
+if ! grep -q "## $TAG" CHANGELOG.md; then
+  echo "Error: CHANGELOG.md does not contain an entry for $TAG"
+  echo "The entry must include a line starting with: ## $TAG"
+  exit 1
+fi
+
+echo "Changelog entry for $TAG confirmed."
 
 # ── Bump versions ────────────────────────────────────────
 
+echo ""
 echo "Bumping version to $VERSION..."
 
 # VERSION file (source of truth for server + CLI)
@@ -58,15 +133,28 @@ docker build -t agents-observe:local .
 # ── Commit, tag, push ────────────────────────────────────
 
 echo ""
-echo "Committing version bump..."
-git add VERSION package.json .claude-plugin/plugin.json
+echo "Committing release..."
+git add VERSION package.json .claude-plugin/plugin.json CHANGELOG.md
 git commit -m "release: v${VERSION}"
 
 echo "Tagging $TAG..."
 git tag "$TAG"
 
-echo "Pushing tag..."
-git push origin "$TAG"
+echo "Pushing to origin..."
+git push origin main "$TAG"
+
+# ── Create GitHub release ────────────────────────────────
+
+echo ""
+echo "Creating GitHub release..."
+
+# Extract just this version's entry from CHANGELOG.md for the release body
+RELEASE_BODY=$(sed -n "/^## $TAG/,/^## v/{ /^## v[0-9]/!p; }" CHANGELOG.md | sed '$ { /^$/d }')
+
+gh release create "$TAG" \
+  --title "$TAG" \
+  --notes "$RELEASE_BODY" \
+  || echo "Warning: gh release create failed — create manually at https://github.com/simple10/agents-observe/releases"
 
 echo ""
 echo "=== Released $TAG ==="
