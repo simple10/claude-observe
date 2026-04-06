@@ -138,6 +138,10 @@ echo ""
 echo "=== Building Docker image ==="
 docker build -t agents-observe:local .
 
+echo ""
+echo "=== Running fresh install test ==="
+scripts/test-fresh-install.sh --skip-build
+
 if $DRY_RUN; then
   echo ""
   echo "=== Dry run complete ==="

@@ -13,9 +13,20 @@
 #   (can be set in .env at the repo root — this script sources it)
 #
 # Usage:
-#   ./scripts/test-fresh-install.sh
+#   ./scripts/test-fresh-install.sh [--skip-build]
+#
+# Flags:
+#   --skip-build  Skip building the server image (reuse agents-observe:local).
+#                 Useful when called from release.sh which already built it.
 
 set -euo pipefail
+
+SKIP_BUILD=false
+for arg in "$@"; do
+  case "$arg" in
+    --skip-build) SKIP_BUILD=true ;;
+  esac
+done
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TMP_DIR="$REPO_ROOT/.tmp"
@@ -59,9 +70,18 @@ TARBALL="$TMP_DIR/agents-observe-server-image.tar"
 trap 'rm "$TARBALL"' EXIT
 
 # --- Build server image ------------------------------------------------
-echo ""
-echo "=== [1/4] Building server image (agents-observe:local) ==="
-docker build -t agents-observe:local .
+if $SKIP_BUILD; then
+  echo ""
+  echo "=== [1/4] Skipping server image build (--skip-build) ==="
+  if ! docker image inspect agents-observe:local >/dev/null 2>&1; then
+    echo "Error: agents-observe:local image not found. Cannot use --skip-build." >&2
+    exit 1
+  fi
+else
+  echo ""
+  echo "=== [1/4] Building server image (agents-observe:local) ==="
+  docker build -t agents-observe:local .
+fi
 
 # --- Save server image to tarball --------------------------------------
 echo ""
