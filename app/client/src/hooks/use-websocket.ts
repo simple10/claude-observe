@@ -47,17 +47,40 @@ export function useWebSocket(sessionId: string | null) {
     }
   }, [sessionId, connected, sendMessage])
 
+  // Batch incoming events to avoid O(N) array copies per event.
+  // Events accumulate in a buffer and flush to the cache every 100ms.
+  const eventBufferRef = useRef<ParsedEvent[]>([])
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+
+  const flushEventBuffer = useCallback(() => {
+    const buffer = eventBufferRef.current
+    if (buffer.length === 0) return
+    eventBufferRef.current = []
+    const currentSessionId = sessionIdRef.current
+    if (!currentSessionId) return
+    queryClient.setQueryData<ParsedEvent[]>(
+      ['events', currentSessionId],
+      (old) => old ? [...old, ...buffer] : [...buffer],
+    )
+    if (logLevel === 'trace') {
+      console.debug(`[WS] Flushed ${buffer.length} events to cache`)
+    }
+  }, [queryClient])
+
   const handleMessage = useCallback((msg: WSMessage) => {
     if (msg.type === 'event') {
       const event = msg.data as ParsedEvent
       const currentSessionId = sessionIdRef.current
       if (currentSessionId && event.sessionId === currentSessionId) {
-        queryClient.setQueryData<ParsedEvent[]>(
-          ['events', currentSessionId],
-          (old) => old ? [...old, event] : [event],
-        )
+        eventBufferRef.current.push(event)
+        if (!flushTimerRef.current) {
+          flushTimerRef.current = setTimeout(() => {
+            flushTimerRef.current = undefined
+            flushEventBuffer()
+          }, 100)
+        }
         if (logLevel === 'trace') {
-          console.debug(`[WS] Event appended: ${event.type}/${event.subtype}${event.toolName ? ` tool:${event.toolName}` : ''}`)
+          console.debug(`[WS] Event buffered: ${event.type}/${event.subtype}${event.toolName ? ` tool:${event.toolName}` : ''}`)
         }
       }
     } else if (msg.type === 'session_update') {
@@ -128,6 +151,8 @@ export function useWebSocket(sessionId: string | null) {
 
     return () => {
       clearTimeout(reconnectTimeoutRef.current)
+      clearTimeout(flushTimerRef.current)
+      flushEventBuffer()
       wsRef.current?.close()
       wsRef.current = null
     }
