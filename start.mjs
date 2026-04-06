@@ -1,14 +1,27 @@
 #!/usr/bin/env node
-import { execFileSync, spawn } from 'child_process'
-import path from 'path'
-import { fileURLToPath } from 'url'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const serverDir = path.join(__dirname, 'app', 'server')
-const clientDir = path.join(__dirname, 'app', 'client')
+/**
+ * Starts the API server & dashboard UI in a single process.
+ * Used to run the server locally without Docker.
+ *
+ * Reads all config from hooks/scripts/lib/config.mjs (central source of truth).
+ */
+
+import { execFileSync, spawn } from 'node:child_process'
+import { resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { getConfig } from './hooks/scripts/lib/config.mjs'
+
+const rootDir = dirname(fileURLToPath(import.meta.url))
+const serverDir = resolve(rootDir, 'app/server')
+const clientDir = resolve(rootDir, 'app/client')
+const clientDistPath = resolve(clientDir, 'dist')
+
+const config = getConfig()
 
 function run(cmd, args, cwd) {
-  console.log(`\n> ${cmd} ${args.join(' ')}  (in ${path.relative(__dirname, cwd) || '.'})`)
+  const rel = cwd.replace(rootDir + '/', '') || '.'
+  console.log(`\n> ${cmd} ${args.join(' ')}  (in ${rel})`)
   execFileSync(cmd, args, { cwd, stdio: 'inherit' })
 }
 
@@ -19,19 +32,19 @@ run('npm', ['install'], clientDir)
 // 2. Build client
 run('npm', ['run', 'build'], clientDir)
 
-// 3. Start server with client dist path set
-const clientDistPath = path.join(clientDir, 'dist')
-const port = process.env.AGENTS_OBSERVE_SERVER_PORT || '4981'
-
-console.log(`\nStarting server on http://localhost:${port} (API + UI)\n`)
+// 3. Start server
+console.log(`\nStarting server on http://localhost:${config.serverPort} (API + UI)\n`)
 
 const server = spawn('npx', ['tsx', 'src/index.ts'], {
   cwd: serverDir,
   stdio: 'inherit',
   env: {
     ...process.env,
+    AGENTS_OBSERVE_SERVER_PORT: config.serverPort,
     AGENTS_OBSERVE_CLIENT_DIST_PATH: clientDistPath,
-    AGENTS_OBSERVE_SERVER_PORT: port,
+    AGENTS_OBSERVE_DB_PATH: resolve(config.dataDir, 'observe.db'),
+    AGENTS_OBSERVE_LOG_LEVEL: config.logLevel,
+    AGENTS_OBSERVE_RUNTIME: 'local',
   },
 })
 
