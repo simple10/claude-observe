@@ -2,14 +2,12 @@
 
 ## QUEUED TASKS
 
-- [ ] Enhance events stream expanded summaries:
-  - [ ] Show both the command and description - we're currently just showing the command and result
-  - [ ] For Read tools, split out the response into: type and contents - we're currently showing the tool_response as the content instead of tool_response.file.content
 - [ ] Show both Stop and SubagentStop hooks when the Stop filter is used - currently, SubagentStop is only shown for the Agent filter but we need to show all Stop-type events with the Stop filter
 
 ## COMPLETED TASKS
 
 - [x] Add transcript_path to agents table
+- [x] Enhance events stream expanded summaries (description + Read file.content)
 
 ---
 

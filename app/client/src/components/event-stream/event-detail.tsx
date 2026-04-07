@@ -406,12 +406,17 @@ function ToolDetail({
       const isDiff = /\bdiff\b/.test(ti.command || '')
       return (
         <div className="space-y-1.5">
+          {ti.description && <DetailRow label="Description" value={ti.description} />}
           {ti.command && <DetailCode label="Command" value={ti.command} />}
           {result && <DetailCode label="Result" value={formatResult(result)} diff={isDiff} />}
         </div>
       )
     }
-    case 'Read':
+    case 'Read': {
+      const readResponse = payload.tool_response as Record<string, any> | undefined
+      const fileContent = readResponse?.file?.content ?? readResponse?.content
+      const fileType = readResponse?.type as string | undefined
+      const displayContent = typeof fileContent === 'string' ? fileContent : result
       return (
         <div className="space-y-1.5">
           <DetailRow label="File" value={relPath(ti.file_path, cwd)} />
@@ -421,9 +426,11 @@ function ToolDetail({
               value={`line ${ti.offset}${ti.limit ? `, limit ${ti.limit}` : ''}`}
             />
           )}
-          {result && <DetailCode label="Content" value={formatResult(result)} />}
+          {fileType && fileType !== 'text' && <DetailRow label="Type" value={fileType} />}
+          {displayContent && <DetailCode label="Content" value={formatResult(displayContent)} />}
         </div>
       )
+    }
     case 'Write':
       return (
         <div className="space-y-1.5">
