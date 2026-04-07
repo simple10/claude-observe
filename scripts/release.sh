@@ -78,9 +78,12 @@ $COMMIT_LOG
 
 Rules:
 - Start with: ## $TAG — <one-line summary of the release theme>
-- Below that, group changes under headings: ### Features, ### Fixes, ### Other (omit empty groups)
+- Below the header, write a 2-3 sentence summary paragraph highlighting the major features or fixes in this release. Keep it concise and user-facing.
+- If there are breaking changes, add a ### Breaking Changes section immediately after the summary with clear migration instructions.
+- Then group changes under headings: ### Features, ### Fixes, ### Other (omit empty groups)
 - Each item is a single concise line in user-facing language (not commit messages — rewrite for clarity)
 - Collapse related commits into one item (e.g. 5 README updates = one "Updated documentation" line)
+- Keep the ### Other section short — combine minor changes (docs updates, refactors, config tweaks) into 2-3 combined bullet points rather than listing each one individually
 - Do NOT include commit SHAs, author names, or dates on individual items
 - Do NOT include the release: commit itself
 - Output ONLY the markdown entry, no preamble or explanation
