@@ -1,16 +1,46 @@
+import { useMemo } from 'react'
+import { Clock, CalendarDays } from 'lucide-react'
 import { useRecentSessions } from '@/hooks/use-recent-sessions'
+import { useUIStore } from '@/stores/ui-store'
 import { SessionList } from './session-list'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 export function HomePage() {
   const { data: sessions, isLoading } = useRecentSessions(30)
+  const { sessionSortOrder, setSessionSortOrder } = useUIStore()
+
+  const sorted = useMemo(() => {
+    if (!sessions) return []
+    if (sessionSortOrder === 'activity') return sessions // server already sorts by activity
+    return [...sessions].sort((a, b) => b.startedAt - a.startedAt)
+  }, [sessions, sessionSortOrder])
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="px-4 py-3 border-b border-border">
-        <h1 className="text-sm font-semibold">Recent Sessions</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Across all projects
-        </p>
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+        <div>
+          <h1 className="text-sm font-semibold">Recent Sessions</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Across all projects
+          </p>
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground cursor-pointer"
+              onClick={() => setSessionSortOrder(sessionSortOrder === 'activity' ? 'created' : 'activity')}
+            >
+              {sessionSortOrder === 'activity' ? (
+                <><Clock className="h-3 w-3" /> Recent</>
+              ) : (
+                <><CalendarDays className="h-3 w-3" /> Created</>
+              )}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="left" className="text-xs">
+            {sessionSortOrder === 'activity' ? 'Sorted by recent activity' : 'Sorted by creation date'}
+          </TooltipContent>
+        </Tooltip>
       </div>
       <div className="flex-1 overflow-y-auto">
         {isLoading && (
@@ -18,8 +48,8 @@ export function HomePage() {
             Loading...
           </div>
         )}
-        {!isLoading && sessions && (
-          <SessionList sessions={sessions} showProject />
+        {!isLoading && sorted.length > 0 && (
+          <SessionList sessions={sorted} showProject sortBy={sessionSortOrder} />
         )}
       </div>
     </div>

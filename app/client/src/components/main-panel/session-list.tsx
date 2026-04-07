@@ -23,9 +23,10 @@ function shortenCwd(cwd: string): string {
 interface SessionListProps {
   sessions: (Session | RecentSession)[]
   showProject?: boolean
+  sortBy?: 'activity' | 'created'
 }
 
-export function SessionList({ sessions, showProject = false }: SessionListProps) {
+export function SessionList({ sessions, showProject = false, sortBy = 'activity' }: SessionListProps) {
   const { setSelectedProject, setSelectedSessionId } = useUIStore()
 
   const handleSessionClick = (projectId: number, projectSlug: string, sessionId: string) => {
@@ -51,7 +52,9 @@ export function SessionList({ sessions, showProject = false }: SessionListProps)
           typeof session.metadata?.cwd === 'string'
             ? session.metadata.cwd
             : null
-        const lastTime = ('lastActivity' in session && session.lastActivity) || session.startedAt
+        const lastTime = sortBy === 'activity'
+          ? (('lastActivity' in session && session.lastActivity) || session.startedAt)
+          : session.startedAt
         const projectName = 'projectName' in session ? session.projectName : null
 
         return (
