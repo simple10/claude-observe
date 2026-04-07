@@ -360,11 +360,25 @@ function SessionList({ projectId }: { projectId: number }) {
                       onClick={() => !isEditing && setSelectedSessionId(isSelected ? null : session.id)}
                     >
                       <span
-                        className={cn(
-                          'h-2 w-2 shrink-0 rounded-full',
-                          session.status === 'active' ? 'bg-green-500' : 'bg-muted-foreground/60 dark:bg-muted-foreground/40',
-                        )}
-                      />
+                        className="relative h-3 w-3 shrink-0 flex items-center justify-center"
+                        onClick={(e) => { e.stopPropagation(); togglePinnedSession(session.id) }}
+                      >
+                        <span
+                          className={cn(
+                            'h-2 w-2 rounded-full',
+                            pinnedSessionIds.has(session.id) ? 'hidden' : 'group-hover:hidden',
+                            session.status === 'active' ? 'bg-green-500' : 'bg-muted-foreground/60 dark:bg-muted-foreground/40',
+                          )}
+                        />
+                        <Pin
+                          className={cn(
+                            'h-3 w-3 absolute inset-0 cursor-pointer transition-opacity',
+                            pinnedSessionIds.has(session.id)
+                              ? 'opacity-60 text-primary'
+                              : 'opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-muted-foreground',
+                          )}
+                        />
+                      </span>
                       {isEditing ? (
                         <input
                           ref={inputRef}
@@ -386,15 +400,6 @@ function SessionList({ projectId }: { projectId: number }) {
                       ) : (
                         <>
                           <span className="truncate">{label}</span>
-                          <Pin
-                            className={cn(
-                              'h-3 w-3 shrink-0 transition-opacity cursor-pointer',
-                              pinnedSessionIds.has(session.id)
-                                ? 'opacity-60 text-primary'
-                                : 'opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-muted-foreground',
-                            )}
-                            onClick={(e) => { e.stopPropagation(); togglePinnedSession(session.id) }}
-                          />
                           <Pencil
                             data-testid={`edit-session-${session.id}`}
                             className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-muted-foreground transition-opacity cursor-pointer"
