@@ -19,6 +19,7 @@ router.get('/projects', async (c) => {
     id: r.id,
     slug: r.slug,
     name: r.name,
+    transcriptPath: r.transcript_path || null,
     createdAt: r.created_at,
     sessionCount: r.session_count,
   }))

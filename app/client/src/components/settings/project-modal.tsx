@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Pencil, Trash2, Check, X, Clock, CalendarDays, ArrowRightLeft, Folder } from 'lucide-react'
+import { Pencil, Trash2, Check, X, Clock, CalendarDays, ArrowRightLeft, Folder, Copy } from 'lucide-react'
 import { useProjects } from '@/hooks/use-projects'
 import type { Project, Session } from '@/types'
 
@@ -189,7 +189,7 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent aria-describedby={undefined} className="w-[640px] max-w-[90vw] max-h-[80vh] flex flex-col p-0">
+        <DialogContent aria-describedby={undefined} className="w-[700px] max-w-[90vw] max-h-[80vh] flex flex-col p-0">
           {/* Header: project name + actions */}
           <div className="flex items-center gap-3 px-5 pt-5 pb-1">
             {isRenaming ? (
@@ -262,7 +262,7 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
             {sortedSessions.length > 0 ? (
               <div className="divide-y divide-border/50">
                 {/* Select all header */}
-                <div className="flex items-center gap-3 px-5 py-2 bg-background sticky top-0 z-10 border-b border-border/50">
+                <div className="flex items-center gap-3 px-5 py-2 min-h-12 bg-background sticky top-0 z-10 border-b border-border/50">
                   <Checkbox
                     checked={allSelected}
                     onCheckedChange={toggleAll}
@@ -310,6 +310,7 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
                   <SessionRow
                     key={session.id}
                     session={session}
+                    transcriptPath={project!.transcriptPath}
                     selected={selectedSessionIds.has(session.id)}
                     onToggle={() => toggleSession(session.id)}
                     onDelete={() => {
@@ -410,6 +411,7 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
 
 function SessionRow({
   session,
+  transcriptPath,
   selected,
   onToggle,
   onDelete,
@@ -417,6 +419,7 @@ function SessionRow({
   onMove,
 }: {
   session: Session
+  transcriptPath?: string | null
   selected: boolean
   onToggle: () => void
   onDelete: () => void
@@ -428,6 +431,8 @@ function SessionRow({
   const createdTime = formatRelativeTime(session.startedAt)
   const cwd = typeof session.metadata?.cwd === 'string' ? shortenCwd(session.metadata.cwd) : null
 
+  const jsonlPath = transcriptPath ? `${transcriptPath}/${session.id}.jsonl` : null
+  const [copied, setCopied] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -501,6 +506,22 @@ function SessionRow({
         <Button variant="ghost" size="icon-xs" title="Rename" onClick={startEditing}>
           <Pencil className="h-3 w-3 text-muted-foreground/40 group-hover:text-yellow-500 transition-colors" />
         </Button>
+        {jsonlPath && (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            title={copied ? 'Copied!' : 'Copy JSONL path'}
+            onClick={() => {
+              navigator.clipboard.writeText(jsonlPath)
+              setCopied(true)
+              setTimeout(() => setCopied(false), 1500)
+            }}
+          >
+            {copied
+              ? <Check className="h-3 w-3 text-green-500" />
+              : <Copy className="h-3 w-3 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />}
+          </Button>
+        )}
         <Button variant="ghost" size="icon-xs" title="Move to project" onClick={onMove}>
           <ArrowRightLeft className="h-3 w-3 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
         </Button>

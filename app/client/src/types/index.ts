@@ -2,6 +2,7 @@ export interface Project {
   id: number
   slug: string
   name: string
+  transcriptPath?: string | null
   createdAt: number
   sessionCount?: number
 }
@@ -9,6 +10,8 @@ export interface Project {
 export interface Session {
   id: string
   projectId: number
+  projectSlug?: string
+  projectName?: string
   slug: string | null
   status: string
   startedAt: number
