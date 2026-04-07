@@ -46,15 +46,30 @@ export class SqliteAdapter implements EventStore {
         stopped_at INTEGER,
         transcript_path TEXT,
         metadata TEXT,
+        event_count INTEGER NOT NULL DEFAULT 0,
+        agent_count INTEGER NOT NULL DEFAULT 0,
+        last_activity INTEGER,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       )
     `)
 
-    // Migration: add transcript_path to sessions if missing
+    // Migrations for sessions
     const sessionCols = this.db.prepare("PRAGMA table_info('sessions')").all() as { name: string }[]
     if (!sessionCols.some((c) => c.name === 'transcript_path')) {
       this.db.exec('ALTER TABLE sessions ADD COLUMN transcript_path TEXT')
+    }
+    if (!sessionCols.some((c) => c.name === 'event_count')) {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN event_count INTEGER NOT NULL DEFAULT 0')
+      this.db.exec('ALTER TABLE sessions ADD COLUMN agent_count INTEGER NOT NULL DEFAULT 0')
+      this.db.exec('ALTER TABLE sessions ADD COLUMN last_activity INTEGER')
+      // Backfill from existing data
+      this.db.exec(`
+        UPDATE sessions SET
+          event_count = (SELECT COUNT(*) FROM events WHERE session_id = sessions.id),
+          agent_count = (SELECT COUNT(*) FROM agents WHERE session_id = sessions.id),
+          last_activity = (SELECT MAX(timestamp) FROM events WHERE session_id = sessions.id)
+      `)
     }
 
     this.db.exec(`
@@ -174,6 +189,7 @@ export class SqliteAdapter implements EventStore {
     agentType?: string | null,
   ): Promise<void> {
     const now = Date.now()
+    const existing = this.db.prepare('SELECT id FROM agents WHERE id = ?').get(id)
     this.db
       .prepare(
         `
@@ -187,6 +203,12 @@ export class SqliteAdapter implements EventStore {
     `,
       )
       .run(id, sessionId, parentAgentId, name, description, agentType ?? null, now, now, now)
+
+    if (!existing) {
+      this.db
+        .prepare('UPDATE sessions SET agent_count = agent_count + 1 WHERE id = ?')
+        .run(sessionId)
+    }
   }
 
   async updateAgentType(id: string, agentType: string): Promise<void> {
@@ -244,6 +266,16 @@ export class SqliteAdapter implements EventStore {
         params.status || 'pending',
       )
 
+    // Update cached counters on session
+    this.db
+      .prepare(
+        `UPDATE sessions SET
+          event_count = event_count + 1,
+          last_activity = MAX(COALESCE(last_activity, 0), ?)
+        WHERE id = ?`,
+      )
+      .run(params.timestamp, params.sessionId)
+
     return Number(result.lastInsertRowid)
   }
 
@@ -266,16 +298,10 @@ export class SqliteAdapter implements EventStore {
     return this.db
       .prepare(
         `
-      SELECT s.*,
-        COUNT(DISTINCT a.id) as agent_count,
-        COUNT(DISTINCT e.id) as event_count,
-        MAX(e.timestamp) as last_activity
+      SELECT s.*
       FROM sessions s
-      LEFT JOIN agents a ON a.session_id = s.id
-      LEFT JOIN events e ON e.session_id = s.id
       WHERE s.project_id = ?
-      GROUP BY s.id
-      ORDER BY COALESCE(MAX(e.timestamp), s.started_at) DESC
+      ORDER BY COALESCE(s.last_activity, s.started_at) DESC
     `,
       )
       .all(projectId)
@@ -288,15 +314,10 @@ export class SqliteAdapter implements EventStore {
           `
       SELECT s.*,
         p.slug as project_slug,
-        p.name as project_name,
-        COUNT(DISTINCT a.id) as agent_count,
-        COUNT(DISTINCT e.id) as event_count
+        p.name as project_name
       FROM sessions s
       LEFT JOIN projects p ON p.id = s.project_id
-      LEFT JOIN agents a ON a.session_id = s.id
-      LEFT JOIN events e ON e.session_id = s.id
       WHERE s.id = ?
-      GROUP BY s.id
     `,
         )
         .get(sessionId) || null
@@ -458,6 +479,9 @@ export class SqliteAdapter implements EventStore {
   async clearSessionEvents(sessionId: string): Promise<void> {
     this.db.prepare('DELETE FROM events WHERE session_id = ?').run(sessionId)
     this.db.prepare('DELETE FROM agents WHERE session_id = ?').run(sessionId)
+    this.db
+      .prepare('UPDATE sessions SET event_count = 0, agent_count = 0, last_activity = NULL WHERE id = ?')
+      .run(sessionId)
   }
 
   async getRecentSessions(limit: number = 20): Promise<any[]> {
@@ -466,16 +490,10 @@ export class SqliteAdapter implements EventStore {
         `
       SELECT s.*,
         p.slug as project_slug,
-        p.name as project_name,
-        COUNT(DISTINCT a.id) as agent_count,
-        COUNT(DISTINCT e.id) as event_count,
-        MAX(e.timestamp) as last_activity
+        p.name as project_name
       FROM sessions s
       JOIN projects p ON p.id = s.project_id
-      LEFT JOIN agents a ON a.session_id = s.id
-      LEFT JOIN events e ON e.session_id = s.id
-      GROUP BY s.id
-      ORDER BY COALESCE(MAX(e.timestamp), s.started_at) DESC
+      ORDER BY COALESCE(s.last_activity, s.started_at) DESC
       LIMIT ?
     `,
       )
