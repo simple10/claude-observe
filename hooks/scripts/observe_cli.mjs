@@ -4,6 +4,7 @@
 // Thin dispatcher — command implementations live in lib/.
 
 import { createInterface } from 'node:readline'
+import { spawn } from 'node:child_process'
 import { getConfig } from './lib/config.mjs'
 import { getJson } from './lib/http.mjs'
 import { createLogger } from './lib/logger.mjs'
@@ -27,6 +28,7 @@ switch (cliArgs.commands[0] || 'help') {
     console.log('  stop:            Stop the server')
     console.log('  restart:         Restart the server')
     console.log('  db-reset:        Delete the SQLite database [--force to skip confirmation]')
+    console.log('  logs:            Follow the Docker container logs')
     process.exit(0)
   case 'hook':
     hookCommand(config, log)
@@ -51,6 +53,9 @@ switch (cliArgs.commands[0] || 'help') {
     break
   case 'db-reset':
     dbResetCommand()
+    break
+  case 'logs':
+    logsCommand()
     break
   default:
     console.error(`Unknown command: ${cliArgs.commands[0]}`)
@@ -136,6 +141,15 @@ async function startCommand(msg = 'Starting server...') {
 async function stopCommand() {
   await stopServer(config, log)
   log.info('Server stopped')
+}
+
+function logsCommand() {
+  const child = spawn('docker', ['logs', '-f', config.containerName], { stdio: 'inherit' })
+  child.on('error', (err) => {
+    console.error(`Failed to run docker logs: ${err.message}`)
+    process.exit(1)
+  })
+  child.on('close', (code) => process.exit(code ?? 0))
 }
 
 async function dbResetCommand() {

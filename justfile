@@ -47,7 +47,7 @@ restart:
 
 # View container logs (follow)
 logs:
-    docker compose logs -f
+    node {{ cli_script }} logs
 
 # ─── Development ─────────────────────────────────────────
 
