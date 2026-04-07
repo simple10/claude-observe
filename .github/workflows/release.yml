@@ -57,7 +57,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          # Extract the section for this version from CHANGELOG.md
+          # Matches from "## vX.Y.Z" until the next "## v" heading or EOF
+          BODY=$(awk "/^## ${TAG}( |$)/{found=1; next} found && /^## v/{exit} found{print}" CHANGELOG.md)
+          if [ -z "$BODY" ]; then
+            echo "Warning: no changelog entry found for $TAG, falling back to auto-generated notes"
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          else
+            # Use delimiter for multiline output
+            echo "found=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "body<<CHANGELOG_EOF"
+              echo "$BODY"
+              echo "CHANGELOG_EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body: ${{ steps.changelog.outputs.found == 'true' && steps.changelog.outputs.body || '' }}
+          generate_release_notes: ${{ steps.changelog.outputs.found != 'true' }}
