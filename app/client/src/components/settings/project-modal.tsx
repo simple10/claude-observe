@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api-client'
 import { useUIStore } from '@/stores/ui-store'
@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Pencil, Trash2, Check, X } from 'lucide-react'
+import { Pencil, Trash2, Check, X, Clock, CalendarDays } from 'lucide-react'
 import type { Project, Session } from '@/types'
 
 interface ProjectModalProps {
@@ -35,6 +35,10 @@ function formatRelativeTime(ts: number): string {
   return `${Math.floor(hours / 24)}d ago`
 }
 
+function shortenCwd(cwd: string): string {
+  return cwd.replace(/^\/(?:Users|home)\/[^/]+/, '~')
+}
+
 export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps) {
   const queryClient = useQueryClient()
   const { selectedProjectId, setSelectedProject } = useUIStore()
@@ -44,6 +48,7 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set())
   const [confirmDelete, setConfirmDelete] = useState<'project' | 'sessions' | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [sortOrder, setSortOrder] = useState<'activity' | 'created'>('activity')
   const renameInputRef = useRef<HTMLInputElement>(null)
 
   const { data: sessions } = useQuery({
@@ -52,9 +57,15 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
     enabled: open && !!project,
   })
 
-  // Sort sessions by most recent activity first
   const sortedSessions = sessions
-    ? [...sessions].sort((a, b) => (b.stoppedAt ?? b.startedAt) - (a.stoppedAt ?? a.startedAt))
+    ? [...sessions].sort((a, b) => {
+        if (sortOrder === 'activity') {
+          const aTime = a.lastActivity || a.startedAt
+          const bTime = b.lastActivity || b.startedAt
+          return bTime - aTime
+        }
+        return b.startedAt - a.startedAt
+      })
     : []
 
   // Reset state when modal opens/closes or project changes
@@ -68,6 +79,23 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
   useEffect(() => {
     if (isRenaming) renameInputRef.current?.focus()
   }, [isRenaming])
+
+  const cwdSummary = useMemo(() => {
+    if (!sessions?.length) return null
+    const counts = new Map<string, number>()
+    for (const s of sessions) {
+      const cwd = typeof s.metadata?.cwd === 'string' ? s.metadata.cwd : null
+      if (cwd) counts.set(cwd, (counts.get(cwd) || 0) + 1)
+    }
+    if (counts.size === 0) return null
+    let topCwd = ''
+    let topCount = 0
+    for (const [cwd, count] of counts) {
+      if (count > topCount) { topCwd = cwd; topCount = count }
+    }
+    const otherCount = counts.size - 1
+    return { cwd: shortenCwd(topCwd), otherCount }
+  }, [sessions])
 
   if (!project) return null
 
@@ -138,9 +166,9 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent aria-describedby={undefined} className="w-[540px] max-w-[90vw] max-h-[80vh] flex flex-col p-0">
+        <DialogContent aria-describedby={undefined} className="w-[640px] max-w-[90vw] max-h-[80vh] flex flex-col p-0">
           {/* Header: project name + actions */}
-          <div className="flex items-center gap-3 px-5 pt-5 pb-3">
+          <div className="flex items-center gap-3 px-5 pt-5 pb-1">
             {isRenaming ? (
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 <Input
@@ -195,6 +223,17 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
             )}
           </div>
 
+          {cwdSummary && (
+            <div className="px-5 pb-5 text-xs text-muted-foreground truncate">
+              {cwdSummary.cwd}
+              {cwdSummary.otherCount > 0 && (
+                <span className="ml-1">
+                  (+{cwdSummary.otherCount} other dir{cwdSummary.otherCount !== 1 ? 's' : ''})
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Session list */}
           <div className="flex-1 min-h-0 overflow-y-auto border-t">
             {sortedSessions.length > 0 ? (
@@ -211,7 +250,7 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
                       <span className="ml-1">({selectedSessionIds.size} selected)</span>
                     )}
                   </span>
-                  {selectedSessionIds.size > 0 && (
+                  {selectedSessionIds.size > 0 ? (
                     <Button
                       variant="ghost"
                       size="xs"
@@ -221,6 +260,17 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
                       <Trash2 className="h-3 w-3 mr-1" />
                       Delete selected
                     </Button>
+                  ) : (
+                    <button
+                      className="flex items-center gap-1 ml-auto text-[10px] text-muted-foreground hover:text-foreground cursor-pointer"
+                      onClick={() => setSortOrder(sortOrder === 'activity' ? 'created' : 'activity')}
+                    >
+                      {sortOrder === 'activity' ? (
+                        <><Clock className="h-3 w-3" /> Recent</>
+                      ) : (
+                        <><CalendarDays className="h-3 w-3" /> Created</>
+                      )}
+                    </button>
                   )}
                 </div>
                 {sortedSessions.map((session) => (
@@ -291,18 +341,32 @@ function SessionRow({
   onDelete: () => void
 }) {
   const label = session.slug || session.id.slice(0, 8)
-  const time = formatRelativeTime(session.stoppedAt ?? session.startedAt)
+  const activityTime = formatRelativeTime(session.lastActivity || session.startedAt)
+  const createdTime = formatRelativeTime(session.startedAt)
+  const cwd = typeof session.metadata?.cwd === 'string' ? shortenCwd(session.metadata.cwd) : null
 
   return (
-    <div className="flex items-center gap-3 px-5 py-2 hover:bg-muted/20">
-      <Checkbox checked={selected} onCheckedChange={onToggle} />
+    <div
+      className="group flex items-center gap-3 px-5 py-2 hover:bg-muted/20 cursor-pointer"
+      onClick={onToggle}
+    >
+      <Checkbox checked={selected} onCheckedChange={onToggle} onClick={(e) => e.stopPropagation()} />
       <div className="flex-1 min-w-0">
-        <div className="text-sm truncate">{label}</div>
-        <div className="text-[10px] text-muted-foreground">
-          {time}
+        <div className="flex items-center gap-2 text-sm">
+          <span className="truncate">{label}</span>
+          <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">Created {createdTime}</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground min-w-0">
+          <span
+            className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+              session.status === 'active' ? 'bg-green-500' : 'bg-muted-foreground/60 dark:bg-muted-foreground/40'
+            }`}
+          />
+          <span className="shrink-0">{activityTime}</span>
           {session.eventCount != null && (
-            <span className="ml-2">{session.eventCount} events</span>
+            <span className="shrink-0">{session.eventCount} events</span>
           )}
+          {cwd && <span className="ml-auto truncate">{cwd}</span>}
         </div>
       </div>
       <Button

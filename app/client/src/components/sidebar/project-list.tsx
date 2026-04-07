@@ -9,7 +9,8 @@ import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api-client'
-import type { Session } from '@/types'
+import { ProjectModal } from '@/components/settings/project-modal'
+import type { Project, Session } from '@/types'
 
 interface ProjectListProps {
   collapsed: boolean
@@ -104,40 +105,13 @@ function groupSessionsByDate(sessions: Session[], sortBy: 'activity' | 'created'
 export function ProjectList({ collapsed }: ProjectListProps) {
   const { data: projects } = useProjects()
   const { selectedProjectId, setSelectedProject } = useUIStore()
-  const queryClient = useQueryClient()
 
-  const [editingProjectId, setEditingProjectId] = useState<number | null>(null)
-  const [editValue, setEditValue] = useState('')
-  const projectInputRef = useRef<HTMLInputElement>(null)
+  const [modalProject, setModalProject] = useState<Project | null>(null)
 
-  useEffect(() => {
-    if (editingProjectId && projectInputRef.current) {
-      projectInputRef.current.focus()
-      projectInputRef.current.select()
-    }
-  }, [editingProjectId])
-
-  const startEditingProject = useCallback((projectId: number, currentName: string, e: React.MouseEvent) => {
+  const openProjectModal = useCallback((project: Project, e: React.MouseEvent) => {
     e.stopPropagation()
-    setEditingProjectId(projectId)
-    setEditValue(currentName)
+    setModalProject(project)
   }, [])
-
-  const cancelEditingProject = useCallback(() => {
-    setEditingProjectId(null)
-    setEditValue('')
-  }, [])
-
-  const saveProjectName = useCallback(async (projectId: number) => {
-    const trimmed = editValue.trim()
-    if (trimmed) {
-      await api.renameProject(projectId, trimmed)
-      await queryClient.invalidateQueries({ queryKey: ['projects'] })
-      await queryClient.invalidateQueries({ queryKey: ['recentSessions'] })
-    }
-    setEditingProjectId(null)
-    setEditValue('')
-  }, [editValue, queryClient])
 
   if (!projects?.length) {
     return (
@@ -155,7 +129,6 @@ export function ProjectList({ collapsed }: ProjectListProps) {
         )}
         {projects.map((project) => {
           const isSelected = selectedProjectId === project.id
-          const isEditingThis = editingProjectId === project.id
           const displayLabel = project.name
 
           if (collapsed) {
@@ -186,7 +159,7 @@ export function ProjectList({ collapsed }: ProjectListProps) {
                   'group flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-sm transition-colors cursor-pointer',
                   isSelected ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-accent',
                 )}
-                onClick={() => !isEditingThis && setSelectedProject(isSelected ? null : project.id, isSelected ? null : project.slug)}
+                onClick={() => setSelectedProject(isSelected ? null : project.id, isSelected ? null : project.slug)}
               >
                 {isSelected ? (
                   <ChevronDown className="h-3.5 w-3.5 shrink-0" />
@@ -194,45 +167,31 @@ export function ProjectList({ collapsed }: ProjectListProps) {
                   <ChevronRight className="h-3.5 w-3.5 shrink-0" />
                 )}
                 <Folder className="h-3.5 w-3.5 shrink-0" />
-                {isEditingThis ? (
-                  <input
-                    ref={projectInputRef}
-                    className="truncate bg-transparent border border-border rounded px-0.5 text-sm outline-none w-full min-w-0"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        saveProjectName(project.id)
-                      } else if (e.key === 'Escape') {
-                        e.preventDefault()
-                        cancelEditingProject()
-                      }
-                    }}
-                    onBlur={() => saveProjectName(project.id)}
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                ) : (
-                  <>
-                    <span className="truncate">{displayLabel}</span>
-                    <Pencil
-                      data-testid={`edit-project-${project.id}`}
-                      className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-muted-foreground transition-opacity cursor-pointer"
-                      onClick={(e) => startEditingProject(project.id, displayLabel, e)}
-                    />
-                  </>
-                )}
-                {!isEditingThis && project.sessionCount != null && (
-                  <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1">
+                <span className="truncate">{displayLabel}</span>
+                {project.sessionCount != null && (
+                  <Badge variant="secondary" className="ml-auto text-[10px] h-4 px-1 group-hover:hidden">
                     {project.sessionCount}
                   </Badge>
                 )}
+                <span
+                  data-testid={`edit-project-${project.id}`}
+                  className="ml-auto hidden group-hover:flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500/30 text-[10px] cursor-pointer transition-colors"
+                  onClick={(e) => openProjectModal(project, e)}
+                >
+                  <Pencil className="h-2.5 w-2.5" />
+                  Edit
+                </span>
               </button>
               {isSelected && <SessionList projectId={project.id} />}
             </div>
           )
         })}
       </div>
+      <ProjectModal
+        project={modalProject}
+        open={modalProject !== null}
+        onOpenChange={(open) => { if (!open) setModalProject(null) }}
+      />
     </TooltipProvider>
   )
 }

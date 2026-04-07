@@ -188,7 +188,7 @@ describe('ProjectList - Session rename', () => {
   })
 })
 
-describe('ProjectList - Project rename', () => {
+describe('ProjectList - Project edit modal', () => {
   it('should render a pencil edit icon on project items', () => {
     renderWithProviders(<ProjectList collapsed={false} />)
 
@@ -206,76 +206,15 @@ describe('ProjectList - Project rename', () => {
     expect(screen.getByText('Test Project')).toBeInTheDocument()
   })
 
-  it('should enter edit mode when project pencil icon is clicked', () => {
+  it('should open project modal when pencil icon is clicked', async () => {
     renderWithProviders(<ProjectList collapsed={false} />)
 
     const editIcon = screen.getByTestId('edit-project-1')
     fireEvent.click(editIcon)
-
-    const input = screen.getByDisplayValue('Test Project')
-    expect(input).toBeInTheDocument()
-    expect(input.tagName).toBe('INPUT')
-  })
-
-  it('should save the name when Enter is pressed', async () => {
-    renderWithProviders(<ProjectList collapsed={false} />)
-
-    const editIcon = screen.getByTestId('edit-project-1')
-    fireEvent.click(editIcon)
-
-    const input = screen.getByDisplayValue('Test Project')
-    fireEvent.change(input, { target: { value: 'Renamed Project' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
 
     await waitFor(() => {
-      expect(mockRenameProject).toHaveBeenCalledWith(1, 'Renamed Project')
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
     })
-  })
-
-  it('should cancel editing when Escape is pressed without saving', () => {
-    renderWithProviders(<ProjectList collapsed={false} />)
-
-    const editIcon = screen.getByTestId('edit-project-1')
-    fireEvent.click(editIcon)
-
-    const input = screen.getByDisplayValue('Test Project')
-    fireEvent.change(input, { target: { value: 'Renamed Project' } })
-    fireEvent.keyDown(input, { key: 'Escape' })
-
-    expect(screen.queryByDisplayValue('Renamed Project')).not.toBeInTheDocument()
-    expect(mockRenameProject).not.toHaveBeenCalled()
-  })
-
-  it('should save the name on blur', async () => {
-    renderWithProviders(<ProjectList collapsed={false} />)
-
-    const editIcon = screen.getByTestId('edit-project-1')
-    fireEvent.click(editIcon)
-
-    const input = screen.getByDisplayValue('Test Project')
-    fireEvent.change(input, { target: { value: 'Blur Saved' } })
-    fireEvent.blur(input)
-
-    await waitFor(() => {
-      expect(mockRenameProject).toHaveBeenCalledWith(1, 'Blur Saved')
-    })
-  })
-
-  it('should not call API when saving an empty name', async () => {
-    renderWithProviders(<ProjectList collapsed={false} />)
-
-    const editIcon = screen.getByTestId('edit-project-1')
-    fireEvent.click(editIcon)
-
-    const input = screen.getByDisplayValue('Test Project')
-    fireEvent.change(input, { target: { value: '  ' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-
-    await waitFor(() => {
-      expect(screen.queryByDisplayValue('  ')).not.toBeInTheDocument()
-    })
-
-    expect(mockRenameProject).not.toHaveBeenCalled()
   })
 
   it('should not toggle project expand/collapse when clicking the pencil icon', () => {
