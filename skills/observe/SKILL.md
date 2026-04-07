@@ -1,7 +1,7 @@
 ---
 name: observe
 description: Agents Observe dashboard and server management
-argument-hint: [status|start|stop|restart]
+argument-hint: [status|start|stop|restart|logs|debug]
 user_invocable: true
 ---
 
@@ -16,6 +16,8 @@ Agents Observe dashboard and server management.
 - `/observe start` — Start the server
 - `/observe stop` — Stop the server
 - `/observe restart` — Restart the server
+- `/observe logs` — Show recent Docker container logs
+- `/observe debug` — Diagnose server issues (health, docker logs, mcp.log, cli.log)
 
 ## Instructions
 
@@ -63,3 +65,48 @@ The subcommand is in `$ARGUMENTS`. If empty, default to showing the dashboard UR
    node ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observe_cli.mjs restart
    ```
 2. Show the output to the user. If successful, include the dashboard URL.
+
+### /observe logs
+
+1. Run:
+   ```bash
+   node ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observe_cli.mjs logs -n 50
+   ```
+2. Show the output to the user. Do NOT use `-f` (follow) — it would hang.
+
+### /observe debug
+
+Run these checks in sequence. Read each output before running the next — use what you learn to diagnose the issue.
+
+1. **Server health:**
+   ```bash
+   node ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observe_cli.mjs health
+   ```
+
+2. **Docker container logs (last 20 lines):**
+   ```bash
+   node ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/observe_cli.mjs logs -n 20
+   ```
+
+3. **MCP log (last 20 lines).** The path depends on where the plugin stores data. Check these locations:
+   ```bash
+   tail -n 20 ~/.claude/plugins/data/agents-observe/logs/mcp.log 2>/dev/null || \
+   tail -n 20 ~/.claude/plugins/data/agents-observe-inline/logs/mcp.log 2>/dev/null || \
+   tail -n 20 ~/.agents-observe/logs/mcp.log 2>/dev/null || \
+   echo "mcp.log not found"
+   ```
+
+4. **CLI log (last 20 lines):**
+   ```bash
+   tail -n 20 ~/.claude/plugins/data/agents-observe/logs/cli.log 2>/dev/null || \
+   tail -n 20 ~/.claude/plugins/data/agents-observe-inline/logs/cli.log 2>/dev/null || \
+   tail -n 20 ~/.agents-observe/logs/cli.log 2>/dev/null || \
+   echo "cli.log not found"
+   ```
+
+5. **Analyze the results** and tell the user:
+   - Is the server running? What version?
+   - Are there errors in the docker logs? (look for crash loops, port conflicts, DB errors)
+   - Are there errors in mcp.log? (look for startServer failures, image pull errors)
+   - Are there errors in cli.log? (look for ECONNREFUSED, hook delivery failures)
+   - Suggest specific fixes based on what you find.

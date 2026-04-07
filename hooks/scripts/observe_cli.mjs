@@ -28,7 +28,7 @@ switch (cliArgs.commands[0] || 'help') {
     console.log('  stop:            Stop the server')
     console.log('  restart:         Restart the server')
     console.log('  db-reset:        Delete the SQLite database [--force to skip confirmation]')
-    console.log('  logs:            Follow the Docker container logs')
+    console.log('  logs [args]:     Show Docker container logs (e.g. logs -f, logs -n 100)')
     process.exit(0)
   case 'hook':
     hookCommand(config, log)
@@ -144,7 +144,10 @@ async function stopCommand() {
 }
 
 function logsCommand() {
-  const child = spawn('docker', ['logs', '-f', config.containerName], { stdio: 'inherit' })
+  // Pass any extra CLI args (e.g. -f, -n 100) through to docker logs
+  const extraArgs = cliArgs.commands.slice(1)
+  const args = ['logs', ...extraArgs, config.containerName]
+  const child = spawn('docker', args, { stdio: 'inherit' })
   child.on('error', (err) => {
     console.error(`Failed to run docker logs: ${err.message}`)
     process.exit(1)

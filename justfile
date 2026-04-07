@@ -47,7 +47,7 @@ restart:
 
 # View container logs (follow)
 logs:
-    node {{ cli_script }} logs
+    node {{ cli_script }} logs -f
 
 # ─── Development ─────────────────────────────────────────
 
