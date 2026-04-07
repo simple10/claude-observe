@@ -310,7 +310,6 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
                   <SessionRow
                     key={session.id}
                     session={session}
-                    transcriptPath={project!.transcriptPath}
                     selected={selectedSessionIds.has(session.id)}
                     onToggle={() => toggleSession(session.id)}
                     onDelete={() => {
@@ -411,7 +410,6 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
 
 function SessionRow({
   session,
-  transcriptPath,
   selected,
   onToggle,
   onDelete,
@@ -419,7 +417,6 @@ function SessionRow({
   onMove,
 }: {
   session: Session
-  transcriptPath?: string | null
   selected: boolean
   onToggle: () => void
   onDelete: () => void
@@ -431,7 +428,7 @@ function SessionRow({
   const createdTime = formatRelativeTime(session.startedAt)
   const cwd = typeof session.metadata?.cwd === 'string' ? shortenCwd(session.metadata.cwd) : null
 
-  const jsonlPath = transcriptPath ? `${transcriptPath}/${session.id}.jsonl` : null
+  const jsonlPath = session.transcriptPath || null
   const [copied, setCopied] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')

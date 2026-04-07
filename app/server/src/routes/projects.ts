@@ -19,7 +19,6 @@ router.get('/projects', async (c) => {
     id: r.id,
     slug: r.slug,
     name: r.name,
-    transcriptPath: r.transcript_path || null,
     createdAt: r.created_at,
     sessionCount: r.session_count,
   }))
@@ -39,6 +38,7 @@ router.get('/projects/:id/sessions', async (c) => {
     status: r.status,
     startedAt: r.started_at,
     stoppedAt: r.stopped_at,
+    transcriptPath: r.transcript_path || null,
     metadata: r.metadata ? JSON.parse(r.metadata) : null,
     agentCount: r.agent_count,
     eventCount: r.event_count,

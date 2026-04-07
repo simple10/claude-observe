@@ -191,6 +191,32 @@ describe('SqliteAdapter — sessions', () => {
     expect(session.slug).toBe('new-slug')
   })
 
+  test('upsertSession stores and preserves transcript_path', async () => {
+    const projId = await store.createProject('proj1', 'Project 1', null)
+    await store.upsertSession('sess1', projId, null, null, 1000, '/path/to/session.jsonl')
+
+    const session = await store.getSessionById('sess1')
+    expect(session.transcript_path).toBe('/path/to/session.jsonl')
+
+    // Re-upsert without transcript_path should preserve it
+    await store.upsertSession('sess1', projId, null, null, 2000)
+    const session2 = await store.getSessionById('sess1')
+    expect(session2.transcript_path).toBe('/path/to/session.jsonl')
+  })
+
+  test('upsertSession backfills transcript_path on later event', async () => {
+    const projId = await store.createProject('proj1', 'Project 1', null)
+    await store.upsertSession('sess1', projId, null, null, 1000)
+
+    const session = await store.getSessionById('sess1')
+    expect(session.transcript_path).toBeNull()
+
+    // Later event provides transcript_path
+    await store.upsertSession('sess1', projId, null, null, 2000, '/path/to/session.jsonl')
+    const session2 = await store.getSessionById('sess1')
+    expect(session2.transcript_path).toBe('/path/to/session.jsonl')
+  })
+
   test('updateSessionProject moves session to a different project', async () => {
     const proj1 = await store.createProject('proj1', 'Project 1', null)
     const proj2 = await store.createProject('proj2', 'Project 2', null)

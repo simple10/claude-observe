@@ -24,10 +24,17 @@ export class SqliteAdapter implements EventStore {
         slug TEXT UNIQUE NOT NULL,
         name TEXT NOT NULL,
         transcript_path TEXT,
+        metadata TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       )
     `)
+
+    // Migration: add metadata to projects if missing
+    const projectCols = this.db.prepare("PRAGMA table_info('projects')").all() as { name: string }[]
+    if (!projectCols.some((c) => c.name === 'metadata')) {
+      this.db.exec('ALTER TABLE projects ADD COLUMN metadata TEXT')
+    }
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS sessions (
@@ -37,11 +44,18 @@ export class SqliteAdapter implements EventStore {
         status TEXT DEFAULT 'active',
         started_at INTEGER NOT NULL,
         stopped_at INTEGER,
+        transcript_path TEXT,
         metadata TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       )
     `)
+
+    // Migration: add transcript_path to sessions if missing
+    const sessionCols = this.db.prepare("PRAGMA table_info('sessions')").all() as { name: string }[]
+    if (!sessionCols.some((c) => c.name === 'transcript_path')) {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN transcript_path TEXT')
+    }
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS agents (
@@ -52,12 +66,19 @@ export class SqliteAdapter implements EventStore {
         description TEXT,
         agent_type TEXT,
         agent_class TEXT DEFAULT 'claude-code',
+        metadata TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         FOREIGN KEY (session_id) REFERENCES sessions(id),
         FOREIGN KEY (parent_agent_id) REFERENCES agents(id)
       )
     `)
+
+    // Migration: add metadata to agents if missing
+    const agentCols = this.db.prepare("PRAGMA table_info('agents')").all() as { name: string }[]
+    if (!agentCols.some((c) => c.name === 'metadata')) {
+      this.db.exec('ALTER TABLE agents ADD COLUMN metadata TEXT')
+    }
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS events (
@@ -126,20 +147,22 @@ export class SqliteAdapter implements EventStore {
     slug: string | null,
     metadata: Record<string, unknown> | null,
     timestamp: number,
+    transcriptPath?: string | null,
   ): Promise<void> {
     const now = Date.now()
     this.db
       .prepare(
         `
-      INSERT INTO sessions (id, project_id, slug, status, started_at, metadata, created_at, updated_at)
-      VALUES (?, ?, ?, 'active', ?, ?, ?, ?)
+      INSERT INTO sessions (id, project_id, slug, status, started_at, transcript_path, metadata, created_at, updated_at)
+      VALUES (?, ?, ?, 'active', ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         slug = COALESCE(excluded.slug, sessions.slug),
+        transcript_path = COALESCE(excluded.transcript_path, sessions.transcript_path),
         metadata = COALESCE(excluded.metadata, sessions.metadata),
         updated_at = ?
     `,
       )
-      .run(id, projectId, slug, timestamp, metadata ? JSON.stringify(metadata) : null, now, now, now)
+      .run(id, projectId, slug, timestamp, transcriptPath || null, metadata ? JSON.stringify(metadata) : null, now, now, now)
   }
 
   async upsertAgent(

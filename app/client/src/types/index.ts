@@ -2,7 +2,6 @@ export interface Project {
   id: number
   slug: string
   name: string
-  transcriptPath?: string | null
   createdAt: number
   sessionCount?: number
 }
@@ -12,6 +11,7 @@ export interface Session {
   projectId: number
   projectSlug?: string
   projectName?: string
+  transcriptPath?: string | null
   slug: string | null
   status: string
   startedAt: number
@@ -38,6 +38,7 @@ export interface Agent extends ServerAgent {
   eventCount: number
   firstEventAt: number | null
   lastEventAt: number | null
+  cwd?: string | null
 }
 
 export interface ParsedEvent {

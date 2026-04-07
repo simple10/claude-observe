@@ -55,7 +55,6 @@ export interface Project {
   id: number
   slug: string
   name: string
-  transcriptPath?: string | null
   createdAt: number
   sessionCount?: number
 }

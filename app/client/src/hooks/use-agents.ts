@@ -31,6 +31,7 @@ export function useAgents(sessionId: string | null, events: ParsedEvent[] | unde
       firstEventAt: number
       lastEventAt: number
       lastStoppedAt: number // timestamp of last stop signal, 0 if never
+      cwd: string | null
     }>()
 
     const stopSubtypes = new Set(['Stop', 'SessionEnd', 'stop_hook_summary'])
@@ -38,8 +39,11 @@ export function useAgents(sessionId: string | null, events: ParsedEvent[] | unde
     for (const e of events) {
       let stats = agentStats.get(e.agentId)
       if (!stats) {
-        stats = { eventCount: 0, firstEventAt: e.timestamp, lastEventAt: e.timestamp, lastStoppedAt: 0 }
+        stats = { eventCount: 0, firstEventAt: e.timestamp, lastEventAt: e.timestamp, lastStoppedAt: 0, cwd: null }
         agentStats.set(e.agentId, stats)
+      }
+      if (!stats.cwd && typeof (e.payload as any)?.cwd === 'string') {
+        stats.cwd = (e.payload as any).cwd
       }
       stats.eventCount++
       if (e.timestamp < stats.firstEventAt) stats.firstEventAt = e.timestamp
@@ -100,6 +104,7 @@ export function useAgents(sessionId: string | null, events: ParsedEvent[] | unde
         eventCount: stats.eventCount,
         firstEventAt: stats.firstEventAt,
         lastEventAt: stats.lastEventAt,
+        cwd: stats.cwd,
       })
     }
 

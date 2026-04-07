@@ -108,6 +108,7 @@ router.post('/events', async (c) => {
       parsed.slug,
       Object.keys(parsed.metadata).length > 0 ? parsed.metadata : null,
       parsed.timestamp,
+      parsed.transcriptPath,
     )
 
     const rootAgentId = await ensureRootAgent(store, parsed.sessionId)

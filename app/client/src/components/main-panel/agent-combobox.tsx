@@ -160,12 +160,18 @@ export function AgentCombobox() {
                         {!isMain && (() => {
                           const showDesc = agent.description && agent.description !== getAgentDisplayName(agent)
                           const showType = !!agent.agentType
+                          const showCwd = !!agent.cwd
                           return (
                             <div className="flex items-center gap-0 text-[10px] text-muted-foreground/50 min-w-0">
                               {showDesc && <span className="truncate">{agent.description}</span>}
                               {showDesc && showType && <span className="shrink-0 mx-1">-</span>}
                               {showType && <span className="font-mono shrink-0">{agent.agentType}</span>}
-                              {!showDesc && !showType && <span>&nbsp;</span>}
+                              {!showDesc && !showType && !showCwd && <span>&nbsp;</span>}
+                              {showCwd && (
+                                <span className="ml-auto truncate pl-2" dir="rtl">
+                                  <span dir="ltr">{agent.cwd!.replace(/^\/(?:Users|home)\/[^/]+/, '~')}</span>
+                                </span>
+                              )}
                             </div>
                           )
                         })()}

@@ -49,6 +49,7 @@ export interface EventStore {
     slug: string | null,
     metadata: Record<string, unknown> | null,
     timestamp: number,
+    transcriptPath?: string | null,
   ): Promise<void>
   upsertAgent(
     id: string,
