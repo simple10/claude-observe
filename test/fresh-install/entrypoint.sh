@@ -75,6 +75,7 @@ set +e
 claude \
   --plugin-dir /plugin \
   --mcp-config /plugin/.mcp.json \
+  --permission-mode bypassPermissions \
   -p "/observe status" \
   >"$CLAUDE_STDOUT" 2>"$CLAUDE_STDERR"
 CLAUDE_EXIT=$?
@@ -240,8 +241,14 @@ echo "[CHECKS_DONE]"
 # Keep alive if requested (for manual UI verification from host)
 if [ "${AGENTS_OBSERVE_TEST_KEEP_ALIVE:-}" = "1" ] && [ "$FINAL_STATUS" = "PASS" ]; then
   echo "Container staying alive for manual UI check. Kill to exit."
-  # Sleep forever — the test script will docker rm -f when done
-  sleep infinity
+  # Send heartbeats to prevent the server's consumer-tracker from
+  # auto-shutting down while the user is browsing the dashboard
+  while true; do
+    curl -sf -X POST http://127.0.0.1:4981/api/consumer/heartbeat \
+      -H 'Content-Type: application/json' \
+      -d '{"id":"fresh-install-test"}' >/dev/null 2>&1 || true
+    sleep 10
+  done
 fi
 
 if [ "$FINAL_STATUS" = "PASS" ]; then

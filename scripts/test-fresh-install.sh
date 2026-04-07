@@ -171,7 +171,7 @@ if [ $AUTO_EXIT -eq 0 ] && ! $SKIP_UI_CHECK; then
   echo "  3. Events are visible in the stream"
   echo ""
   read -r -p "Does the UI look correct? [Y/n] " UI_CONFIRM
-  if [ "${UI_CONFIRM,,}" = "n" ]; then
+  if [ "$(echo "$UI_CONFIRM" | tr '[:upper:]' '[:lower:]')" = "n" ]; then
     echo "UI check failed by user."
     AUTO_EXIT=1
   else
