@@ -87,7 +87,7 @@ export function PinnedSessions({ collapsed }: { collapsed: boolean }) {
                   ? 'bg-accent text-accent-foreground'
                   : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
               )}
-              onClick={() => setSelectedSessionId(isSelected ? null : session.id)}
+              onClick={() => selectSession(session)}
             >
               <span
                 className={cn(
