@@ -44,6 +44,7 @@ function makeEvent(overrides: Partial<ParsedEvent>): ParsedEvent {
     toolUseId: null,
     status: 'pending',
     timestamp: Date.now(),
+    createdAt: Date.now(),
     payload: {},
     ...overrides,
   }

@@ -14,20 +14,22 @@ globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserv
 
 // ── Mock data ──────────────────────────────────────────────
 
-const mockSessions: Session[] = []
-const mockProjects: Project[] = []
-
-const mockMoveSession = vi.fn(() => Promise.resolve({ ok: true }))
-const mockDeleteSession = vi.fn(() => Promise.resolve({ ok: true }))
-const mockUpdateSessionSlug = vi.fn(() => Promise.resolve({ ok: true }))
+const { mockSessions, mockProjects, mockMoveSession, mockDeleteSession, mockUpdateSessionSlug } =
+  vi.hoisted(() => ({
+    mockSessions: [] as Session[],
+    mockProjects: [] as Project[],
+    mockMoveSession: vi.fn(() => Promise.resolve({ ok: true })),
+    mockDeleteSession: vi.fn(() => Promise.resolve({ ok: true })),
+    mockUpdateSessionSlug: vi.fn(() => Promise.resolve({ ok: true })),
+  }))
 
 vi.mock('@/lib/api-client', () => ({
   api: {
     getSessions: () => Promise.resolve(mockSessions),
     getProjects: () => Promise.resolve(mockProjects),
-    moveSession: (id: string, projectId: number) => mockMoveSession(id, projectId),
-    deleteSession: (id: string) => mockDeleteSession(id),
-    updateSessionSlug: (id: string, slug: string) => mockUpdateSessionSlug(id, slug),
+    moveSession: mockMoveSession,
+    deleteSession: mockDeleteSession,
+    updateSessionSlug: mockUpdateSessionSlug,
     renameProject: vi.fn(() => Promise.resolve({ ok: true })),
     deleteProject: vi.fn(() => Promise.resolve({ ok: true })),
   },

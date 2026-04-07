@@ -69,7 +69,7 @@ export function SessionList({
             onClick={() =>
               handleSessionClick(
                 session.projectId,
-                'projectSlug' in session ? session.projectSlug : '',
+                'projectSlug' in session ? session.projectSlug || '' : '',
                 session.id,
               )
             }
