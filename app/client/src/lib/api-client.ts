@@ -70,4 +70,5 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     }),
+  getChangelog: () => fetchJson<{ markdown: string }>('/changelog'),
 };

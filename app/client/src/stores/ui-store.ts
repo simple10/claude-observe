@@ -104,6 +104,12 @@ interface UIState {
   // Icon customization reactivity
   iconCustomizationVersion: number
   bumpIconCustomizationVersion: () => void
+
+  // Version tracking
+  serverVersion: string | null
+  setServerVersion: (version: string) => void
+  latestVersion: string | null
+  setLatestVersion: (version: string) => void
 }
 
 const PINNED_STORAGE_KEY = 'agents-observe-pinned-sessions'
@@ -269,6 +275,11 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   iconCustomizationVersion: 0,
   bumpIconCustomizationVersion: () => set((s) => ({ iconCustomizationVersion: s.iconCustomizationVersion + 1 })),
+
+  serverVersion: null,
+  setServerVersion: (version) => set({ serverVersion: version }),
+  latestVersion: null,
+  setLatestVersion: (version) => set({ latestVersion: version }),
 }))
 
 if (typeof window !== 'undefined') {
@@ -283,4 +294,30 @@ if (typeof window !== 'undefined') {
       state.setSelectedSessionId(sessionId)
     }
   })
+
+  // Check server version on page load
+  fetch('/api/health')
+    .then((r) => r.ok ? r.json() : null)
+    .then((data) => {
+      if (data?.version) {
+        useUIStore.getState().setServerVersion(data.version)
+      }
+    })
+    .catch(() => {})
+
+  // Fetch latest release version from GitHub on page load
+  const githubRepoUrl = typeof __GITHUB_REPO_URL__ !== 'undefined' ? __GITHUB_REPO_URL__ : ''
+  if (githubRepoUrl) {
+    const match = githubRepoUrl.match(/github\.com\/([^/]+\/[^/]+)/)
+    if (match) {
+      fetch(`https://api.github.com/repos/${match[1]}/releases/latest`)
+        .then((r) => r.ok ? r.json() : null)
+        .then((release) => {
+          if (release?.tag_name) {
+            useUIStore.getState().setLatestVersion(release.tag_name.replace(/^v/, ''))
+          }
+        })
+        .catch(() => {})
+    }
+  }
 }

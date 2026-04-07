@@ -21,6 +21,9 @@ COPY app/server/tsconfig.json server/
 # Copy VERSION file for /api/health endpoint
 COPY VERSION /app/VERSION
 
+# Copy CHANGELOG for /api/changelog endpoint
+COPY CHANGELOG.md /app/CHANGELOG.md
+
 EXPOSE 4981
 
 WORKDIR /app/server

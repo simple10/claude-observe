@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { PanelLeftClose, PanelLeftOpen, Moon, Sun, Wifi, WifiOff, Settings } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, isNewerVersion } from '@/lib/utils'
 import { useUIStore } from '@/stores/ui-store'
 import { useTheme } from '@/components/theme-provider'
 import { ProjectList } from './project-list'
@@ -8,6 +8,7 @@ import { PinnedSessions } from './pinned-sessions'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { SettingsModal } from '@/components/settings/settings-modal'
+import { ChangelogModal } from '@/components/changelog-modal'
 
 interface SidebarProps {
   connected: boolean
@@ -15,9 +16,14 @@ interface SidebarProps {
 
 export function Sidebar({ connected }: SidebarProps) {
   const { sidebarCollapsed, sidebarWidth, setSidebarCollapsed, setSidebarWidth } = useUIStore()
+  const latestVersion = useUIStore((s) => s.latestVersion)
+  const serverVersion = useUIStore((s) => s.serverVersion)
+  const outdated = latestVersion ? isNewerVersion(__APP_VERSION__, latestVersion) : false
+  const versionMismatch = serverVersion ? serverVersion !== __APP_VERSION__ : false
   const { theme, toggleTheme } = useTheme()
   const resizing = useRef(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [changelogOpen, setChangelogOpen] = useState(false)
 
   const sidebarRef = useRef<HTMLDivElement>(null)
 
@@ -111,7 +117,10 @@ export function Sidebar({ connected }: SidebarProps) {
           <Settings className="h-3.5 w-3.5" />
         </Button>
         {!sidebarCollapsed && (
-          <div className="flex items-center gap-1.5 ml-auto text-xs text-muted-foreground">
+          <button
+            className="flex items-center gap-1.5 ml-auto text-xs text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+            onClick={() => setChangelogOpen(true)}
+          >
             {connected ? (
               <>
                 <Wifi className="h-3 w-3 text-green-500" />
@@ -123,12 +132,24 @@ export function Sidebar({ connected }: SidebarProps) {
                 <span>Disconnected</span>
               </>
             )}
-            <span className="text-muted-foreground/50">v{__APP_VERSION__}</span>
-          </div>
+            <span
+              className={cn(
+                'transition-colors',
+                versionMismatch
+                  ? 'px-1.5 py-0.5 rounded-full border border-red-400 text-red-500 dark:border-red-500 dark:text-red-400'
+                  : outdated
+                    ? 'px-1.5 py-0.5 rounded-full border border-orange-400 text-orange-500 dark:border-orange-500 dark:text-orange-400'
+                    : 'text-muted-foreground/50',
+              )}
+            >
+              v{__APP_VERSION__}
+            </span>
+          </button>
         )}
       </div>
 
       <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <ChangelogModal open={changelogOpen} onOpenChange={setChangelogOpen} />
 
       {/* Resize handle */}
       {!sidebarCollapsed && (
