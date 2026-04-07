@@ -33,7 +33,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[640px] max-w-[90vw] max-h-[80vh] flex flex-col p-0">
+      <DialogContent aria-describedby={undefined} className="w-[640px] max-w-[90vw] max-h-[80vh] flex flex-col p-0">
         <div className="px-6 pt-6 pb-0">
           <DialogTitle>Settings</DialogTitle>
         </div>

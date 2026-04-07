@@ -75,7 +75,7 @@ export function LogsModal() {
           <ScrollText className="h-3.5 w-3.5" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="w-[90vw] max-w-5xl h-[85vh] flex flex-col p-0">
+      <DialogContent aria-describedby={undefined} className="w-[90vw] max-w-5xl h-[85vh] flex flex-col p-0">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
           <DialogTitle>Raw Event Logs</DialogTitle>
           <span className="text-xs text-muted-foreground">

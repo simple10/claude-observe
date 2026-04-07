@@ -53,7 +53,7 @@ export function ChangelogModal({ open, onOpenChange }: ChangelogModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[700px] max-w-[90vw] max-h-[80vh] flex flex-col p-0">
+      <DialogContent aria-describedby={undefined} className="w-[700px] max-w-[90vw] max-h-[80vh] flex flex-col p-0">
         <div className="flex items-center px-6 pt-6 pb-0">
           <DialogTitle>Changelog</DialogTitle>
           {latestVersion && !versionMismatch && !outdated && (

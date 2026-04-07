@@ -138,7 +138,7 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-[540px] max-w-[90vw] max-h-[80vh] flex flex-col p-0">
+        <DialogContent aria-describedby={undefined} className="w-[540px] max-w-[90vw] max-h-[80vh] flex flex-col p-0">
           {/* Header: project name + actions */}
           <div className="flex items-center gap-3 px-5 pt-5 pb-3">
             {isRenaming ? (
