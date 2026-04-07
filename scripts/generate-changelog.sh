@@ -6,26 +6,15 @@
 # Usage:
 #   scripts/generate-changelog.sh <version>
 #   scripts/generate-changelog.sh 0.8.0
-#
-# Options:
-#   --no-edit   Skip opening the editor for review
 
 set -euo pipefail
 
 cd "$(git rev-parse --show-toplevel)"
 
 VERSION="${1:-}"
-NO_EDIT=false
-for arg in "$@"; do
-  case "$arg" in
-    --no-edit) NO_EDIT=true ;;
-    -*) ;;
-    *) VERSION="$arg" ;;
-  esac
-done
 
 if [ -z "$VERSION" ]; then
-  echo "Usage: scripts/generate-changelog.sh <version> [--no-edit]" >&2
+  echo "Usage: scripts/generate-changelog.sh <version>" >&2
   exit 1
 fi
 
@@ -91,20 +80,5 @@ echo "────────────────────────�
 echo "$CHANGELOG_ENTRY"
 echo "─────────────────────────────────"
 
-# Open in editor for review (unless --no-edit)
-if ! $NO_EDIT; then
-  EDITOR="${VISUAL:-${EDITOR:-vi}}"
-  echo ""
-  echo "Opening CHANGELOG.md in $EDITOR for review..."
-  echo "Save and close when done. Ctrl-C to abort."
-  "$EDITOR" CHANGELOG.md
-fi
-
-# Verify the new version appears in CHANGELOG.md
-if ! grep -q "## $TAG" CHANGELOG.md; then
-  echo "Error: CHANGELOG.md does not contain an entry for $TAG" >&2
-  echo "The entry must include a line starting with: ## $TAG" >&2
-  exit 1
-fi
-
-echo "Changelog entry for $TAG confirmed."
+echo ""
+echo "Changelog entry for $TAG written to CHANGELOG.md"

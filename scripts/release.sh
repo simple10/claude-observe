@@ -54,6 +54,22 @@ echo "=== Releasing $TAG ==="
 
 scripts/generate-changelog.sh "$VERSION"
 
+# Open in editor for review
+EDITOR="${VISUAL:-${EDITOR:-vi}}"
+echo ""
+echo "Opening CHANGELOG.md in $EDITOR for review..."
+echo "Save and close when done. Ctrl-C to abort the release."
+"$EDITOR" CHANGELOG.md
+
+# Verify the new version appears in CHANGELOG.md
+if ! grep -q "## $TAG" CHANGELOG.md; then
+  echo "Error: CHANGELOG.md does not contain an entry for $TAG"
+  echo "The entry must include a line starting with: ## $TAG"
+  exit 1
+fi
+
+echo "Changelog entry for $TAG confirmed."
+
 # ── Bump versions ────────────────────────────────────────
 
 echo ""
