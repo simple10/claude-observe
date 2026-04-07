@@ -241,6 +241,9 @@ echo "[CHECKS_DONE]"
 # Keep alive if requested (for manual UI verification from host)
 if [ "${AGENTS_OBSERVE_TEST_KEEP_ALIVE:-}" = "1" ] && [ "$FINAL_STATUS" = "PASS" ]; then
   echo "Container staying alive for manual UI check. Kill to exit."
+  echo ""
+  echo "=== Following inner server logs ==="
+  docker logs -f agents-observe 2>&1 &
   sleep infinity
 fi
 
