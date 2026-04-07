@@ -258,9 +258,12 @@ export class SqliteAdapter implements EventStore {
         .prepare(
           `
       SELECT s.*,
+        p.slug as project_slug,
+        p.name as project_name,
         COUNT(DISTINCT a.id) as agent_count,
         COUNT(DISTINCT e.id) as event_count
       FROM sessions s
+      LEFT JOIN projects p ON p.id = s.project_id
       LEFT JOIN agents a ON a.session_id = s.id
       LEFT JOIN events e ON e.session_id = s.id
       WHERE s.id = ?

@@ -47,6 +47,8 @@ router.get('/sessions/:id', async (c) => {
   return c.json({
     id: row.id,
     projectId: row.project_id,
+    projectSlug: row.project_slug,
+    projectName: row.project_name,
     slug: row.slug,
     status: row.status,
     startedAt: row.started_at,

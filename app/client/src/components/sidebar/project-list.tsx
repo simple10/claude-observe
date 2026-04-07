@@ -4,7 +4,7 @@ import { useSessions } from '@/hooks/use-sessions'
 import { useEvents } from '@/hooks/use-events'
 import { useUIStore } from '@/stores/ui-store'
 import { cn } from '@/lib/utils'
-import { ChevronDown, ChevronRight, Folder, Pencil, Clock, CalendarDays } from 'lucide-react'
+import { ChevronDown, ChevronRight, Folder, Pencil, Clock, CalendarDays, Pin } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useQueryClient } from '@tanstack/react-query'
@@ -244,7 +244,7 @@ function shortenCwd(cwd: string): string {
 
 function SessionList({ projectId }: { projectId: number }) {
   const { data: sessions } = useSessions(projectId)
-  const { selectedSessionId, setSelectedSessionId, sessionSortOrder, setSessionSortOrder } = useUIStore()
+  const { selectedSessionId, setSelectedSessionId, sessionSortOrder, setSessionSortOrder, togglePinnedSession, pinnedSessionIds } = useUIStore()
   const queryClient = useQueryClient()
   const { data: currentEvents } = useEvents(selectedSessionId)
 
@@ -386,6 +386,15 @@ function SessionList({ projectId }: { projectId: number }) {
                       ) : (
                         <>
                           <span className="truncate">{label}</span>
+                          <Pin
+                            className={cn(
+                              'h-3 w-3 shrink-0 transition-opacity cursor-pointer',
+                              pinnedSessionIds.has(session.id)
+                                ? 'opacity-60 text-primary'
+                                : 'opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-muted-foreground',
+                            )}
+                            onClick={(e) => { e.stopPropagation(); togglePinnedSession(session.id) }}
+                          />
                           <Pencil
                             data-testid={`edit-session-${session.id}`}
                             className="h-3 w-3 shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground/50 hover:text-muted-foreground transition-opacity cursor-pointer"

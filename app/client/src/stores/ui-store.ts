@@ -96,9 +96,29 @@ interface UIState {
   sessionSortOrder: 'activity' | 'created'
   setSessionSortOrder: (order: 'activity' | 'created') => void
 
+  // Pinned sessions (persisted to localStorage)
+  pinnedSessionIds: Set<string>
+  togglePinnedSession: (id: string) => void
+  isSessionPinned: (id: string) => boolean
+
   // Icon customization reactivity
   iconCustomizationVersion: number
   bumpIconCustomizationVersion: () => void
+}
+
+const PINNED_STORAGE_KEY = 'agents-observe-pinned-sessions'
+
+function loadPinnedSessions(): Set<string> {
+  try {
+    const raw = localStorage.getItem(PINNED_STORAGE_KEY)
+    return raw ? new Set(JSON.parse(raw)) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
+function savePinnedSessions(ids: Set<string>) {
+  localStorage.setItem(PINNED_STORAGE_KEY, JSON.stringify([...ids]))
 }
 
 const { projectSlug: initialProjectSlug, sessionId: initialSessionId } = parseHash()
@@ -236,6 +256,16 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   sessionSortOrder: 'activity',
   setSessionSortOrder: (order) => set({ sessionSortOrder: order }),
+
+  pinnedSessionIds: loadPinnedSessions(),
+  togglePinnedSession: (id) => set((s) => {
+    const next = new Set(s.pinnedSessionIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    savePinnedSessions(next)
+    return { pinnedSessionIds: next }
+  }),
+  isSessionPinned: (id) => get().pinnedSessionIds.has(id),
 
   iconCustomizationVersion: 0,
   bumpIconCustomizationVersion: () => set((s) => ({ iconCustomizationVersion: s.iconCustomizationVersion + 1 })),

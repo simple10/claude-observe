@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { useUIStore } from '@/stores/ui-store'
 import { useTheme } from '@/components/theme-provider'
 import { ProjectList } from './project-list'
+import { PinnedSessions } from './pinned-sessions'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { SettingsModal } from '@/components/settings/settings-modal'
@@ -95,6 +96,7 @@ export function Sidebar({ connected }: SidebarProps) {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-2">
+        <PinnedSessions collapsed={sidebarCollapsed} />
         <ProjectList collapsed={sidebarCollapsed} />
       </div>
 
