@@ -90,6 +90,7 @@ open port=port:
 check:
     npm test
     npm run fmt
+    cd app/client && npm install && npm run build
 
 # Format all source files
 fmt:
