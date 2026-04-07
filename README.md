@@ -22,21 +22,37 @@ Includes powerful filtering, searching, and visualization of multi-agent session
 
 Install as a `claude code` plugin:
 
-1. Add the marketplace:
+```bash
+# Add this repo as a marketplace
+claude plugin marketplace add simple10/agents-observe
 
-   ```bash
-   claude plugin marketplace add simple10/agents-observe
-   ```
+# Install the plugin
+claude plugin install agents-observe
 
-2. Install the plugin:
+# Then just run claude
+# The plugin will auto start the MCP server and capture events
+claude
 
-   ```bash
-   claude plugin install agents-observe
-   ```
+# Use the /observe skill in claude to check status, restart the server, etc.
+> /observe status
+> /observe debug
+> /observe logs
+> /observe restart
 
-3. Restart Claude Code.
+# Open the dashboard UI in a browser
+open http://localhost:4981
+```
 
-That's it. On your next session, the server automatically launches as a Docker container and the dashboard becomes accessible at **<http://localhost:4981>**. Use `/observe` to open the dashboard or `/observe debug` if something isn't working.
+Default dashboard URL: <http://localhost:4981>
+
+### Prerequisites
+
+- [Docker](https://www.docker.com/) (required — the server runs as a container)
+- [Node.js](https://nodejs.org/) (required — hook scripts run via `node`)
+
+If docker or node are not installed on your host, the plugin will fail to properly load.
+
+Use the `/observe debug` claude command to help troubleshoot and fix installation issues.
 
 ## Plugin Skills
 
