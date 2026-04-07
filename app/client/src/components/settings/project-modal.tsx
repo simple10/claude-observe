@@ -16,7 +16,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Pencil, Trash2, Check, X, Clock, CalendarDays } from 'lucide-react'
+import { Pencil, Trash2, Check, X, Clock, CalendarDays, ArrowRightLeft, Folder } from 'lucide-react'
+import { useProjects } from '@/hooks/use-projects'
 import type { Project, Session } from '@/types'
 
 interface ProjectModalProps {
@@ -46,9 +47,12 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState('')
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set())
-  const [confirmDelete, setConfirmDelete] = useState<'project' | 'sessions' | null>(null)
+  const [confirmAction, setConfirmAction] = useState<'delete-project' | 'delete-sessions' | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [sortOrder, setSortOrder] = useState<'activity' | 'created'>('activity')
+  const [moveSessionIds, setMoveSessionIds] = useState<Set<string> | null>(null)
+  const [confirmMoveTarget, setConfirmMoveTarget] = useState<Project | null>(null)
+  const [moving, setMoving] = useState(false)
   const renameInputRef = useRef<HTMLInputElement>(null)
 
   const { data: sessions } = useQuery({
@@ -73,7 +77,9 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
     setIsRenaming(false)
     setRenameValue('')
     setSelectedSessionIds(new Set())
-    setConfirmDelete(null)
+    setConfirmAction(null)
+    setMoveSessionIds(null)
+    setConfirmMoveTarget(null)
   }, [open, project?.id])
 
   useEffect(() => {
@@ -126,7 +132,7 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
       onOpenChange(false)
     } finally {
       setDeleting(false)
-      setConfirmDelete(null)
+      setConfirmAction(null)
     }
   }
 
@@ -140,7 +146,24 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
       await queryClient.invalidateQueries({ queryKey: ['recentSessions'] })
     } finally {
       setDeleting(false)
-      setConfirmDelete(null)
+      setConfirmAction(null)
+    }
+  }
+
+  async function handleMoveSessions(targetProjectId: number) {
+    if (!moveSessionIds) return
+    setMoving(true)
+    try {
+      await Promise.all([...moveSessionIds].map((id) => api.moveSession(id, targetProjectId)))
+      setSelectedSessionIds(new Set())
+      setMoveSessionIds(null)
+      setConfirmMoveTarget(null)
+      await queryClient.invalidateQueries({ queryKey: ['sessions', project!.id] })
+      await queryClient.invalidateQueries({ queryKey: ['sessions', targetProjectId] })
+      await queryClient.invalidateQueries({ queryKey: ['projects'] })
+      await queryClient.invalidateQueries({ queryKey: ['recentSessions'] })
+    } finally {
+      setMoving(false)
     }
   }
 
@@ -209,7 +232,7 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
                   variant="ghost"
                   size="icon-xs"
                   className="shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={() => setConfirmDelete('project')}
+                  onClick={() => setConfirmAction('delete-project')}
                   title="Delete project"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -251,15 +274,25 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
                     )}
                   </span>
                   {selectedSessionIds.size > 0 ? (
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      className="ml-auto text-destructive hover:text-destructive"
-                      onClick={() => setConfirmDelete('sessions')}
-                    >
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      Delete selected
-                    </Button>
+                    <div className="flex items-center gap-1 ml-auto">
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => setMoveSessionIds(new Set(selectedSessionIds))}
+                      >
+                        <ArrowRightLeft className="h-3 w-3 mr-1" />
+                        Move selected
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setConfirmAction('delete-sessions')}
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Delete selected
+                      </Button>
+                    </div>
                   ) : (
                     <button
                       className="flex items-center gap-1 ml-auto text-[10px] text-muted-foreground hover:text-foreground cursor-pointer"
@@ -281,12 +314,13 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
                     onToggle={() => toggleSession(session.id)}
                     onDelete={() => {
                       setSelectedSessionIds(new Set([session.id]))
-                      setConfirmDelete('sessions')
+                      setConfirmAction('delete-sessions')
                     }}
                     onRename={async (id, name) => {
                       await api.updateSessionSlug(id, name)
                       await queryClient.invalidateQueries({ queryKey: ['sessions', project!.id] })
                     }}
+                    onMove={() => setMoveSessionIds(new Set([session.id]))}
                   />
                 ))}
               </div>
@@ -299,17 +333,17 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
         </DialogContent>
       </Dialog>
 
-      {/* Confirmation dialogs */}
-      <AlertDialog open={confirmDelete !== null} onOpenChange={(open) => !open && setConfirmDelete(null)}>
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={confirmAction !== null} onOpenChange={(open) => !open && setConfirmAction(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirmDelete === 'project'
+              {confirmAction === 'delete-project'
                 ? `Delete project "${project.name}"?`
                 : `Delete ${selectedSessionIds.size} session${selectedSessionIds.size !== 1 ? 's' : ''}?`}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmDelete === 'project'
+              {confirmAction === 'delete-project'
                 ? 'This will permanently delete this project and all its Observe logs. Your original Claude session files are not modified.'
                 : 'This will permanently delete the selected session logs. Your original Claude session files are not modified.'}
             </AlertDialogDescription>
@@ -320,11 +354,52 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
               variant="destructive"
               disabled={deleting}
               onClick={() => {
-                if (confirmDelete === 'project') handleDeleteProject()
-                else if (confirmDelete === 'sessions') handleDeleteSelectedSessions()
+                if (confirmAction === 'delete-project') handleDeleteProject()
+                else if (confirmAction === 'delete-sessions') handleDeleteSelectedSessions()
               }}
             >
               {deleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Move session picker */}
+      <MoveSessionModal
+        open={moveSessionIds !== null}
+        currentProjectId={project.id}
+        sessionCount={moveSessionIds?.size ?? 0}
+        onSelect={async (targetProject) => {
+          if (!moveSessionIds) return
+          if (moveSessionIds.size > 1) {
+            setConfirmMoveTarget(targetProject)
+          } else {
+            await handleMoveSessions(targetProject.id)
+          }
+        }}
+        onClose={() => setMoveSessionIds(null)}
+      />
+
+      {/* Move confirmation for multi-select */}
+      <AlertDialog open={confirmMoveTarget !== null} onOpenChange={(open) => { if (!open) setConfirmMoveTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Move {moveSessionIds?.size} session{(moveSessionIds?.size ?? 0) !== 1 ? 's' : ''} to &ldquo;{confirmMoveTarget?.name}&rdquo;?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              The selected sessions will be moved from &ldquo;{project.name}&rdquo; to &ldquo;{confirmMoveTarget?.name}&rdquo;.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={moving}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={moving}
+              onClick={() => {
+                if (confirmMoveTarget) handleMoveSessions(confirmMoveTarget.id)
+              }}
+            >
+              {moving ? 'Moving...' : 'Move'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -339,12 +414,14 @@ function SessionRow({
   onToggle,
   onDelete,
   onRename,
+  onMove,
 }: {
   session: Session
   selected: boolean
   onToggle: () => void
   onDelete: () => void
   onRename: (id: string, name: string) => Promise<void>
+  onMove: () => void
 }) {
   const label = session.slug || session.id.slice(0, 8)
   const activityTime = formatRelativeTime(session.lastActivity || session.startedAt)
@@ -382,26 +459,26 @@ function SessionRow({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 text-sm">
           {isEditing ? (
-            <input
-              ref={inputRef}
-              className="truncate bg-transparent border border-border rounded px-1 text-sm outline-none w-full min-w-0"
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') { e.preventDefault(); saveEdit() }
-                if (e.key === 'Escape') { e.preventDefault(); setIsEditing(false) }
-              }}
-              onBlur={() => saveEdit()}
-              onClick={(e) => e.stopPropagation()}
-            />
-          ) : (
-            <>
-              <span className="truncate">{label}</span>
-              <Pencil
-                className="h-3 w-3 shrink-0 text-muted-foreground/30 group-hover:text-yellow-500 transition-colors cursor-pointer"
-                onClick={startEditing}
+            <div className="flex items-center gap-1 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+              <input
+                ref={inputRef}
+                className="truncate bg-transparent border border-border rounded px-1 text-sm outline-none flex-1 min-w-0"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); saveEdit() }
+                  if (e.key === 'Escape') { e.preventDefault(); setIsEditing(false) }
+                }}
               />
-            </>
+              <Button variant="ghost" size="icon-xs" onClick={saveEdit}>
+                <Check className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon-xs" onClick={() => setIsEditing(false)}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ) : (
+            <span className="truncate">{label}</span>
           )}
           {!isEditing && (
             <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">Created {createdTime}</span>
@@ -420,17 +497,69 @@ function SessionRow({
           {cwd && <span className="ml-auto truncate">{cwd}</span>}
         </div>
       </div>
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        className="shrink-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100"
-        onClick={(e) => {
-          e.stopPropagation()
-          onDelete()
-        }}
-      >
-        <Trash2 className="h-3 w-3" />
-      </Button>
+      <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+        <Button variant="ghost" size="icon-xs" title="Rename" onClick={startEditing}>
+          <Pencil className="h-3 w-3 text-muted-foreground/40 group-hover:text-yellow-500 transition-colors" />
+        </Button>
+        <Button variant="ghost" size="icon-xs" title="Move to project" onClick={onMove}>
+          <ArrowRightLeft className="h-3 w-3 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+        </Button>
+        <Button variant="ghost" size="icon-xs" title="Delete" className="group-hover:text-destructive" onClick={onDelete}>
+          <Trash2 className="h-3 w-3 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+        </Button>
+      </div>
     </div>
+  )
+}
+
+function MoveSessionModal({
+  open,
+  currentProjectId,
+  sessionCount,
+  onSelect,
+  onClose,
+}: {
+  open: boolean
+  currentProjectId: number
+  sessionCount: number
+  onSelect: (project: Project) => void
+  onClose: () => void
+}) {
+  const { data: projects } = useProjects()
+  const otherProjects = projects?.filter((p) => p.id !== currentProjectId) ?? []
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
+      <DialogContent aria-describedby={undefined} className="w-[400px] max-w-[90vw] max-h-[60vh] flex flex-col p-0">
+        <div className="px-5 pt-5 pb-3">
+          <DialogTitle>
+            Move {sessionCount} session{sessionCount !== 1 ? 's' : ''} to...
+          </DialogTitle>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto border-t">
+          {otherProjects.length > 0 ? (
+            <div className="divide-y divide-border/50">
+              {otherProjects.map((p) => (
+                <button
+                  key={p.id}
+                  className="flex items-center gap-3 w-full px-5 py-3 text-sm hover:bg-accent/50 transition-colors cursor-pointer text-left"
+                  onClick={() => onSelect(p)}
+                >
+                  <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate">{p.name}</span>
+                  {p.sessionCount != null && (
+                    <span className="ml-auto text-[10px] text-muted-foreground">{p.sessionCount} sessions</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+              No other projects
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

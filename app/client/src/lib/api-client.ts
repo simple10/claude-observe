@@ -64,6 +64,12 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ slug }),
     }),
+  moveSession: (sessionId: string, projectId: number) =>
+    fetch(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId }),
+    }),
   renameProject: (projectId: number, name: string) =>
     fetch(`${API_BASE}/projects/${projectId}/rename`, {
       method: 'POST',
