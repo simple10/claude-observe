@@ -116,11 +116,12 @@ export function ProjectList({ collapsed }: ProjectListProps) {
   const { data: projects } = useProjects()
   const { selectedProjectId, setSelectedProject } = useUIStore()
 
-  const [modalProject, setModalProject] = useState<Project | null>(null)
+  const [modalProjectId, setModalProjectId] = useState<number | null>(null)
+  const modalProject = projects?.find((p) => p.id === modalProjectId) ?? null
 
   const openProjectModal = useCallback((project: Project, e: React.MouseEvent) => {
     e.stopPropagation()
-    setModalProject(project)
+    setModalProjectId(project.id)
   }, [])
 
   if (!projects?.length) {
@@ -214,7 +215,7 @@ export function ProjectList({ collapsed }: ProjectListProps) {
         project={modalProject}
         open={modalProject !== null}
         onOpenChange={(open) => {
-          if (!open) setModalProject(null)
+          if (!open) setModalProjectId(null)
         }}
       />
     </TooltipProvider>
