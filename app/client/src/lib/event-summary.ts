@@ -20,8 +20,10 @@ export function getEventSummary(event: ParsedEvent): string {
     case 'Stop':
       return getStopSummary(event);
 
-    case 'StopFailure':
-      return p.error_type ? `Error: ${p.error_type}` : 'Turn failed';
+    case 'StopFailure': {
+      const msg = p.last_assistant_message as string | undefined;
+      return msg ? `Turn failed: ${oneLine(msg)}` : 'Turn failed';
+    }
 
     case 'SubagentStart':
       return p.agent_name || p.description || 'Subagent started';
@@ -39,8 +41,13 @@ export function getEventSummary(event: ParsedEvent): string {
     case 'PostToolUseFailure':
       return oneLine(p.error || getToolSummary(event.toolName, p.tool_input, cwd) || 'Tool failed');
 
-    case 'PermissionRequest':
-      return p.tool_name ? `${p.tool_name}` : 'Permission requested';
+    case 'PermissionRequest': {
+      const tool = p.tool_name as string | undefined;
+      const desc = p.tool_input?.description as string | undefined;
+      if (tool && desc) return `${tool}: ${oneLine(desc)}`;
+      if (tool) return tool;
+      return 'Permission requested';
+    }
 
     case 'TaskCreated':
       return oneLine(p.description || p.task_description || '');

@@ -61,6 +61,11 @@ export function EventDetail({ event, agentMap, spawnInfo }: EventDetailProps) {
         spawnInfo={spawnInfo}
       />
 
+      {/* Error from payload (shown for any event type with an error field) */}
+      {typeof p.error === 'string' && p.error && (
+        <DetailCode label="Error" value={p.error} />
+      )}
+
       {/* Conversation thread for UserPrompt / Stop / SubagentStop events */}
       {showThread && (
         <div>
@@ -203,10 +208,28 @@ function ToolDetail({
   }
 
   if (event.subtype === 'StopFailure') {
+    let errorType = payload.error as string | undefined
+    let errorMessage = payload.error_message as string | undefined
+    if (payload.error_details) {
+      try {
+        const raw =
+          typeof payload.error_details === 'string' ? payload.error_details : ''
+        // Strip leading status code (e.g. "400 {..." → "{...")
+        const jsonStr = raw.replace(/^\d+\s*/, '')
+        const details = jsonStr ? JSON.parse(jsonStr) : payload.error_details
+        if (!errorType) errorType = details?.error?.type
+        if (!errorMessage) errorMessage = details?.error?.message || details?.message
+      } catch {
+        // ignore parse errors
+      }
+    }
     return (
-      <div className="space-y-1">
-        <DetailRow label="Error type" value={payload.error_type || 'unknown'} />
-        {payload.error_message && <DetailCode label="Error" value={payload.error_message} />}
+      <div className="space-y-1.5">
+        {payload.last_assistant_message && (
+          <DetailRow label="Message" value={payload.last_assistant_message as string} />
+        )}
+        {errorType && <DetailRow label="Error" value={errorType} />}
+        {errorMessage && <DetailCode label="Details" value={errorMessage} />}
       </div>
     )
   }
@@ -247,11 +270,24 @@ function ToolDetail({
   }
 
   if (event.subtype === 'PermissionRequest') {
+    const permTi = payload.tool_input as Record<string, any> | undefined
     return (
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         {payload.tool_name && <DetailRow label="Tool" value={payload.tool_name as string} />}
-        {payload.description && (
-          <DetailRow label="Description" value={payload.description as string} />
+        {permTi?.command && <DetailCode label="Command" value={permTi.command} />}
+        {permTi?.description && <DetailRow label="Description" value={permTi.description} />}
+        {payload.ruleContent && (
+          <DetailRow label="Rule" value={payload.ruleContent as string} />
+        )}
+        {payload.permission_suggestions && (
+          <DetailCode
+            label="Permissions"
+            value={
+              typeof payload.permission_suggestions === 'string'
+                ? payload.permission_suggestions
+                : JSON.stringify(payload.permission_suggestions, null, 2)
+            }
+          />
         )}
       </div>
     )

@@ -79,7 +79,7 @@ export const EventRow = memo(function EventRow({ event, agentMap, agentColorMap,
   const { iconColor, customHex } = getEventColor(event.subtype, event.toolName)
 
   const isTool = event.subtype === 'PreToolUse' || event.subtype === 'PostToolUse' || event.subtype === 'PostToolUseFailure'
-  const isFailure = event.subtype === 'PostToolUseFailure'
+  const isFailure = event.subtype === 'PostToolUseFailure' || event.status === 'failed'
   const isCompleted = event.status === 'completed'
 
   const rawLabel = isTool ? 'Tool' : event.subtype || event.type

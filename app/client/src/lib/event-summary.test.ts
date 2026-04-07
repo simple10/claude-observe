@@ -123,15 +123,20 @@ describe('getEventSummary', () => {
   // ── StopFailure ───────────────────────────────────────────
 
   describe('StopFailure', () => {
-    it('should show error type', () => {
+    it('should show "Turn failed:" with last_assistant_message', () => {
       const event = makeEvent({
         subtype: 'StopFailure',
-        payload: { error_type: 'timeout' },
+        payload: { last_assistant_message: 'Prompt is too long', error: 'invalid_request' },
       })
-      expect(getEventSummary(event)).toBe('Error: timeout')
+      expect(getEventSummary(event)).toBe('Turn failed: Prompt is too long')
     })
 
-    it('should fall back to "Turn failed"', () => {
+    it('should fall back to "Turn failed" when no message', () => {
+      const event = makeEvent({ subtype: 'StopFailure', payload: { error: 'timeout' } })
+      expect(getEventSummary(event)).toBe('Turn failed')
+    })
+
+    it('should fall back to "Turn failed" when empty payload', () => {
       const event = makeEvent({ subtype: 'StopFailure', payload: {} })
       expect(getEventSummary(event)).toBe('Turn failed')
     })
@@ -200,7 +205,15 @@ describe('getEventSummary', () => {
   // ── PermissionRequest ─────────────────────────────────────
 
   describe('PermissionRequest', () => {
-    it('should return tool_name', () => {
+    it('should show tool_name with tool_input.description', () => {
+      const event = makeEvent({
+        subtype: 'PermissionRequest',
+        payload: { tool_name: 'Bash', tool_input: { description: 'Test awk extraction for v0.8.0 changelog' } },
+      })
+      expect(getEventSummary(event)).toBe('Bash: Test awk extraction for v0.8.0 changelog')
+    })
+
+    it('should return tool_name when no description', () => {
       const event = makeEvent({
         subtype: 'PermissionRequest',
         payload: { tool_name: 'Bash' },
