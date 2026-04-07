@@ -403,6 +403,7 @@ function ToolDetail({
         <div className="space-y-1.5">
           {ti.description && <DetailRow label="Description" value={ti.description} />}
           {ti.command && <DetailCode label="Command" value={ti.command} />}
+          {cwd && <DetailRow label="CWD" value={cwd} />}
           {result && <DetailCode label="Result" value={formatResult(result)} diff={isDiff} />}
         </div>
       )
