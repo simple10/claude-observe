@@ -41,7 +41,7 @@ export const STATIC_FILTERS: StaticFilter[] = [
   },
   { label: 'Permissions', subtypes: ['PermissionRequest'] },
   { label: 'Notifications', subtypes: ['Notification'] },
-  { label: 'Stop', subtypes: ['Stop', 'StopFailure'] },
+  { label: 'Stop', subtypes: ['Stop', 'StopFailure', 'SubagentStop'] },
   { label: 'Compaction', subtypes: ['PreCompact', 'PostCompact'] },
   {
     label: 'Errors',

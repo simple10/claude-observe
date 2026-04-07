@@ -2,12 +2,12 @@
 
 ## QUEUED TASKS
 
-- [ ] Show both Stop and SubagentStop hooks when the Stop filter is used - currently, SubagentStop is only shown for the Agent filter but we need to show all Stop-type events with the Stop filter
 
 ## COMPLETED TASKS
 
 - [x] Add transcript_path to agents table
 - [x] Enhance events stream expanded summaries (description + Read file.content)
+- [x] Show SubagentStop with the Stop filter
 
 ---
 

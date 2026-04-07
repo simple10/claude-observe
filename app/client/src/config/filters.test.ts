@@ -129,6 +129,7 @@ describe('eventMatchesFilters', () => {
     it('should match Stop filter', () => {
       expect(eventMatchesFilters(makeEvent({ subtype: 'Stop' }), ['Stop'], [])).toBe(true)
       expect(eventMatchesFilters(makeEvent({ subtype: 'StopFailure' }), ['Stop'], [])).toBe(true)
+      expect(eventMatchesFilters(makeEvent({ subtype: 'SubagentStop' }), ['Stop'], [])).toBe(true)
     })
 
     it('should match Compaction filter', () => {
