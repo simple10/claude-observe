@@ -1,7 +1,9 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { EventStore } from './storage/types'
 
-const stubStore = {} as EventStore
+const stubStore = {
+  healthCheck: async () => ({ ok: true }),
+} as unknown as EventStore
 const noop = () => {}
 
 describe('dev mode redirect', () => {
@@ -60,7 +62,7 @@ describe('dev mode redirect', () => {
     const app = createApp(stubStore, noop, noop)
 
     const res = await app.request('/api/health', { method: 'GET' })
-    expect(res.status).not.toBe(302)
+    expect(res.status).toBe(200)
   })
 
   test('does not redirect when runtime is not dev', async () => {
