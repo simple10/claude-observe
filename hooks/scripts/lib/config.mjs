@@ -130,14 +130,22 @@ export function getConfig(overrides = {}) {
  * and docker.mjs pass to the container. Use with spawn/exec env overrides.
  */
 export function getServerEnv(config) {
-  // TODO: add config.runtime check and set client dist path correctly
+  const isDocker = config.runtime === 'docker'
+  const isDev = config.runtime === 'dev'
+
   return {
-    AGENTS_OBSERVE_SERVER_PORT: config.serverPort,
-    AGENTS_OBSERVE_DB_PATH: resolve(config.dataDir, config.databaseFileName),
-    AGENTS_OBSERVE_CLIENT_DIST_PATH: resolve(config.installDir, 'app/client/dist'),
+    AGENTS_OBSERVE_SERVER_PORT: isDocker ? '4981' : config.serverPort,
+    AGENTS_OBSERVE_DB_PATH: isDocker
+      ? `/data/${config.databaseFileName}`
+      : resolve(config.dataDir, config.databaseFileName),
+    AGENTS_OBSERVE_CLIENT_DIST_PATH: isDev
+      ? '' // vite dev server serves the client
+      : isDocker
+        ? '/app/client/dist'
+        : resolve(config.installDir, 'app/client/dist'),
     AGENTS_OBSERVE_LOG_LEVEL: config.logLevel,
     AGENTS_OBSERVE_RUNTIME: config.runtime,
-    AGENTS_OBSERVE_STORAGE_ADAPTER: 'sqlite', // Only adapter currently supported
+    AGENTS_OBSERVE_STORAGE_ADAPTER: 'sqlite',
   }
 }
 

@@ -324,17 +324,49 @@ describe('config', () => {
 })
 
 describe('getServerEnv', () => {
-  it('returns env vars matching docker-compose config', async () => {
+  it('uses container paths for docker runtime', async () => {
     const mod = await loadModule()
-    const cfg = mod.getConfig()
+    const cfg = mod.getConfig({ runtime: 'docker' })
+    const env = mod.getServerEnv(cfg)
+
+    expect(env.AGENTS_OBSERVE_SERVER_PORT).toBe('4981')
+    expect(env.AGENTS_OBSERVE_DB_PATH).toBe('/data/observe.db')
+    expect(env.AGENTS_OBSERVE_CLIENT_DIST_PATH).toBe('/app/client/dist')
+    expect(env.AGENTS_OBSERVE_RUNTIME).toBe('docker')
+    expect(env.AGENTS_OBSERVE_STORAGE_ADAPTER).toBe('sqlite')
+  })
+
+  it('uses host paths for local runtime', async () => {
+    const mod = await loadModule()
+    const cfg = mod.getConfig({ runtime: 'local' })
     const env = mod.getServerEnv(cfg)
 
     expect(env.AGENTS_OBSERVE_SERVER_PORT).toBe(cfg.serverPort)
+    expect(env.AGENTS_OBSERVE_DB_PATH).toContain(cfg.dataDir)
     expect(env.AGENTS_OBSERVE_DB_PATH).toContain('observe.db')
     expect(env.AGENTS_OBSERVE_CLIENT_DIST_PATH).toContain('app/client/dist')
-    expect(env.AGENTS_OBSERVE_LOG_LEVEL).toBe(cfg.logLevel)
-    expect(env.AGENTS_OBSERVE_RUNTIME).toBe(cfg.runtime)
-    expect(env.AGENTS_OBSERVE_STORAGE_ADAPTER).toBe('sqlite')
+    expect(env.AGENTS_OBSERVE_CLIENT_DIST_PATH).toContain(cfg.installDir)
+    expect(env.AGENTS_OBSERVE_RUNTIME).toBe('local')
+  })
+
+  it('sets empty CLIENT_DIST_PATH for dev runtime', async () => {
+    const mod = await loadModule()
+    const cfg = mod.getConfig({ runtime: 'dev' })
+    const env = mod.getServerEnv(cfg)
+
+    expect(env.AGENTS_OBSERVE_SERVER_PORT).toBe(cfg.serverPort)
+    expect(env.AGENTS_OBSERVE_CLIENT_DIST_PATH).toBe('')
+    expect(env.AGENTS_OBSERVE_RUNTIME).toBe('dev')
+  })
+
+  it('always includes log level and storage adapter', async () => {
+    const mod = await loadModule()
+    for (const runtime of ['docker', 'local', 'dev']) {
+      const cfg = mod.getConfig({ runtime })
+      const env = mod.getServerEnv(cfg)
+      expect(env.AGENTS_OBSERVE_LOG_LEVEL).toBe(cfg.logLevel)
+      expect(env.AGENTS_OBSERVE_STORAGE_ADAPTER).toBe('sqlite')
+    }
   })
 })
 

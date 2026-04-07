@@ -28,35 +28,22 @@ default:
 build:
     docker build -t agents-observe:local .
 
-# Start docker container (detached)
+# Start server (same path as plugin MCP)
 start:
-    @mkdir -p {{ project_root }}/data
-    @docker compose down >/dev/null 2>&1 || true
-    @docker rm -f agents-observe >/dev/null 2>&1 || true
-    docker compose up -d --build
-    @echo ""
-    @echo "Waiting for server..."
-    @for i in $(seq 1 15); do \
-      if curl -sf http://localhost:{{ port }}/api/health >/dev/null 2>&1; then \
-        echo "Ready: http://localhost:{{ port }}"; \
-        break; \
-      fi; \
-      sleep 1; \
-    done
+    node {{ cli_script }} start
     @just open
 
 # Start the server locally without docker
 start-local:
-    @mkdir -p {{ project_root }}/data
     npm run start
 
-# Stop containers
+# Stop server
 stop:
-    @docker compose down >/dev/null 2>&1 || true
-    @docker rm -f agents-observe >/dev/null 2>&1 || true
+    node {{ cli_script }} stop
 
-# Restart containers
-restart: stop start
+# Restart server
+restart:
+    node {{ cli_script }} restart
 
 # View container logs (follow)
 logs:

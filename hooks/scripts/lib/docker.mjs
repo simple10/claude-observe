@@ -3,7 +3,7 @@
 
 import { execFile } from 'node:child_process'
 import { getJson } from './http.mjs'
-import { initLocalDataDirs } from './config.mjs'
+import { initLocalDataDirs, getServerEnv } from './config.mjs'
 import { saveServerPortFile, removeServerPortFile } from './fs.mjs'
 
 // -- Shell helper -------------------------------------------------
@@ -78,54 +78,31 @@ export async function startServer(config, log = console) {
     log.info('AGENTS_OBSERVE_TEST_SKIP_PULL=1 — skipping docker pull (test harness)')
   }
 
-  // Try preferred port, fall back to auto-assign
+  // Build docker run args from centralized server env
+  const serverEnv = getServerEnv(config)
+  const containerPort = serverEnv.AGENTS_OBSERVE_SERVER_PORT
   const preferredPort = config.serverPort
-  const containerPort = '4981'
+  const envArgs = Object.entries(serverEnv).flatMap(([k, v]) => ['-e', `${k}=${v}`])
 
-  let runResult = await run('docker', [
-    'run',
-    '-d',
-    '--name',
-    config.containerName,
-    '-p',
-    `${preferredPort}:${containerPort}`,
-    '-e',
-    `AGENTS_OBSERVE_SERVER_PORT=${containerPort}`,
-    '-e',
-    'AGENTS_OBSERVE_DB_PATH=/data/observe.db',
-    '-e',
-    'AGENTS_OBSERVE_CLIENT_DIST_PATH=/app/client/dist',
-    '-e',
-    'AGENTS_OBSERVE_RUNTIME=docker',
-    '-v',
-    `${config.dataDir}:/data`,
-    config.dockerImage,
-  ])
+  function dockerRunArgs(portMapping) {
+    return [
+      'run', '-d',
+      '--name', config.containerName,
+      '-p', portMapping,
+      ...envArgs,
+      '-v', `${config.dataDir}:/data`,
+      config.dockerImage,
+    ]
+  }
 
+  // Try preferred port, fall back to auto-assign
+  let runResult = await run('docker', dockerRunArgs(`${preferredPort}:${containerPort}`))
   let actualPort = preferredPort
 
   if (!runResult.ok && runResult.stderr.includes('port is already allocated')) {
     log.warn(`Port ${preferredPort} is in use, auto-assigning a free port...`)
 
-    runResult = await run('docker', [
-      'run',
-      '-d',
-      '--name',
-      config.containerName,
-      '-p',
-      `0:${containerPort}`,
-      '-e',
-      `AGENTS_OBSERVE_SERVER_PORT=${containerPort}`,
-      '-e',
-      'AGENTS_OBSERVE_DB_PATH=/data/observe.db',
-      '-e',
-      'AGENTS_OBSERVE_CLIENT_DIST_PATH=/app/client/dist',
-      '-e',
-      'AGENTS_OBSERVE_RUNTIME=docker',
-      '-v',
-      `${config.dataDir}:/data`,
-      config.dockerImage,
-    ])
+    runResult = await run('docker', dockerRunArgs(`0:${containerPort}`))
 
     if (!runResult.ok) {
       log.error(`Failed to start container: ${runResult.stderr}`)
