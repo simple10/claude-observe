@@ -298,7 +298,8 @@ function SessionList({ projectId }: { projectId: number }) {
     <div className="ml-4 mt-1 space-y-0.5">
       {groups.map((group) => {
         const isGroupExpanded = !shouldCollapse || expandedGroups.has(group.label)
-        const visibleSessions = isGroupExpanded ? group.sessions : group.sessions.slice(0, GROUP_PREVIEW_COUNT)
+        const previewCount = group.label === 'Today' ? 10 : GROUP_PREVIEW_COUNT
+        const visibleSessions = isGroupExpanded ? group.sessions : group.sessions.slice(0, previewCount)
         const hiddenCount = group.sessions.length - visibleSessions.length
 
         return (
@@ -400,7 +401,7 @@ function SessionList({ projectId }: { projectId: number }) {
               Show {hiddenCount} more...
             </button>
           )}
-          {shouldCollapse && expandedGroups.has(group.label) && group.sessions.length > GROUP_PREVIEW_COUNT && (
+          {shouldCollapse && expandedGroups.has(group.label) && group.sessions.length > previewCount && (
             <button
               className="w-full text-[10px] text-muted-foreground hover:text-foreground px-2 py-1 cursor-pointer"
               onClick={() => toggleGroup(group.label)}
