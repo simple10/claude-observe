@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api-client'
 import { useUIStore } from '@/stores/ui-store'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogClose, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -186,6 +186,11 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
+                <DialogClose asChild>
+                  <Button variant="ghost" size="icon-xs" className="shrink-0" title="Close">
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </DialogClose>
               </>
             )}
           </div>

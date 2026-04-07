@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogClose, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ProjectsTab } from './projects-tab'
 import { IconSettings } from './icon-settings'
+import { Button } from '@/components/ui/button'
 import { API_BASE } from '@/config/api'
-import { Database, Container, Monitor } from 'lucide-react'
+import { Database, Container, Monitor, X } from 'lucide-react'
 
 interface ServerInfo {
   dbPath: string
@@ -34,8 +35,15 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent aria-describedby={undefined} className="w-[640px] max-w-[90vw] max-h-[80vh] flex flex-col p-0">
-        <div className="px-6 pt-6 pb-0">
+        <div className="flex items-center px-6 pt-6 pb-0">
           <DialogTitle>Settings</DialogTitle>
+          <div className="ml-auto">
+            <DialogClose asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7" title="Close">
+                <X className="h-4 w-4" />
+              </Button>
+            </DialogClose>
+          </div>
         </div>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
           <div className="px-6 pt-2">
