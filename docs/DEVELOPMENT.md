@@ -89,6 +89,22 @@ AGENTS_OBSERVE_DEV_CLIENT_PORT=5179
 
 Pick any unused ports — don't collide with the main checkout (4981/5174) or other worktrees. The `.env` is gitignored. The justfile loads it automatically.
 
+### Merging worktrees
+
+Always merge main into the worktree first, test there, then merge back:
+
+```bash
+# From the worktree
+git merge main           # bring in latest main changes
+just test                # verify everything works together
+
+# Then merge back
+git checkout main
+git merge <branch>       # or: git merge --squash <branch>
+```
+
+Main should never be the first place where two branches meet — surface conflicts in the worktree where you can test them.
+
 ## Code Style
 
 - TypeScript throughout, avoid `any`
