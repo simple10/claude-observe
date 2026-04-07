@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 // hooks/scripts/observe_cli.mjs
 // CLI entrypoint for Agents Observe plugin.
-// Commands: hook, health, restart
+// Thin dispatcher — command implementations live in lib/.
 
 import { createInterface } from 'node:readline'
 import { getConfig } from './lib/config.mjs'
-import { getJson, postJson } from './lib/http.mjs'
+import { getJson } from './lib/http.mjs'
 import { createLogger } from './lib/logger.mjs'
-import { handleCallbackRequests } from './lib/callbacks.mjs'
 import { startServer, stopServer } from './lib/docker.mjs'
 import { removeDatabase } from './lib/fs.mjs'
+import { hookCommand, hookSyncCommand, hookAutostartCommand } from './lib/hooks.mjs'
 
 const cliArgs = parseArgs(process.argv.slice(2))
 const config = getConfig(cliArgs)
@@ -29,13 +29,13 @@ switch (cliArgs.commands[0] || 'help') {
     console.log('  db-reset:        Delete the SQLite database [--force to skip confirmation]')
     process.exit(0)
   case 'hook':
-    hookCommand()
+    hookCommand(config, log)
     break
   case 'hook-sync':
-    hookSyncCommand()
+    hookSyncCommand(config, log)
     break
   case 'hook-autostart':
-    hookAutostartCommand()
+    hookAutostartCommand(config, log)
     break
   case 'health':
     healthCommand()
@@ -62,260 +62,9 @@ switch (cliArgs.commands[0] || 'help') {
 
 // -- Commands -----------------------------------------------------
 
-function hookCommand() {
-  log.trace('CLI hook command invoked')
-
-  let input = ''
-  process.stdin.setEncoding('utf8')
-  process.stdin.on('data', (chunk) => {
-    input += chunk
-  })
-  process.stdin.on('end', () => {
-    if (!input.trim()) {
-      log.trace('Empty stdin, skipping')
-      return
-    }
-
-    let hookPayload
-    try {
-      hookPayload = JSON.parse(input)
-    } catch (err) {
-      log.warn(`Failed to parse hook payload: ${err.message}`)
-      return
-    }
-
-    const hookEvent = hookPayload.event || 'unknown'
-    const toolName = hookPayload.tool_name || hookPayload.tool?.name || ''
-    log.debug(`Hook event: ${hookEvent}${toolName ? ` tool=${toolName}` : ''}`)
-    log.trace(`Hook payload: ${input.trim().slice(0, 500)}`)
-
-    const envelope = { hook_payload: hookPayload, meta: { env: {} } }
-    if (config.projectSlug) {
-      envelope.meta.env.AGENTS_OBSERVE_PROJECT_SLUG = config.projectSlug
-    }
-
-    // Send hook payload to API server
-    postJson(`${config.apiBaseUrl}/events`, envelope, {
-      fireAndForget: config.allowedCallbacks.size === 0,
-      log,
-    })
-      .then((result) => {
-        if (result.status === 0) {
-          log.error(`Server unreachable at ${config.baseOrigin}: ${result.error}`)
-          return
-        }
-        log.trace(`Server response: status=${result.status} hasRequests=${!!result.body?.requests}`)
-        if (result.body?.requests) {
-          // Handle callback requests from the server
-          // Used to patch sessions info
-          return handleCallbackRequests(result.body.requests, { config, log })
-        }
-      })
-      .catch((err) => {
-        log.error(`Hook POST failed: ${err.message}`)
-      })
-  })
-}
-
 /**
- * Mute console.log/error/warn so only our final JSON goes to stdout.
- * Logger file writes still work — only the console output methods are silenced.
- */
-function muteConsole() {
-  const noop = () => {}
-  console.log = noop
-  console.error = noop
-  console.warn = noop
-  console.debug = noop
-}
-
-/**
- * Output a systemMessage JSON to stdout for Claude to surface to the user.
- * This must be the ONLY stdout output — console is muted before this runs.
- */
-function outputClaudeSystemMessage(message) {
-  // Use process.stdout.write directly since console.log is muted
-  process.stdout.write(JSON.stringify({ systemMessage: message }) + '\n')
-}
-
-/**
- * Read stdin, POST to server synchronously, return { result, envelope }.
- * Does NOT use fireAndForget — waits for the response.
- */
-async function sendHookSync() {
-  const input = await readStdin()
-  if (!input) return { result: null, envelope: null }
-
-  let hookPayload
-  try {
-    hookPayload = JSON.parse(input)
-  } catch (err) {
-    log.warn(`Failed to parse hook payload: ${err.message}`)
-    return { result: null, envelope: null }
-  }
-
-  const hookEvent = hookPayload.event || 'unknown'
-  const toolName = hookPayload.tool_name || hookPayload.tool?.name || ''
-  log.debug(`Hook event: ${hookEvent}${toolName ? ` tool=${toolName}` : ''}`)
-
-  const envelope = { hook_payload: hookPayload, meta: { env: {} } }
-  if (config.projectSlug) {
-    envelope.meta.env.AGENTS_OBSERVE_PROJECT_SLUG = config.projectSlug
-  }
-
-  const result = await postJson(`${config.apiBaseUrl}/events`, envelope, { log })
-  return { result, envelope }
-}
-
-/**
- * Read all stdin into a string (returns promise).
- */
-function readStdin() {
-  return new Promise((resolve) => {
-    let input = ''
-    process.stdin.setEncoding('utf8')
-    process.stdin.on('data', (chunk) => {
-      input += chunk
-    })
-    process.stdin.on('end', () => resolve(input.trim() || null))
-  })
-}
-
-/**
- * hook-sync: Send event synchronously, return systemMessage JSON.
- * Mutes all console output so only the JSON response goes to stdout.
- */
-async function hookSyncCommand() {
-  // Prevent console output so systemMessage can be returned to claude
-  muteConsole()
-
-  try {
-    const { result } = await sendHookSync()
-
-    if (!result || result.status === 0) {
-      outputClaudeSystemMessage(
-        `Agents Observe server is not running. Run /observe status for help.`,
-      )
-      return
-    }
-
-    // Handle callbacks if present
-    if (result.body?.requests) {
-      await handleCallbackRequests(result.body.requests, { config, log })
-    }
-
-    // Return systemMessage from server response if present, otherwise a default
-    const serverMessage = result.body?.systemMessage
-    if (serverMessage) {
-      outputClaudeSystemMessage(serverMessage)
-    } else {
-      outputClaudeSystemMessage(`Agents Observe: logging events. Dashboard: ${config.baseOrigin}`)
-    }
-  } catch (err) {
-    log.error(`hook-sync failed: ${err.message}`)
-    outputClaudeSystemMessage(`Agents Observe: internal error. Run /observe status for help.`)
-  }
-}
-
-/**
- * hook-autostart: Like hook-sync, but auto-starts the server if unreachable.
- * Waits up to hookStartupTimeout ms for the server to become healthy.
- */
-async function hookAutostartCommand() {
-  // Prevent console output so systemMessage can be returned to claude
-  muteConsole()
-
-  try {
-    const { result, envelope } = await sendHookSync()
-
-    // Server is reachable — handle normally
-    if (result && result.status !== 0) {
-      if (result.body?.requests) {
-        await handleCallbackRequests(result.body.requests, { config, log })
-      }
-      const serverMessage = result.body?.systemMessage
-      if (serverMessage) {
-        outputClaudeSystemMessage(serverMessage)
-      } else {
-        outputClaudeSystemMessage(`Agents Observe: logging events. Dashboard: ${config.baseOrigin}`)
-      }
-      return
-    }
-
-    // Server unreachable — auto-start (only if using a local server)
-    if (config.hasCustomApiUrl) {
-      log.warn('Server unreachable at custom API URL — skipping auto-start')
-      outputClaudeSystemMessage(
-        `Agents Observe: server unreachable at ${config.apiBaseUrl}. Run /observe status for help.`,
-      )
-      return
-    }
-
-    log.warn('Server not running, auto-starting...')
-
-    // Start the server in the background — don't await it directly because
-    // docker pull + health loop can exceed the timeout. Instead, poll for
-    // health independently so we detect the server as soon as it's up.
-    let startFinished = false
-    const startPromise = startServer(config, log).then((port) => {
-      startFinished = true
-      return port
-    })
-
-    // Poll for health until the server is up or we hit the timeout
-    const deadline = Date.now() + config.hookStartupTimeout
-    let actualPort = null
-    while (Date.now() < deadline) {
-      const h = await getJson(`${config.apiBaseUrl}/health`, { log: null })
-      if (h.status === 200 && h.body?.ok) {
-        actualPort = config.serverPort
-        break
-      }
-      // If startServer already finished with null (failed), stop polling
-      if (startFinished) {
-        actualPort = await startPromise
-        break
-      }
-      await new Promise((r) => setTimeout(r, 1000))
-    }
-
-    if (!actualPort) {
-      outputClaudeSystemMessage(
-        `Agents Observe: server is starting (timed out after ${
-          config.hookStartupTimeout / 1000
-        }s). Run /observe status to check.`,
-      )
-      return
-    }
-
-    log.info(`Server auto-started on port ${actualPort}`)
-
-    // Retry sending the original event if we have one
-    if (envelope) {
-      const retryUrl = `http://127.0.0.1:${actualPort}/api/events`
-      const retry = await postJson(retryUrl, envelope, { log })
-      if (retry.status !== 0) {
-        log.info('Event delivered after auto-start')
-        if (retry.body?.requests) {
-          await handleCallbackRequests(retry.body.requests, { config, log })
-        }
-      } else {
-        log.error(`Event delivery failed after auto-start: ${retry.error}`)
-      }
-    }
-
-    const dashboardUrl = `http://127.0.0.1:${actualPort}`
-    outputClaudeSystemMessage(`Agents Observe: server started. Dashboard: ${dashboardUrl}`)
-  } catch (err) {
-    log.error(`hook-autostart failed: ${err.message}`)
-    outputClaudeSystemMessage(`Agents Observe: internal error. Run /observe status for help.`)
-  }
-}
-
-/**
- * Get health and runtime info about the server
- *
- * Used by observe-status skill
+ * Get health and runtime info about the server.
+ * Used by /observe and /observe status skills.
  */
 async function healthCommand(exit = true) {
   log.trace('CLI health command invoked')
@@ -353,7 +102,6 @@ async function healthCommand(exit = true) {
     }
     console.log(`  Log Level: ${b.logLevel || 'unknown'}`)
 
-    // Version mismatch detection
     if (config.expectedVersion && b.version && config.expectedVersion !== b.version) {
       console.log('')
       console.log(`⚠ Version mismatch: CLI is v${config.expectedVersion}, server is v${b.version}`)
@@ -372,9 +120,6 @@ async function healthCommand(exit = true) {
   }
 }
 
-/**
- * Restart the Docker container (pulls latest image for current CLI version).
- */
 async function startCommand(msg = 'Starting server...') {
   log.info(msg)
   const actualPort = await startServer(config, log)
@@ -388,18 +133,11 @@ async function startCommand(msg = 'Starting server...') {
   }
 }
 
-/**
- * Stop the Docker container.
- */
 async function stopCommand() {
   await stopServer(config, log)
   log.info('Server stopped')
 }
 
-/**
- * Delete the SQLite database. Stops the server first if running,
- * then restarts it afterward.
- */
 async function dbResetCommand() {
   const dbPath = `${config.dataDir}/${config.databaseFileName}`
 
@@ -411,7 +149,6 @@ async function dbResetCommand() {
     }
   }
 
-  // Check if server is running so we can restart it after
   const health = await getJson(`${config.apiBaseUrl}/health`, { log })
   const wasRunning = health.status === 200 && health.body?.ok
 
@@ -434,6 +171,8 @@ async function dbResetCommand() {
   }
 }
 
+// -- Helpers ------------------------------------------------------
+
 function confirm(prompt) {
   return new Promise((resolve) => {
     const rl = createInterface({ input: process.stdin, output: process.stdout })
@@ -443,7 +182,6 @@ function confirm(prompt) {
     })
   })
 }
-// -- Helpers ------------------------------------------------------
 
 function parseArgs(args) {
   const parsed = { commands: [], baseUrl: null, projectSlug: null, force: false }
