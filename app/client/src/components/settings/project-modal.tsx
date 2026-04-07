@@ -283,6 +283,10 @@ export function ProjectModal({ project, open, onOpenChange }: ProjectModalProps)
                       setSelectedSessionIds(new Set([session.id]))
                       setConfirmDelete('sessions')
                     }}
+                    onRename={async (id, name) => {
+                      await api.updateSessionSlug(id, name)
+                      await queryClient.invalidateQueries({ queryKey: ['sessions', project!.id] })
+                    }}
                   />
                 ))}
               </div>
@@ -334,27 +338,74 @@ function SessionRow({
   selected,
   onToggle,
   onDelete,
+  onRename,
 }: {
   session: Session
   selected: boolean
   onToggle: () => void
   onDelete: () => void
+  onRename: (id: string, name: string) => Promise<void>
 }) {
   const label = session.slug || session.id.slice(0, 8)
   const activityTime = formatRelativeTime(session.lastActivity || session.startedAt)
   const createdTime = formatRelativeTime(session.startedAt)
   const cwd = typeof session.metadata?.cwd === 'string' ? shortenCwd(session.metadata.cwd) : null
 
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isEditing) inputRef.current?.focus()
+  }, [isEditing])
+
+  function startEditing(e: React.MouseEvent) {
+    e.stopPropagation()
+    setEditValue(label)
+    setIsEditing(true)
+  }
+
+  async function saveEdit() {
+    const trimmed = editValue.trim()
+    if (trimmed && trimmed !== label) {
+      await onRename(session.id, trimmed)
+    }
+    setIsEditing(false)
+  }
+
   return (
     <div
       className="group flex items-center gap-3 px-5 py-2 hover:bg-muted/20 cursor-pointer"
-      onClick={onToggle}
+      onClick={() => !isEditing && onToggle()}
     >
       <Checkbox checked={selected} onCheckedChange={onToggle} onClick={(e) => e.stopPropagation()} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 text-sm">
-          <span className="truncate">{label}</span>
-          <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">Created {createdTime}</span>
+          {isEditing ? (
+            <input
+              ref={inputRef}
+              className="truncate bg-transparent border border-border rounded px-1 text-sm outline-none w-full min-w-0"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); saveEdit() }
+                if (e.key === 'Escape') { e.preventDefault(); setIsEditing(false) }
+              }}
+              onBlur={() => saveEdit()}
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <>
+              <span className="truncate">{label}</span>
+              <Pencil
+                className="h-3 w-3 shrink-0 text-muted-foreground/30 group-hover:text-yellow-500 transition-colors cursor-pointer"
+                onClick={startEditing}
+              />
+            </>
+          )}
+          {!isEditing && (
+            <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">Created {createdTime}</span>
+          )}
         </div>
         <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground min-w-0">
           <span
