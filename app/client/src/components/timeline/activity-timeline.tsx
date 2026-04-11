@@ -27,7 +27,7 @@ export function ActivityTimeline() {
 
   const { data: sessions } = useSessions(selectedProjectId)
   const effectiveSessionId = selectedSessionId || sessions?.[0]?.id || null
-  const events = useEffectiveEvents(effectiveSessionId)
+  const events = useEffectiveEvents(effectiveSessionId).data
   const agents = useAgents(effectiveSessionId, events)
   const resizing = useRef(false)
   const startY = useRef(0)

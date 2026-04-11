@@ -9,9 +9,15 @@ import type { ParsedEvent, Agent } from '@/types'
 
 const mockEvents: ParsedEvent[] = []
 const mockAgents: Agent[] = []
+const mockEventsState = { isLoading: false, isError: false }
 
 vi.mock('@/hooks/use-events', () => ({
-  useEvents: () => ({ data: mockEvents }),
+  useEvents: () => ({
+    data: mockEventsState.isLoading ? undefined : mockEvents,
+    isLoading: mockEventsState.isLoading,
+    isError: mockEventsState.isError,
+    error: null,
+  }),
 }))
 
 vi.mock('@/hooks/use-agents', () => ({
@@ -93,10 +99,17 @@ describe('EventStream', () => {
     expect(screen.getByText('Select a project to view events')).toBeInTheDocument()
   })
 
-  it('should show "No events yet" when session selected but no events', () => {
+  it('should show "No events in this session" when session selected but no events', () => {
     setMockEvents([])
     renderWithProviders(<EventStream />)
-    expect(screen.getByText('No events yet')).toBeInTheDocument()
+    expect(screen.getByText('No events in this session')).toBeInTheDocument()
+  })
+
+  it('should show loading spinner while events are loading', () => {
+    mockEventsState.isLoading = true
+    renderWithProviders(<EventStream />)
+    expect(screen.getByText('Loading events...')).toBeInTheDocument()
+    mockEventsState.isLoading = false
   })
 
   it('should render events when available', () => {

@@ -103,7 +103,11 @@ export function EventDetail({ event, agentMap, spawnInfo, pairedPayloads }: Even
           )}
         </>
       ) : (
-        <RawPayloadSection label="Raw payload" timestamp={event.timestamp} payload={event.payload} />
+        <RawPayloadSection
+          label="Raw payload"
+          timestamp={event.timestamp}
+          payload={event.payload}
+        />
       )}
     </div>
   )

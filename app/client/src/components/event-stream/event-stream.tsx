@@ -8,6 +8,8 @@ import { EventRow } from './event-row'
 import { eventMatchesFilters } from '@/config/filters'
 import { format } from 'timeago.js'
 import { buildAgentColorMap } from '@/lib/agent-utils'
+import { QueryBoundary } from '@/components/shared/query-boundary'
+import { EmptyState, Spinner } from '@/components/shared/loading-states'
 import type { Agent } from '@/types'
 
 export function EventStream() {
@@ -29,7 +31,25 @@ export function EventStream() {
   const deferredToolFilters = useDeferredValue(activeToolFilters)
   const deferredSearchQuery = useDeferredValue(searchQuery)
 
-  const events = useEffectiveEvents(selectedSessionId)
+  const eventsQuery = useEffectiveEvents(selectedSessionId)
+  // Defer the event list so React can yield to the browser during the heavy
+  // dedupe/filter/render pipeline. On the initial transition from undefined
+  // to a large array, React's urgent render uses the old value (undefined),
+  // keeping the spinner visible while a background render processes the
+  // new events. This also makes filter toggles feel snappier on large
+  // sessions.
+  const events = useDeferredValue(eventsQuery.data)
+  const displayQuery = useMemo(
+    () => ({
+      data: events,
+      // Stay in "loading" while the deferred render is catching up — this
+      // keeps the spinner mounted and animating during the heavy render.
+      isLoading: eventsQuery.isLoading || (eventsQuery.data !== undefined && events === undefined),
+      isError: eventsQuery.isError,
+      error: eventsQuery.error,
+    }),
+    [events, eventsQuery.data, eventsQuery.isLoading, eventsQuery.isError, eventsQuery.error],
+  )
 
   const agents = useAgents(selectedSessionId, events)
 
@@ -228,14 +248,6 @@ export function EventStream() {
     )
   }
 
-  if (!filteredEvents.length) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
-        No events yet
-      </div>
-    )
-  }
-
   const firstTs = filteredEvents[0]?.timestamp
   const lastTs = filteredEvents[filteredEvents.length - 1]?.timestamp
   const rawCount = events?.length ?? 0
@@ -243,39 +255,62 @@ export function EventStream() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-1 border-b border-border/50 shrink-0">
-        <span className="text-xs text-muted-foreground">
-          Events: <span className="text-foreground">{filteredEvents.length}</span>
-          {showRawCount && (
-            <span className="text-muted-foreground/70 dark:text-muted-foreground/50">
-              {' '}
-              / {rawCount} raw
-            </span>
-          )}
-        </span>
-        {firstTs && lastTs && (
-          <span className="text-[10px] text-muted-foreground/70 dark:text-muted-foreground/50">
-            {format(firstTs)} — {format(lastTs)}
-          </span>
+      <QueryBoundary
+        query={displayQuery}
+        loading={
+          <div className="flex-1 flex items-center justify-center">
+            <Spinner label="Loading events..." />
+          </div>
+        }
+        empty={
+          <div className="flex-1 flex items-center justify-center">
+            <EmptyState text="No events in this session" />
+          </div>
+        }
+        isEmpty={(events) => events.length === 0}
+      >
+        {() => (
+          <>
+            <div className="flex items-center gap-2 px-3 py-1 border-b border-border/50 shrink-0">
+              <span className="text-xs text-muted-foreground">
+                Events: <span className="text-foreground">{filteredEvents.length}</span>
+                {showRawCount && (
+                  <span className="text-muted-foreground/70 dark:text-muted-foreground/50">
+                    {' '}
+                    / {rawCount} raw
+                  </span>
+                )}
+              </span>
+              {firstTs && lastTs && (
+                <span className="text-[10px] text-muted-foreground/70 dark:text-muted-foreground/50">
+                  {format(firstTs)} — {format(lastTs)}
+                </span>
+              )}
+            </div>
+            <div ref={scrollRef} className="flex-1 overflow-y-auto">
+              <div className="divide-y divide-border/50">
+                {filteredEvents.length === 0 ? (
+                  <EmptyState text="No events match the current filters" />
+                ) : (
+                  filteredEvents.map((event) => (
+                    <EventRow
+                      key={event.id}
+                      event={event}
+                      agentMap={agentMap}
+                      agentColorMap={agentColorMap}
+                      showAgentLabel={showAgentLabel}
+                      spawnInfo={spawnInfo.get(event.agentId)}
+                      pairedPayloads={pairedPayloads.get(event.id)}
+                      onRowRef={setEventRowRef}
+                    />
+                  ))
+                )}
+                <div className="h-8" />
+              </div>
+            </div>
+          </>
         )}
-      </div>
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <div className="divide-y divide-border/50">
-          {filteredEvents.map((event) => (
-            <EventRow
-              key={event.id}
-              event={event}
-              agentMap={agentMap}
-              agentColorMap={agentColorMap}
-              showAgentLabel={showAgentLabel}
-              spawnInfo={spawnInfo.get(event.agentId)}
-              pairedPayloads={pairedPayloads.get(event.id)}
-              onRowRef={setEventRowRef}
-            />
-          ))}
-          <div className="h-8" />
-        </div>
-      </div>
+      </QueryBoundary>
     </div>
   )
 }

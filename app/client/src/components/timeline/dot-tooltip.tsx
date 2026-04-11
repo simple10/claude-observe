@@ -41,9 +41,7 @@ export function DotTooltipContent({ event }: { event: ParsedEvent }) {
     <>
       <div className="flex items-baseline gap-2">
         <span className="font-medium">{label}</span>
-        {hook && (
-          <span className="ml-auto text-[10px] font-normal opacity-70">{hook}</span>
-        )}
+        {hook && <span className="ml-auto text-[10px] font-normal opacity-70">{hook}</span>}
       </div>
       {summary && <div className="opacity-80 truncate">{summary}</div>}
       <div className="text-[10px] font-medium tabular-nums mt-0.5">
