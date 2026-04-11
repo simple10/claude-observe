@@ -50,6 +50,23 @@ export function createApp(
   app.route('/api', consumerRouter)
   app.route('/api', changelogRouter)
 
+  // Global error handler — catches any uncaught exception from a route
+  // handler and returns a JSON error response so the UI can surface it
+  // via a toast. Always logs the full error server-side for debugging.
+  app.onError((err, c) => {
+    console.error('[server] Unhandled error:', err)
+    const message = err instanceof Error ? err.message : String(err)
+    return c.json(
+      {
+        error: 'Internal server error',
+        message,
+        // Include the route so the user knows where the failure happened
+        path: c.req.path,
+      },
+      500,
+    )
+  })
+
   // Serve built client static files when clientDistPath is configured
   const clientDistPath = config.clientDistPath
   if (clientDistPath && fs.existsSync(clientDistPath)) {

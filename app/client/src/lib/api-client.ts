@@ -1,10 +1,77 @@
 import { API_BASE } from '@/config/api'
 import type { Project, Session, RecentSession, ServerAgent, ParsedEvent } from '@/types'
 
+/**
+ * Rich error thrown by all api.* methods on failure. Carries the HTTP status,
+ * the server's error message (if it returned a JSON body with `message` or
+ * `error`), and the request path so toasts can display useful context.
+ */
+export class ApiError extends Error {
+  status: number
+  path: string
+  serverMessage?: string
+
+  constructor(status: number, path: string, message: string, serverMessage?: string) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.path = path
+    this.serverMessage = serverMessage
+  }
+}
+
+async function parseErrorBody(res: Response): Promise<string | undefined> {
+  try {
+    const body = await res.json()
+    if (typeof body === 'object' && body !== null) {
+      // Server convention: { error: 'short label', message: 'detailed message' }
+      if (typeof body.message === 'string') return body.message
+      if (typeof body.error === 'string') return body.error
+    }
+  } catch {
+    // not JSON; fall through
+  }
+  return undefined
+}
+
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, init)
-  if (!res.ok) throw new Error(`API error: ${res.status}`)
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}${path}`, init)
+  } catch (err) {
+    // Network failure (server down, CORS, DNS, etc.)
+    const message = err instanceof Error ? err.message : 'Network error'
+    throw new ApiError(0, path, `Network error: ${message}`)
+  }
+  if (!res.ok) {
+    const serverMessage = await parseErrorBody(res)
+    const message = serverMessage
+      ? `${res.status} ${res.statusText}: ${serverMessage}`
+      : `${res.status} ${res.statusText}`
+    throw new ApiError(res.status, path, message, serverMessage)
+  }
   return res.json()
+}
+
+/**
+ * Like fetchJson but for endpoints that return no body (DELETE, etc.).
+ * Still validates the response status and throws ApiError on failure.
+ */
+async function fetchVoid(path: string, init?: RequestInit): Promise<void> {
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}${path}`, init)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Network error'
+    throw new ApiError(0, path, `Network error: ${message}`)
+  }
+  if (!res.ok) {
+    const serverMessage = await parseErrorBody(res)
+    const message = serverMessage
+      ? `${res.status} ${res.statusText}: ${serverMessage}`
+      : `${res.status} ${res.statusText}`
+    throw new ApiError(res.status, path, message, serverMessage)
+  }
 }
 
 export const api = {
@@ -42,32 +109,31 @@ export const api = {
   },
   getThread: (eventId: number) => fetchJson<ParsedEvent[]>(`/events/${eventId}/thread`),
   deleteSession: (sessionId: string) =>
-    fetch(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),
+    fetchVoid(`/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' }),
   clearSessionEvents: (sessionId: string) =>
-    fetch(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}/events`, { method: 'DELETE' }),
-  deleteProject: (projectId: number) =>
-    fetchJson<void>(`/projects/${projectId}`, { method: 'DELETE' }),
-  deleteAllData: () => fetch(`${API_BASE}/data`, { method: 'DELETE' }),
+    fetchVoid(`/sessions/${encodeURIComponent(sessionId)}/events`, { method: 'DELETE' }),
+  deleteProject: (projectId: number) => fetchVoid(`/projects/${projectId}`, { method: 'DELETE' }),
+  deleteAllData: () => fetchVoid(`/data`, { method: 'DELETE' }),
   updateAgentMetadata: (agentId: string, data: { agentType?: string; slug?: string }) =>
-    fetch(`${API_BASE}/agents/${encodeURIComponent(agentId)}/metadata`, {
+    fetchVoid(`/agents/${encodeURIComponent(agentId)}/metadata`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }),
   updateSessionSlug: (sessionId: string, slug: string) =>
-    fetch(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}/metadata`, {
+    fetchVoid(`/sessions/${encodeURIComponent(sessionId)}/metadata`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ slug }),
     }),
   moveSession: (sessionId: string, projectId: number) =>
-    fetch(`${API_BASE}/sessions/${encodeURIComponent(sessionId)}`, {
+    fetchVoid(`/sessions/${encodeURIComponent(sessionId)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ projectId }),
     }),
   renameProject: (projectId: number, name: string) =>
-    fetch(`${API_BASE}/projects/${projectId}/rename`, {
+    fetchVoid(`/projects/${projectId}/rename`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),

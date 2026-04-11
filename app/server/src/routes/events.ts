@@ -327,7 +327,17 @@ router.post('/events', async (c) => {
     return c.json(responseBody, 201)
   } catch (error) {
     console.error('Error processing event:', error)
-    return c.json({ error: 'Invalid request' }, 400)
+    const message = error instanceof Error ? error.message : String(error)
+    // Return 500 (not 400) for genuine processing errors so the client
+    // knows it's a server-side issue, not a malformed request. Include
+    // the full error message so the dashboard can surface it via toast.
+    return c.json(
+      {
+        error: 'Failed to process event',
+        message,
+      },
+      500,
+    )
   }
 })
 
