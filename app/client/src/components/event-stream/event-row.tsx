@@ -1,4 +1,4 @@
-import { memo, useRef, useEffect, useCallback } from 'react'
+import { memo } from 'react'
 import { cn } from '@/lib/utils'
 import { getEventIcon, getEventColor } from '@/config/event-icons'
 import { getEventSummary } from '@/lib/event-summary'
@@ -22,7 +22,6 @@ interface EventRowProps {
   showAgentLabel: boolean
   spawnInfo?: SpawnInfo
   pairedPayloads?: PairedPayloads
-  onRowRef?: (id: number, el: HTMLDivElement | null) => void
 }
 
 function formatTime(ts: number): string {
@@ -67,7 +66,6 @@ export const EventRow = memo(function EventRow({
   showAgentLabel,
   spawnInfo,
   pairedPayloads,
-  onRowRef,
 }: EventRowProps) {
   // Individual selectors so only rows with changing slices re-render.
   // Destructuring from useUIStore() subscribes to the full store state and
@@ -76,22 +74,13 @@ export const EventRow = memo(function EventRow({
   const isExpanded = useUIStore((s) => s.expandedEventIds.has(event.id))
   const isSelected = useUIStore((s) => s.selectedEventId === event.id)
   // Boolean selector (not the raw id) so only the target row re-renders when
-  // scrollToEventId changes. Subscribing to the raw id causes all 1000+ rows
-  // to re-render on every timeline click.
-  const isScrollTarget = useUIStore((s) => s.scrollToEventId === event.id)
+  // flashingEventId changes. Subscribing to the raw id causes all 1000+ rows
+  // to re-render on every flash. The flash state lives in the store (not in
+  // local React state) so it survives row unmount/remount during virtualizer
+  // scrolling — important in rewind mode where target rows can be far away.
+  const isFlashing = useUIStore((s) => s.flashingEventId === event.id)
   const toggleExpandedEvent = useUIStore((s) => s.toggleExpandedEvent)
-  const setScrollToEventId = useUIStore((s) => s.setScrollToEventId)
   const setSelectedEventId = useUIStore((s) => s.setSelectedEventId)
-  const rowRef = useRef<HTMLDivElement>(null)
-
-  // Register this row's DOM element with the parent for scroll-to-selected
-  const combinedRef = useCallback(
-    (el: HTMLDivElement | null) => {
-      ;(rowRef as React.MutableRefObject<HTMLDivElement | null>).current = el
-      onRowRef?.(event.id, el)
-    },
-    [event.id, onRowRef],
-  )
 
   const agent = agentMap.get(event.agentId)
   const isSubagent = agent?.parentAgentId != null
@@ -111,35 +100,6 @@ export const EventRow = memo(function EventRow({
   const displayLabel = LABEL_MAP[rawLabel] || rawLabel
   const displaySummary = getEventSummary(event)
 
-  useEffect(() => {
-    if (isScrollTarget && rowRef.current) {
-      const el = rowRef.current
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      setScrollToEventId(null)
-
-      // Flash after scroll completes — use IntersectionObserver to detect visibility
-      const observer = new IntersectionObserver(
-        ([entry]) => {
-          if (entry.isIntersecting) {
-            observer.disconnect()
-            el.classList.add('animate-[flash-ring_0.4s_ease-in-out_3]')
-            el.addEventListener(
-              'animationend',
-              () => {
-                el.classList.remove('animate-[flash-ring_0.4s_ease-in-out_3]')
-              },
-              { once: true },
-            )
-          }
-        },
-        { threshold: 0.5 },
-      )
-      observer.observe(el)
-      // Fallback: disconnect after 5s in case scroll never brings it into view
-      setTimeout(() => observer.disconnect(), 5000)
-    }
-  }, [isScrollTarget, setScrollToEventId])
-
   const handleRowClick = (e: React.MouseEvent) => {
     // Middle-click or ctrl/meta+click: select/deselect the row
     if (e.button === 1 || e.ctrlKey || e.metaKey) {
@@ -153,11 +113,11 @@ export const EventRow = memo(function EventRow({
 
   return (
     <div
-      ref={combinedRef}
-      data-event-row
-      data-event-id={event.id}
-      data-timestamp={event.timestamp}
-      className={cn('transition-shadow', isSelected && 'ring-1 ring-primary/40')}
+      className={cn(
+        'transition-shadow',
+        isSelected && 'ring-1 ring-primary/40',
+        isFlashing && 'animate-[flash-ring_0.4s_ease-in-out_3]',
+      )}
     >
       <button
         className={cn(

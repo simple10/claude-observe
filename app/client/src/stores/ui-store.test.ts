@@ -37,6 +37,7 @@ beforeEach(() => {
     timeRange: '5m',
     expandedEventIds: new Set(),
     scrollToEventId: null,
+    flashingEventId: null,
     expandAllCounter: 0,
     selectedEventId: null,
     autoFollow: true,

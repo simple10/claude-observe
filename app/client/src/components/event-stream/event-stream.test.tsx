@@ -88,6 +88,7 @@ beforeEach(() => {
     expandAllCounter: 0,
     selectedEventId: null,
     scrollToEventId: null,
+    flashingEventId: null,
     sessionFilterStates: new Map(),
   })
 })

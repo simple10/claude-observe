@@ -78,12 +78,17 @@ interface UIState {
 
   expandedEventIds: Set<number>
   scrollToEventId: number | null
+  // Event id currently flashing after a scroll-to. Stored at the store level
+  // (not local row state) so the flash survives row unmount/remount during
+  // virtualizer scrolling — common when scrolling long distances in rewind.
+  flashingEventId: number | null
   expandAllCounter: number // incremented to signal "expand all" to event stream
   toggleExpandedEvent: (id: number) => void
   collapseAllEvents: () => void
   requestExpandAll: () => void
   expandAllEvents: (ids: number[]) => void
   setScrollToEventId: (id: number | null) => void
+  setFlashingEventId: (id: number | null) => void
 
   // Selected event (highlighted row)
   selectedEventId: number | null
@@ -255,6 +260,7 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   expandedEventIds: new Set(),
   scrollToEventId: null,
+  flashingEventId: null,
   toggleExpandedEvent: (id) =>
     set((s) => {
       const next = new Set(s.expandedEventIds)
@@ -270,6 +276,7 @@ export const useUIStore = create<UIState>((set, get) => ({
     set((s) => ({ expandAllCounter: s.expandAllCounter + 1, autoFollow: false })),
   expandAllEvents: (ids: number[]) => set({ expandedEventIds: new Set(ids), autoFollow: false }),
   setScrollToEventId: (id) => set({ scrollToEventId: id }),
+  setFlashingEventId: (id) => set({ flashingEventId: id }),
 
   selectedEventId: null,
   setSelectedEventId: (id) => set({ selectedEventId: id }),

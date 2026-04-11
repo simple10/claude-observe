@@ -1,4 +1,5 @@
-import { useMemo, useRef, useEffect, useLayoutEffect, useDeferredValue, useCallback } from 'react'
+import { useMemo, useRef, useEffect, useDeferredValue, useCallback } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { useEffectiveEvents } from '@/hooks/use-effective-events'
 import { useAgents } from '@/hooks/use-agents'
 import { useDedupedEvents } from '@/hooks/use-deduped-events'
@@ -114,27 +115,26 @@ export function EventStream() {
     deferredSearchQuery,
   ])
 
-  // Resolve scroll targets for merged events (PostToolUse → PreToolUse row)
-  const { scrollToEventId, setScrollToEventId } = useUIStore()
-  useEffect(() => {
-    if (scrollToEventId != null && mergedIdMap.has(scrollToEventId)) {
-      setScrollToEventId(mergedIdMap.get(scrollToEventId)!)
-    }
-  }, [scrollToEventId, mergedIdMap, setScrollToEventId])
+  const scrollToEventId = useUIStore((s) => s.scrollToEventId)
+  const setScrollToEventId = useUIStore((s) => s.setScrollToEventId)
 
   const showAgentLabel = agents.length > 1
   const scrollRef = useRef<HTMLDivElement>(null)
   const hasInitiallyScrolled = useRef(false)
 
-  // Track refs for each event row so we can scroll to the selected one
-  const eventRowRefs = useRef(new Map<number, HTMLDivElement>())
-  const setEventRowRef = useCallback((id: number, el: HTMLDivElement | null) => {
-    if (el) {
-      eventRowRefs.current.set(id, el)
-    } else {
-      eventRowRefs.current.delete(id)
-    }
-  }, [])
+  // Virtualizer: only renders rows in (and near) the viewport, so sessions
+  // with thousands of events don't destroy performance.
+  const virtualizer = useVirtualizer({
+    count: filteredEvents.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 36, // base row height; measureElement fixes up actuals
+    overscan: 10,
+    // Keep a stable key per event so height measurements survive list changes
+    getItemKey: (index) => filteredEvents[index]?.id ?? index,
+  })
+
+  const virtualItems = virtualizer.getVirtualItems()
+  const totalSize = virtualizer.getTotalSize()
 
   // Auto-scroll to bottom on first load of a session
   useEffect(() => {
@@ -142,17 +142,19 @@ export function EventStream() {
   }, [selectedSessionId])
 
   useEffect(() => {
-    if (!hasInitiallyScrolled.current && filteredEvents.length > 0 && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    if (!hasInitiallyScrolled.current && filteredEvents.length > 0) {
+      virtualizer.scrollToIndex(filteredEvents.length - 1, { align: 'end' })
       hasInitiallyScrolled.current = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredEvents.length])
 
   // Auto-scroll to bottom when new events arrive (if autoFollow is enabled)
   useEffect(() => {
-    if (autoFollow && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    if (autoFollow && filteredEvents.length > 0) {
+      virtualizer.scrollToIndex(filteredEvents.length - 1, { align: 'end' })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoFollow, filteredEvents.length])
 
   // Expand all events when requested from the scope bar
@@ -164,23 +166,25 @@ export function EventStream() {
 
   // ── Rewind mode scroll sync ──────────────────────────────────────────
   // Scrolling the event stream drives the timeline's horizontal scroll.
-  // Uses offsetTop (not getBoundingClientRect) to avoid layout thrashing.
+  // Uses the virtualizer's own knowledge of item positions instead of the
+  // DOM, since most rows aren't mounted with virtualization enabled.
   const syncTimelineFromScroll = useCallback(() => {
     const container = scrollRef.current
     if (!container) return
     const top = container.scrollTop
-    // Find the first event row whose bottom edge is below the viewport top
-    const rows = container.querySelectorAll<HTMLDivElement>('[data-event-row]')
-    for (const row of rows) {
-      if (row.offsetTop + row.offsetHeight > top) {
-        const ts = Number(row.dataset.timestamp)
-        if (!Number.isNaN(ts)) {
-          getTimelineScrollTo()?.(ts)
+    // Find the first virtual item whose bottom edge is below the viewport top
+    const items = virtualizer.getVirtualItems()
+    for (const item of items) {
+      if (item.start + item.size > top) {
+        const event = filteredEvents[item.index]
+        if (event) {
+          getTimelineScrollTo()?.(event.timestamp)
         }
         return
       }
     }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredEvents])
 
   // Attach scroll listener only while in rewind mode
   useEffect(() => {
@@ -194,51 +198,85 @@ export function EventStream() {
     return () => container.removeEventListener('scroll', onScroll)
   }, [rewindMode, syncTimelineFromScroll])
 
-  // Register the event-stream scroll-to callback for reverse sync (Phase 5)
+  // Register the event-stream scroll-to callback for reverse sync.
+  // Uses virtualizer.scrollToIndex so the target row gets mounted and measured.
+  // Must re-register when filteredEvents changes so the callback sees the
+  // current filtered array (otherwise findIndex works on a stale list after
+  // a filter change in rewind mode).
   useEffect(() => {
     if (!rewindMode) {
       registerEventStreamScroll(null)
       return
     }
     registerEventStreamScroll((eventId) => {
-      const container = scrollRef.current
-      if (!container) return
-      const row = container.querySelector<HTMLDivElement>(`[data-event-id="${eventId}"]`)
-      if (row) {
-        container.scrollTop = row.offsetTop
+      const idx = filteredEvents.findIndex((e) => e.id === eventId)
+      if (idx >= 0) {
+        virtualizer.scrollToIndex(idx, { align: 'start' })
       }
     })
     return () => registerEventStreamScroll(null)
-  }, [rewindMode])
+    // virtualizer is stable across renders; intentionally omitted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rewindMode, filteredEvents])
 
   // Initial sync when entering rewind mode: wait for timeline to mount, then
   // sync timeline to match current event stream scroll position.
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!rewindMode) return
     // Two rAF waits: one for timeline to mount, one for its scroll registration
+    let id2: number | null = null
     const id1 = requestAnimationFrame(() => {
-      const id2 = requestAnimationFrame(() => {
+      id2 = requestAnimationFrame(() => {
         withSyncLock('event-stream', syncTimelineFromScroll)
       })
-      return () => cancelAnimationFrame(id2)
     })
-    return () => cancelAnimationFrame(id1)
+    return () => {
+      cancelAnimationFrame(id1)
+      if (id2 != null) cancelAnimationFrame(id2)
+    }
   }, [rewindMode, syncTimelineFromScroll])
 
   // Auto-scroll to the selected event when filteredEvents change (i.e. filters change)
   const prevFilteredRef = useRef(filteredEvents)
   useEffect(() => {
     if (selectedEventId != null && filteredEvents !== prevFilteredRef.current) {
-      // Use rAF to let React render the new list before scrolling
-      requestAnimationFrame(() => {
-        const el = eventRowRefs.current.get(selectedEventId)
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        }
-      })
+      const idx = filteredEvents.findIndex((e) => e.id === selectedEventId)
+      if (idx >= 0) {
+        virtualizer.scrollToIndex(idx, { align: 'center' })
+      }
     }
     prevFilteredRef.current = filteredEvents
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredEvents, selectedEventId])
+
+  // Scroll to a requested event (set via setScrollToEventId — e.g. timeline dot click).
+  // Resolves merged events (PostToolUse → displayed PreToolUse row), scrolls the
+  // virtualizer to the target row, then sets flashingEventId so the row pulses.
+  // Flash state lives in the store so it survives row unmount/remount during
+  // virtualized scrolling — important in rewind mode where target rows can be far.
+  const setFlashingEventId = useUIStore((s) => s.setFlashingEventId)
+  useEffect(() => {
+    if (scrollToEventId == null) return
+    // Always clear so the next click of the same dot retriggers
+    setScrollToEventId(null)
+    // Resolve merged event IDs (PostToolUse id → PreToolUse row id) inline,
+    // so a single render handles both the remap and the scroll.
+    const resolvedId = mergedIdMap.get(scrollToEventId) ?? scrollToEventId
+    const idx = filteredEvents.findIndex((e) => e.id === resolvedId)
+    if (idx < 0) return
+    virtualizer.scrollToIndex(idx, { align: 'center' })
+    setFlashingEventId(resolvedId)
+    const timeout = setTimeout(() => {
+      // Only clear if we're still flashing this same event (avoid clobbering
+      // a newer flash triggered during the timeout window).
+      if (useUIStore.getState().flashingEventId === resolvedId) {
+        setFlashingEventId(null)
+      }
+    }, 1200) // matches 3 × 0.4s flash-ring keyframe
+    return () => clearTimeout(timeout)
+    // virtualizer is stable; intentionally omitted from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollToEventId, filteredEvents, mergedIdMap, setScrollToEventId, setFlashingEventId])
 
   if (!selectedSessionId) {
     return (
@@ -288,25 +326,34 @@ export function EventStream() {
               )}
             </div>
             <div ref={scrollRef} className="flex-1 overflow-y-auto">
-              <div className="divide-y divide-border/50">
-                {filteredEvents.length === 0 ? (
-                  <EmptyState text="No events match the current filters" />
-                ) : (
-                  filteredEvents.map((event) => (
-                    <EventRow
-                      key={event.id}
-                      event={event}
-                      agentMap={agentMap}
-                      agentColorMap={agentColorMap}
-                      showAgentLabel={showAgentLabel}
-                      spawnInfo={spawnInfo.get(event.agentId)}
-                      pairedPayloads={pairedPayloads.get(event.id)}
-                      onRowRef={setEventRowRef}
-                    />
-                  ))
-                )}
-                <div className="h-8" />
-              </div>
+              {filteredEvents.length === 0 ? (
+                <EmptyState text="No events match the current filters" />
+              ) : (
+                <div className="relative" style={{ height: `${totalSize}px`, width: '100%' }}>
+                  {virtualItems.map((virtualItem) => {
+                    const event = filteredEvents[virtualItem.index]
+                    if (!event) return null
+                    return (
+                      <div
+                        key={virtualItem.key}
+                        ref={virtualizer.measureElement}
+                        data-index={virtualItem.index}
+                        className="absolute top-0 left-0 w-full border-b border-border/50"
+                        style={{ transform: `translateY(${virtualItem.start}px)` }}
+                      >
+                        <EventRow
+                          event={event}
+                          agentMap={agentMap}
+                          agentColorMap={agentColorMap}
+                          showAgentLabel={showAgentLabel}
+                          spawnInfo={spawnInfo.get(event.agentId)}
+                          pairedPayloads={pairedPayloads.get(event.id)}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </>
         )}

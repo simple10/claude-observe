@@ -17,6 +17,7 @@
     "@radix-ui/react-separator": "^1.0.0",
     "@radix-ui/react-tooltip": "^1.0.0",
     "@tanstack/react-query": "^5.0.0",
+    "@tanstack/react-virtual": "^3.13.23",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "cmdk": "^1.1.1",
@@ -26,7 +27,6 @@
     "react-diff-viewer-continued": "^4.2.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
-    "react-window": "^2.2.7",
     "tailwind-merge": "^2.0.0",
     "timeago.js": "^4.0.2",
     "zustand": "^5.0.0"
@@ -39,7 +39,6 @@
     "@types/node": "^25.5.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/react-window": "^1.8.8",
     "@vitejs/plugin-react": "^4.0.0",
     "jsdom": "^27.0.1",
     "tailwindcss": "^4.0.0",
