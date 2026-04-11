@@ -69,17 +69,16 @@ export const EventRow = memo(function EventRow({
   pairedPayloads,
   onRowRef,
 }: EventRowProps) {
-  const {
-    expandedEventIds,
-    toggleExpandedEvent,
-    scrollToEventId,
-    setScrollToEventId,
-    selectedEventId,
-    setSelectedEventId,
-    iconCustomizationVersion,
-  } = useUIStore()
-  const isExpanded = expandedEventIds.has(event.id)
-  const isSelected = selectedEventId === event.id
+  // Individual selectors so only rows with changing slices re-render.
+  // Destructuring from useUIStore() subscribes to the full store state and
+  // causes every row to re-render on any store update — a huge perf hit
+  // with thousands of rows.
+  const isExpanded = useUIStore((s) => s.expandedEventIds.has(event.id))
+  const isSelected = useUIStore((s) => s.selectedEventId === event.id)
+  const scrollToEventId = useUIStore((s) => s.scrollToEventId)
+  const toggleExpandedEvent = useUIStore((s) => s.toggleExpandedEvent)
+  const setScrollToEventId = useUIStore((s) => s.setScrollToEventId)
+  const setSelectedEventId = useUIStore((s) => s.setSelectedEventId)
   const rowRef = useRef<HTMLDivElement>(null)
 
   // Register this row's DOM element with the parent for scroll-to-selected
