@@ -94,7 +94,7 @@ async function main() {
   const authCommands = getEventCommands(authHooks)
   const authEvents = new Set(Object.keys(authHooks))
 
-  console.log(`Authority: ${AUTHORITATIVE} (${authEvents.size} events)`)
+  console.log(`✓ ${AUTHORITATIVE} (${authEvents.size} events)`)
 
   for (const targetPath of TARGETS) {
     let targetHooks: HookConfig
@@ -153,7 +153,7 @@ async function main() {
     }
 
     if (fileOk) {
-      console.log(`✓ ${targetPath} — matches authority`)
+      console.log(`✓ ${targetPath} — matches (${authEvents.size} events)`)
     }
   }
 
@@ -164,10 +164,12 @@ async function main() {
     if (missing.length > 0) {
       hasErrors = true
       console.error(
-        `\n✗ ${AUTHORITATIVE} is missing ${missing.length} documented hook(s): ${missing.join(', ')}`,
+        `\n✗ ${AUTHORITATIVE} is missing ${missing.length} documented hook(s): ${missing.join(
+          ', ',
+        )}`,
       )
     } else {
-      console.log(`\n✓ All ${documented.length} documented hooks are present`)
+      console.log(`✓ All ${documented.length} documented hooks are present from ${HOOKS_DOC_URL}`)
     }
   }
 
