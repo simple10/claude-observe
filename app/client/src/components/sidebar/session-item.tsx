@@ -102,12 +102,13 @@ export function SessionItem({
                 )}
               />
               <Pin
+                fill={isPinned ? 'currentColor' : 'none'}
                 className={cn(
                   'h-3 w-3 absolute inset-0 cursor-pointer transition-opacity',
                   isPinned
                     ? session.status === 'active'
-                      ? 'opacity-80 text-green-500'
-                      : 'opacity-60 text-primary'
+                      ? 'opacity-80 text-green-500 hover:fill-none'
+                      : 'opacity-60 text-primary hover:fill-none'
                     : 'opacity-0 group-hover:opacity-100',
                   !isPinned &&
                     (session.status === 'active'
