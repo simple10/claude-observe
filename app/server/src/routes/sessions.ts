@@ -63,6 +63,7 @@ router.get('/sessions/:id', async (c) => {
     metadata: row.metadata ? JSON.parse(row.metadata) : null,
     agentCount: row.agent_count,
     eventCount: row.event_count,
+    lastActivity: row.last_activity,
   })
 })
 
@@ -87,7 +88,7 @@ router.get('/sessions/:id/events', async (c) => {
   const store = c.get('store')
   const sessionId = decodeURIComponent(c.req.param('id'))
   const sinceParam = c.req.query('since')
-  const agentIdParam = c.req.query('agent_id')
+  const agentIdParam = c.req.query('agentId')
 
   const rows = sinceParam
     ? await store.getEventsSince(sessionId, parseInt(sinceParam))

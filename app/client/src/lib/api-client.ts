@@ -96,7 +96,7 @@ export const api = {
     },
   ) => {
     const params = new URLSearchParams()
-    if (filters?.agentIds?.length) params.set('agent_id', filters.agentIds.join(','))
+    if (filters?.agentIds?.length) params.set('agentId', filters.agentIds.join(','))
     if (filters?.type) params.set('type', filters.type)
     if (filters?.subtype) params.set('subtype', filters.subtype)
     if (filters?.search) params.set('search', filters.search)

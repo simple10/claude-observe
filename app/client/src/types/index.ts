@@ -17,9 +17,9 @@ export interface Session {
   startedAt: number
   stoppedAt: number | null
   metadata: Record<string, unknown> | null
-  agentCount?: number
-  eventCount?: number
-  lastActivity?: number
+  agentCount: number
+  eventCount: number
+  lastActivity: number | null
 }
 
 /** Agent metadata from the server — no derived state */
@@ -65,8 +65,8 @@ export interface RecentSession {
   startedAt: number
   stoppedAt: number | null
   metadata: Record<string, unknown> | null
-  agentCount?: number
-  eventCount?: number
+  agentCount: number
+  eventCount: number
   lastActivity: number
 }
 
