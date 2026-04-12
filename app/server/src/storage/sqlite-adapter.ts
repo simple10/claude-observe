@@ -523,42 +523,55 @@ export class SqliteAdapter implements EventStore {
       .all(sessionId, sinceTimestamp) as StoredEvent[]
   }
 
-  async deleteSession(sessionId: string): Promise<void> {
-    this.db.prepare('DELETE FROM events WHERE session_id = ?').run(sessionId)
-    this.db.prepare('DELETE FROM agents WHERE session_id = ?').run(sessionId)
+  async deleteSession(sessionId: string): Promise<{ events: number; agents: number }> {
+    const events = this.db.prepare('DELETE FROM events WHERE session_id = ?').run(sessionId).changes
+    const agents = this.db.prepare('DELETE FROM agents WHERE session_id = ?').run(sessionId).changes
     this.db.prepare('DELETE FROM sessions WHERE id = ?').run(sessionId)
+    return { events, agents }
   }
 
-  async deleteProject(projectId: number): Promise<string[]> {
-    // Get all session IDs for this project
-    const sessions = this.db
-      .prepare('SELECT id FROM sessions WHERE project_id = ?')
-      .all(projectId) as { id: string }[]
-    const sessionIds = sessions.map((s) => s.id)
+  async deleteProject(
+    projectId: number,
+  ): Promise<{ sessionIds: string[]; sessions: number; agents: number; events: number }> {
+    const rows = this.db.prepare('SELECT id FROM sessions WHERE project_id = ?').all(projectId) as {
+      id: string
+    }[]
+    const sessionIds = rows.map((s) => s.id)
+    let events = 0
+    let agents = 0
     for (const sessionId of sessionIds) {
-      this.db.prepare('DELETE FROM events WHERE session_id = ?').run(sessionId)
-      this.db.prepare('DELETE FROM agents WHERE session_id = ?').run(sessionId)
+      events += this.db.prepare('DELETE FROM events WHERE session_id = ?').run(sessionId).changes
+      agents += this.db.prepare('DELETE FROM agents WHERE session_id = ?').run(sessionId).changes
     }
-    this.db.prepare('DELETE FROM sessions WHERE project_id = ?').run(projectId)
+    const sessions = this.db
+      .prepare('DELETE FROM sessions WHERE project_id = ?')
+      .run(projectId).changes
     this.db.prepare('DELETE FROM projects WHERE id = ?').run(projectId)
-    return sessionIds
+    return { sessionIds, sessions, agents, events }
   }
 
-  async clearAllData(): Promise<void> {
-    this.db.prepare('DELETE FROM events WHERE 1=1').run()
-    this.db.prepare('DELETE FROM agents WHERE 1=1').run()
-    this.db.prepare('DELETE FROM sessions WHERE 1=1').run()
-    this.db.prepare('DELETE FROM projects WHERE 1=1').run()
+  async clearAllData(): Promise<{
+    projects: number
+    sessions: number
+    agents: number
+    events: number
+  }> {
+    const events = this.db.prepare('DELETE FROM events WHERE 1=1').run().changes
+    const agents = this.db.prepare('DELETE FROM agents WHERE 1=1').run().changes
+    const sessions = this.db.prepare('DELETE FROM sessions WHERE 1=1').run().changes
+    const projects = this.db.prepare('DELETE FROM projects WHERE 1=1').run().changes
+    return { projects, sessions, agents, events }
   }
 
-  async clearSessionEvents(sessionId: string): Promise<void> {
-    this.db.prepare('DELETE FROM events WHERE session_id = ?').run(sessionId)
-    this.db.prepare('DELETE FROM agents WHERE session_id = ?').run(sessionId)
+  async clearSessionEvents(sessionId: string): Promise<{ events: number; agents: number }> {
+    const events = this.db.prepare('DELETE FROM events WHERE session_id = ?').run(sessionId).changes
+    const agents = this.db.prepare('DELETE FROM agents WHERE session_id = ?').run(sessionId).changes
     this.db
       .prepare(
         'UPDATE sessions SET event_count = 0, agent_count = 0, last_activity = NULL WHERE id = ?',
       )
       .run(sessionId)
+    return { events, agents }
   }
 
   async getRecentSessions(limit: number = 20): Promise<any[]> {

@@ -53,24 +53,27 @@ router.get('/agents/:id', async (c) => {
   })
 })
 
-// POST /agents/:id/metadata
-router.post('/agents/:id/metadata', async (c) => {
+// PATCH /agents/:id — update agent fields (name, agentType)
+router.patch('/agents/:id', async (c) => {
   const store = c.get('store')
 
   try {
-    const agentIdParam = decodeURIComponent(c.req.param('id'))
+    const agentId = decodeURIComponent(c.req.param('id'))
+    const agent = await store.getAgentById(agentId)
+    if (!agent) return c.json({ error: 'Agent not found' }, 404)
+
     const data = (await c.req.json()) as Record<string, unknown>
 
     if (data.name && typeof data.name === 'string') {
-      await store.updateAgentName(agentIdParam, data.name)
+      await store.updateAgentName(agentId, data.name)
 
       if (LOG_LEVEL === 'debug') {
-        console.log(`[METADATA] Agent ${agentIdParam.slice(0, 8)} name: ${data.name}`)
+        console.log(`[METADATA] Agent ${agentId.slice(0, 8)} name: ${data.name}`)
       }
     }
 
     if (data.agentType && typeof data.agentType === 'string') {
-      await store.updateAgentType(agentIdParam, data.agentType)
+      await store.updateAgentType(agentId, data.agentType)
     }
 
     return c.json({ ok: true })

@@ -47,19 +47,23 @@ router.get('/projects/:id/sessions', async (c) => {
   return c.json(sessions)
 })
 
-router.post('/projects/:id/rename', async (c) => {
+// PATCH /projects/:id — update project fields (name)
+router.patch('/projects/:id', async (c) => {
   const store = c.get('store')
   const broadcastToAll = c.get('broadcastToAll')
   const projectId = Number(c.req.param('id'))
   if (isNaN(projectId)) return c.json({ error: 'Invalid project ID' }, 400)
 
   try {
-    const { name } = (await c.req.json()) as { name: string }
-    if (!name || typeof name !== 'string') {
-      return c.json({ error: 'name is required' }, 400)
+    const data = (await c.req.json()) as Record<string, unknown>
+
+    if (data.name && typeof data.name === 'string') {
+      const trimmed = data.name.trim()
+      if (!trimmed) return c.json({ error: 'name must not be empty' }, 400)
+      await store.updateProjectName(projectId, trimmed)
+      broadcastToAll({ type: 'project_update', data: { id: projectId, name: trimmed } })
     }
-    await store.updateProjectName(projectId, name.trim())
-    broadcastToAll({ type: 'project_update', data: { id: projectId, name: name.trim() } })
+
     return c.json({ ok: true })
   } catch {
     return c.json({ error: 'Invalid request' }, 400)

@@ -114,9 +114,9 @@ export const api = {
     fetchVoid(`/sessions/${encodeURIComponent(sessionId)}/events`, { method: 'DELETE' }),
   deleteProject: (projectId: number) => fetchVoid(`/projects/${projectId}`, { method: 'DELETE' }),
   deleteAllData: () => fetchVoid(`/data`, { method: 'DELETE' }),
-  updateAgentMetadata: (agentId: string, data: { agentType?: string; slug?: string }) =>
-    fetchVoid(`/agents/${encodeURIComponent(agentId)}/metadata`, {
-      method: 'POST',
+  updateAgentMetadata: (agentId: string, data: { agentType?: string; name?: string }) =>
+    fetchVoid(`/agents/${encodeURIComponent(agentId)}`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }),
@@ -139,8 +139,8 @@ export const api = {
       body: JSON.stringify({ projectId }),
     }),
   renameProject: (projectId: number, name: string) =>
-    fetchVoid(`/projects/${projectId}/rename`, {
-      method: 'POST',
+    fetchVoid(`/projects/${projectId}`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     }),

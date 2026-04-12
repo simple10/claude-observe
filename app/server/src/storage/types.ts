@@ -40,8 +40,9 @@ export interface EventStore {
   getProjectByTranscriptPath(transcriptPath: string): Promise<any | null>
   updateProjectName(projectId: number, name: string): Promise<void>
   isSlugAvailable(slug: string): Promise<boolean>
-  /** Returns the IDs of sessions that were deleted as part of the cascade */
-  deleteProject(projectId: number): Promise<string[]>
+  deleteProject(
+    projectId: number,
+  ): Promise<{ sessionIds: string[]; sessions: number; agents: number; events: number }>
   upsertSession(
     id: string,
     projectId: number,
@@ -75,9 +76,9 @@ export interface EventStore {
   getEventsForAgent(agentId: string): Promise<StoredEvent[]>
   getThreadForEvent(eventId: number): Promise<StoredEvent[]>
   getEventsSince(sessionId: string, sinceTimestamp: number): Promise<StoredEvent[]>
-  deleteSession(sessionId: string): Promise<void>
-  clearAllData(): Promise<void>
-  clearSessionEvents(sessionId: string): Promise<void>
+  deleteSession(sessionId: string): Promise<{ events: number; agents: number }>
+  clearAllData(): Promise<{ projects: number; sessions: number; agents: number; events: number }>
+  clearSessionEvents(sessionId: string): Promise<{ events: number; agents: number }>
   getRecentSessions(limit?: number): Promise<any[]>
   healthCheck(): Promise<{ ok: boolean; error?: string }>
   /**
