@@ -28,6 +28,7 @@ import {
   Clock,
   CalendarDays,
   Hash,
+  Terminal,
 } from 'lucide-react'
 import { MoveSessionModal } from './project-modal'
 import type { Project } from '@/types'
@@ -70,7 +71,7 @@ export function SessionEditModal() {
   const [confirmAction, setConfirmAction] = useState<'delete' | 'clear' | null>(null)
   const [moveOpen, setMoveOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copiedField, setCopiedField] = useState<string | null>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
 
   // Reset local state when modal opens/closes or session changes
@@ -79,7 +80,7 @@ export function SessionEditModal() {
     setRenameValue('')
     setConfirmAction(null)
     setMoveOpen(false)
-    setCopied(false)
+    setCopiedField(null)
   }, [open, editingSessionId])
 
   useEffect(() => {
@@ -91,6 +92,21 @@ export function SessionEditModal() {
   const label = session?.slug || session?.id.slice(0, 8) || ''
   const cwd = typeof session?.metadata?.cwd === 'string' ? session.metadata.cwd : null
   const jsonlPath = session?.transcriptPath || null
+  const permissionMode =
+    typeof session?.metadata?.permission_mode === 'string'
+      ? session.metadata.permission_mode
+      : typeof session?.metadata?.permissionMode === 'string'
+        ? session.metadata.permissionMode
+        : null
+  const resumeCmd = session
+    ? `claude --resume ${session.id}${permissionMode ? ` --permission-mode ${permissionMode}` : ''}`
+    : null
+
+  function copyToClipboard(field: string, text: string) {
+    navigator.clipboard.writeText(text)
+    setCopiedField(field)
+    setTimeout(() => setCopiedField((f) => (f === field ? null : f)), 1500)
+  }
 
   function startRenaming() {
     if (!session) return
@@ -241,17 +257,22 @@ export function SessionEditModal() {
           {session && (
             <div className="border-t px-5 py-4 space-y-2.5 text-xs">
               {cwd && (
-                <DetailRow icon={<Folder className="h-3.5 w-3.5" />} label="Working dir">
-                  <span className="truncate font-mono text-[11px]" title={cwd}>
-                    {shortenCwd(cwd)}
-                  </span>
-                </DetailRow>
+                <CopyRow
+                  icon={<Folder className="h-3.5 w-3.5" />}
+                  label="Working dir"
+                  value={cwd}
+                  display={shortenCwd(cwd)}
+                  copied={copiedField === 'cwd'}
+                  onCopy={() => copyToClipboard('cwd', cwd)}
+                />
               )}
-              <DetailRow icon={<Hash className="h-3.5 w-3.5" />} label="Session ID">
-                <span className="truncate font-mono text-[11px]" title={session.id}>
-                  {session.id}
-                </span>
-              </DetailRow>
+              <CopyRow
+                icon={<Hash className="h-3.5 w-3.5" />}
+                label="Session ID"
+                value={session.id}
+                copied={copiedField === 'id'}
+                onCopy={() => copyToClipboard('id', session.id)}
+              />
               {session.eventCount != null && (
                 <DetailRow icon={<Activity className="h-3.5 w-3.5" />} label="Events">
                   <span>
@@ -278,24 +299,22 @@ export function SessionEditModal() {
                 </DetailRow>
               )}
               {jsonlPath && (
-                <DetailRow icon={<Copy className="h-3.5 w-3.5" />} label="Transcript">
-                  <button
-                    className="flex items-center gap-1 text-muted-foreground hover:text-foreground cursor-pointer min-w-0"
-                    onClick={() => {
-                      navigator.clipboard.writeText(jsonlPath)
-                      setCopied(true)
-                      setTimeout(() => setCopied(false), 1500)
-                    }}
-                    title={copied ? 'Copied!' : 'Copy path'}
-                  >
-                    <span className="truncate font-mono text-[11px]">{jsonlPath}</span>
-                    {copied ? (
-                      <Check className="h-3 w-3 shrink-0 text-green-500" />
-                    ) : (
-                      <Copy className="h-3 w-3 shrink-0" />
-                    )}
-                  </button>
-                </DetailRow>
+                <CopyRow
+                  icon={<Copy className="h-3.5 w-3.5" />}
+                  label="Transcript"
+                  value={jsonlPath}
+                  copied={copiedField === 'transcript'}
+                  onCopy={() => copyToClipboard('transcript', jsonlPath)}
+                />
+              )}
+              {resumeCmd && (
+                <CopyRow
+                  icon={<Terminal className="h-3.5 w-3.5" />}
+                  label="Resume"
+                  value={resumeCmd}
+                  copied={copiedField === 'resume'}
+                  onCopy={() => copyToClipboard('resume', resumeCmd)}
+                />
               )}
             </div>
           )}
@@ -390,6 +409,45 @@ function DetailRow({
       <span className="text-muted-foreground/60 shrink-0">{icon}</span>
       <span className="text-muted-foreground w-24 shrink-0">{label}</span>
       <span className="flex-1 min-w-0 truncate">{children}</span>
+      {/* spacer to keep alignment with CopyRow */}
+      <span className="w-4 shrink-0" />
+    </div>
+  )
+}
+
+function CopyRow({
+  icon,
+  label,
+  value,
+  display,
+  copied,
+  onCopy,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string
+  display?: string
+  copied: boolean
+  onCopy: () => void
+}) {
+  return (
+    <div className="flex items-center gap-2 min-w-0 group/copy">
+      <span className="text-muted-foreground/60 shrink-0">{icon}</span>
+      <span className="text-muted-foreground w-24 shrink-0">{label}</span>
+      <span className="flex-1 min-w-0 truncate font-mono text-[11px]" title={value}>
+        {display ?? value}
+      </span>
+      <button
+        className="shrink-0 w-4 flex items-center justify-center cursor-pointer text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+        onClick={onCopy}
+        title={copied ? 'Copied!' : 'Copy'}
+      >
+        {copied ? (
+          <Check className="h-3 w-3 text-green-500" />
+        ) : (
+          <Copy className="h-3 w-3" />
+        )}
+      </button>
     </div>
   )
 }
