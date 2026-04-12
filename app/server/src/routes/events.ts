@@ -69,16 +69,13 @@ router.post('/events', async (c) => {
   try {
     const body = await c.req.json()
 
-    // Support both envelope format and legacy flat format
-    let hookPayload: Record<string, unknown>
-    let meta: { env?: Record<string, string> } = {}
-
-    if (body.hook_payload) {
-      hookPayload = body.hook_payload as Record<string, unknown>
-      meta = (body.meta as typeof meta) || {}
-    } else {
-      hookPayload = body
+    if (!body.hook_payload) {
+      return c.json({ error: 'Missing hook_payload in request body' }, 400)
     }
+
+    const hookPayload = body.hook_payload as Record<string, unknown>
+    const meta: { env?: Record<string, string> } =
+      (body.meta as { env?: Record<string, string> }) || {}
 
     if (LOG_LEVEL === 'debug' || LOG_LEVEL === 'trace') {
       const logKeys = Object.keys(hookPayload).join(', ')

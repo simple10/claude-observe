@@ -454,11 +454,7 @@ function CopyRow({
         {display ?? value}
       </span>
       <span className="shrink-0 w-4 flex items-center justify-center text-muted-foreground/40 group-hover/copy:text-muted-foreground transition-colors mt-px">
-        {copied ? (
-          <Check className="h-3 w-3 text-green-500" />
-        ) : (
-          <Copy className="h-3 w-3" />
-        )}
+        {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
       </span>
     </div>
   )

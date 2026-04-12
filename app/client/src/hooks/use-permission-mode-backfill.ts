@@ -31,9 +31,7 @@ export function usePermissionModeBackfill(
     if (backfilledRef.current.has(session.id)) return
 
     // Find main agent IDs (no parent)
-    const mainAgentIds = new Set(
-      agents.filter((a) => !a.parentAgentId).map((a) => a.id),
-    )
+    const mainAgentIds = new Set(agents.filter((a) => !a.parentAgentId).map((a) => a.id))
     if (mainAgentIds.size === 0) return
 
     // Strategy 1: most recent SessionStart from main agent

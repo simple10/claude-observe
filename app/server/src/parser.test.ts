@@ -8,7 +8,7 @@ describe('parseRawEvent — transcript JSONL format', () => {
   test('parses user prompt event', () => {
     const raw = {
       project_name: 'my-project',
-      sessionId: 'sess-123',
+      session_id: 'sess-123',
       slug: 'twinkly-dragon',
       type: 'user',
       timestamp: '2026-03-25T22:24:17.686Z',
@@ -36,7 +36,7 @@ describe('parseRawEvent — transcript JSONL format', () => {
   test('parses assistant tool_use event with Agent tool', () => {
     const raw = {
       project_name: 'my-project',
-      sessionId: 'sess-123',
+      session_id: 'sess-123',
       slug: 'twinkly-dragon',
       type: 'assistant',
       timestamp: '2026-03-25T22:24:25.479Z',
@@ -561,13 +561,7 @@ describe('parseRawEvent — common behavior', () => {
     expect(parsed.projectName).toBeNull()
   })
 
-  test('falls back to sessionId field when session_id is absent', () => {
-    const raw = { project_name: 'p', sessionId: 'sess-alt', type: 'user', timestamp: 1711411200000 }
-    const result = parseRawEvent(raw)
-    expect(result.sessionId).toBe('sess-alt')
-  })
-
-  test('defaults sessionId to "unknown" when neither session_id nor sessionId present', () => {
+  test('defaults sessionId to "unknown" when session_id is absent', () => {
     const raw = { project_name: 'p', type: 'user', timestamp: 1711411200000 }
     const result = parseRawEvent(raw)
     expect(result.sessionId).toBe('unknown')

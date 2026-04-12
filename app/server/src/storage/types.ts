@@ -62,7 +62,6 @@ export interface EventStore {
   updateAgentType(id: string, agentType: string): Promise<void>
   updateSessionStatus(id: string, status: string): Promise<void>
   patchSessionMetadata(sessionId: string, patch: Record<string, unknown>): Promise<void>
-  replaceSessionMetadata(sessionId: string, metadata: Record<string, unknown> | null): Promise<void>
   updateSessionSlug(sessionId: string, slug: string): Promise<void>
   updateSessionProject(sessionId: string, projectId: number): Promise<void>
   updateAgentName(agentId: string, name: string): Promise<void>

@@ -294,24 +294,12 @@ export class SqliteAdapter implements EventStore {
       .run(projectId, Date.now(), sessionId)
   }
 
-  async patchSessionMetadata(
-    sessionId: string,
-    patch: Record<string, unknown>,
-  ): Promise<void> {
+  async patchSessionMetadata(sessionId: string, patch: Record<string, unknown>): Promise<void> {
     this.db
       .prepare(
         `UPDATE sessions SET metadata = json_patch(COALESCE(metadata, '{}'), ?), updated_at = ? WHERE id = ?`,
       )
       .run(JSON.stringify(patch), Date.now(), sessionId)
-  }
-
-  async replaceSessionMetadata(
-    sessionId: string,
-    metadata: Record<string, unknown> | null,
-  ): Promise<void> {
-    this.db
-      .prepare(`UPDATE sessions SET metadata = ?, updated_at = ? WHERE id = ?`)
-      .run(metadata ? JSON.stringify(metadata) : null, Date.now(), sessionId)
   }
 
   async updateSessionSlug(sessionId: string, slug: string): Promise<void> {

@@ -121,8 +121,8 @@ export const api = {
       body: JSON.stringify(data),
     }),
   updateSessionSlug: (sessionId: string, slug: string) =>
-    fetchVoid(`/sessions/${encodeURIComponent(sessionId)}/metadata`, {
-      method: 'POST',
+    fetchVoid(`/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ slug }),
     }),

@@ -86,15 +86,19 @@ router.get('/sessions/:id/agents', async (c) => {
 router.get('/sessions/:id/events', async (c) => {
   const store = c.get('store')
   const sessionId = decodeURIComponent(c.req.param('id'))
+  const sinceParam = c.req.query('since')
   const agentIdParam = c.req.query('agent_id')
-  const rows = await store.getEventsForSession(sessionId, {
-    agentIds: agentIdParam ? agentIdParam.split(',') : undefined,
-    type: c.req.query('type') || undefined,
-    subtype: c.req.query('subtype') || undefined,
-    search: c.req.query('search') || undefined,
-    limit: c.req.query('limit') ? parseInt(c.req.query('limit')!) : undefined,
-    offset: c.req.query('offset') ? parseInt(c.req.query('offset')!) : undefined,
-  })
+
+  const rows = sinceParam
+    ? await store.getEventsSince(sessionId, parseInt(sinceParam))
+    : await store.getEventsForSession(sessionId, {
+        agentIds: agentIdParam ? agentIdParam.split(',') : undefined,
+        type: c.req.query('type') || undefined,
+        subtype: c.req.query('subtype') || undefined,
+        search: c.req.query('search') || undefined,
+        limit: c.req.query('limit') ? parseInt(c.req.query('limit')!) : undefined,
+        offset: c.req.query('offset') ? parseInt(c.req.query('offset')!) : undefined,
+      })
 
   const events: ParsedEvent[] = rows.map((r) => ({
     id: r.id,
@@ -142,44 +146,8 @@ router.get('/sessions/:id/events', async (c) => {
   return c.json(events)
 })
 
-// PATCH /sessions/:id — move session to a different project
+// PATCH /sessions/:id — update session table fields (slug, projectId)
 router.patch('/sessions/:id', async (c) => {
-  const store = c.get('store')
-  const broadcastToAll = c.get('broadcastToAll')
-
-  try {
-    const sessionId = decodeURIComponent(c.req.param('id'))
-    const data = (await c.req.json()) as Record<string, unknown>
-
-    const session = await store.getSessionById(sessionId)
-    if (!session) return c.json({ error: 'Session not found' }, 404)
-
-    if (data.projectSlug && typeof data.projectSlug === 'string') {
-      const project = await store.getProjectBySlug(data.projectSlug)
-      if (!project) return c.json({ error: 'Project not found' }, 404)
-      await store.updateSessionProject(sessionId, project.id)
-      broadcastToAll({
-        type: 'session_update',
-        data: { id: sessionId, projectId: project.id, projectSlug: project.slug },
-      })
-    } else if (data.projectId && typeof data.projectId === 'number') {
-      await store.updateSessionProject(sessionId, data.projectId)
-      broadcastToAll({
-        type: 'session_update',
-        data: { id: sessionId, projectId: data.projectId },
-      })
-    } else {
-      return c.json({ error: 'Provide projectSlug or projectId' }, 400)
-    }
-
-    return c.json({ ok: true })
-  } catch {
-    return c.json({ error: 'Invalid request' }, 400)
-  }
-})
-
-// POST /sessions/:id/metadata — full replace of slug (legacy) or metadata
-router.post('/sessions/:id/metadata', async (c) => {
   const store = c.get('store')
   const broadcastToAll = c.get('broadcastToAll')
 
@@ -194,8 +162,15 @@ router.post('/sessions/:id/metadata', async (c) => {
         console.log(`[METADATA] Session ${sessionId.slice(0, 8)} slug: ${data.slug}`)
       }
 
-      // Notify clients
       broadcastToAll({ type: 'session_update', data: { id: sessionId, slug: data.slug } as any })
+    }
+
+    if (data.projectId && typeof data.projectId === 'number') {
+      await store.updateSessionProject(sessionId, data.projectId)
+      broadcastToAll({
+        type: 'session_update',
+        data: { id: sessionId, projectId: data.projectId },
+      })
     }
 
     return c.json({ ok: true })
@@ -204,7 +179,7 @@ router.post('/sessions/:id/metadata', async (c) => {
   }
 })
 
-// PATCH /sessions/:id/metadata — merge keys into existing metadata
+// PATCH /sessions/:id/metadata — merge keys into session metadata JSON
 router.patch('/sessions/:id/metadata', async (c) => {
   const store = c.get('store')
 

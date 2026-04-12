@@ -24,7 +24,7 @@ export interface ParsedRawEvent {
 
 export function parseRawEvent(raw: Record<string, unknown>): ParsedRawEvent {
   const projectName = (raw.project_name as string) || null
-  const sessionId = (raw.session_id as string) || (raw.sessionId as string) || 'unknown'
+  const sessionId = (raw.session_id as string) || 'unknown'
   const slug = (raw.slug as string) || null
   const transcriptPath = (raw.transcript_path as string) || null
   const meta = raw.meta as Record<string, unknown> | undefined
