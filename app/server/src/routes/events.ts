@@ -303,7 +303,7 @@ router.post('/events', async (c) => {
         requests.push({
           cmd: 'getSessionSlug',
           args: { transcript_path: parsed.raw.transcript_path },
-          callback: `/api/sessions/${encodeURIComponent(parsed.sessionId)}/metadata`,
+          callback: `/api/callbacks/session-slug/${encodeURIComponent(parsed.sessionId)}`,
         })
       }
     }
