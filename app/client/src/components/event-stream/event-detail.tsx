@@ -290,6 +290,9 @@ function ToolDetail({
     const subAgent = agentMap.get(event.agentId)
     const assignedName = subAgent ? getAgentDisplayName(subAgent) : null
     const rawName = payload.agent_name as string | undefined
+    // Pull result from SubagentStop in the thread
+    const stopEvent = thread?.find((e) => e.subtype === 'SubagentStop')
+    const agentResult = (stopEvent?.payload as any)?.last_assistant_message
     return (
       <div className="space-y-1.5">
         <AgentIdentity assignedName={assignedName} rawName={rawName} agentId={event.agentId} />
@@ -297,6 +300,7 @@ function ToolDetail({
           <DetailRow label="Task" value={spawnInfo?.description || payload.description} />
         )}
         {spawnInfo?.prompt && <DetailCode label="Prompt" value={spawnInfo.prompt} />}
+        {agentResult && <DetailCode label="Result" value={agentResult} />}
       </div>
     )
   }
@@ -526,6 +530,7 @@ function ToolDetail({
       const spawnedAgent = spawnedAgentId ? agentMap.get(spawnedAgentId) : undefined
       const agentAssignedName = spawnedAgent ? getAgentDisplayName(spawnedAgent) : null
       const agentRawName = ti.name as string | undefined
+      const agentResult = extractResult(payload.tool_response)
       return (
         <div className="space-y-1.5">
           <AgentIdentity
@@ -535,6 +540,7 @@ function ToolDetail({
           />
           {ti.description && <DetailRow label="Task" value={ti.description} />}
           {ti.prompt && <DetailCode label="Prompt" value={ti.prompt} />}
+          {agentResult && <DetailCode label="Result" value={agentResult} />}
         </div>
       )
     }

@@ -97,7 +97,8 @@ interface UIState {
 
   // Session being edited in the SessionEditModal (null = closed)
   editingSessionId: string | null
-  setEditingSessionId: (id: string | null) => void
+  editingSessionTab: 'details' | 'stats'
+  setEditingSessionId: (id: string | null, tab?: 'details' | 'stats') => void
 
   // Auto-follow
   autoFollow: boolean
@@ -287,7 +288,8 @@ export const useUIStore = create<UIState>((set, get) => ({
   setSelectedEventId: (id) => set({ selectedEventId: id }),
 
   editingSessionId: null,
-  setEditingSessionId: (id) => set({ editingSessionId: id }),
+  editingSessionTab: 'details',
+  setEditingSessionId: (id, tab) => set({ editingSessionId: id, editingSessionTab: tab ?? 'details' }),
 
   autoFollow: true,
   setAutoFollow: (enabled) => set({ autoFollow: enabled }),

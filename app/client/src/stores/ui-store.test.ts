@@ -41,6 +41,7 @@ beforeEach(() => {
     expandAllCounter: 0,
     selectedEventId: null,
     editingSessionId: null,
+    editingSessionTab: 'details',
     autoFollow: true,
     rewindMode: false,
     frozenEvents: null,

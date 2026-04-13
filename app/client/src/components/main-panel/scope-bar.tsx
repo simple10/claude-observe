@@ -2,7 +2,7 @@ import { useUIStore } from '@/stores/ui-store'
 import { Button } from '@/components/ui/button'
 import { LogsModal } from './logs-modal'
 import { AgentCombobox } from './agent-combobox'
-import { ArrowDownToLine, Pencil, ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
+import { ArrowDownToLine, Pencil, BarChart3, ChevronsDownUp, ChevronsUpDown } from 'lucide-react'
 
 export function ScopeBar() {
   const {
@@ -23,7 +23,7 @@ export function ScopeBar() {
       <AgentCombobox />
 
       <div className="flex items-center gap-1 shrink-0">
-        <LogsModal />
+        {/* Follow */}
         <Button
           variant={autoFollow ? 'default' : 'ghost'}
           size="icon"
@@ -33,6 +33,7 @@ export function ScopeBar() {
         >
           <ArrowDownToLine className="h-3.5 w-3.5" />
         </Button>
+        {/* Expand/Collapse */}
         <Button
           variant="ghost"
           size="icon"
@@ -52,6 +53,19 @@ export function ScopeBar() {
             <ChevronsUpDown className="h-3.5 w-3.5" />
           )}
         </Button>
+        {/* Logs */}
+        <LogsModal />
+        {/* Stats */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-muted-foreground hover:text-foreground"
+          onClick={() => setEditingSessionId(selectedSessionId, 'stats')}
+          title="Session stats"
+        >
+          <BarChart3 className="h-3.5 w-3.5" />
+        </Button>
+        {/* Edit */}
         <Button
           variant="ghost"
           size="icon"
