@@ -196,9 +196,9 @@ export function AgentLane({
         />
 
         {/* Time tick marks — outside the animated container so they stay fixed */}
-        {ticks.map(({ pct, label }) => (
+        {ticks.map(({ pct, label }, i) => (
           <div
-            key={label}
+            key={i}
             className="absolute top-0 bottom-0 flex flex-col items-center"
             style={{ left: `${pct}%` }}
           >
