@@ -124,6 +124,7 @@ export function EventStream() {
     deferredSearchQuery,
   ])
 
+  const expandedEventIds = useUIStore((s) => s.expandedEventIds)
   const scrollToEventId = useUIStore((s) => s.scrollToEventId)
   const setScrollToEventId = useUIStore((s) => s.setScrollToEventId)
 
@@ -136,7 +137,13 @@ export function EventStream() {
   const virtualizer = useVirtualizer({
     count: filteredEvents.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => 36, // base row height; measureElement fixes up actuals
+    // Better height estimate for expanded rows reduces layout shift when
+    // scrolling through many expanded items (the gap between 36px estimate
+    // and 200px+ actual caused visible jumps as items were measured).
+    estimateSize: (index) => {
+      const event = filteredEvents[index]
+      return event && expandedEventIds.has(event.id) ? 200 : 36
+    },
     overscan: 10,
     // Keep a stable key per event so height measurements survive list changes
     getItemKey: (index) => filteredEvents[index]?.id ?? index,
