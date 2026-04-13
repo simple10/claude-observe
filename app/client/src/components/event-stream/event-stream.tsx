@@ -57,12 +57,13 @@ export function EventStream() {
 
   const agents = useAgents(selectedSessionId, events)
 
-  // Backfill permission_mode into session metadata if missing
+  // Backfill permission_mode into session metadata if missing.
+  // Long staleTime — this only needs to run once per session, not on every WS update.
   const { data: sessionForBackfill } = useQuery({
-    queryKey: ['session', selectedSessionId],
+    queryKey: ['session-backfill', selectedSessionId],
     queryFn: () => api.getSession(selectedSessionId!),
     enabled: !!selectedSessionId,
-    staleTime: 30_000,
+    staleTime: Infinity,
   })
   usePermissionModeBackfill(sessionForBackfill, events, agents)
 

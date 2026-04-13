@@ -90,15 +90,18 @@ export function useWebSocket(sessionId: string | null) {
         }
       } else if (msg.type === 'session_update') {
         queryClient.invalidateQueries({ queryKey: ['sessions'] })
-        queryClient.invalidateQueries({ queryKey: ['session'] })
+        // Only invalidate the specific session that changed, not all ['session', *] queries
+        const sessionData = msg.data as { id?: string }
+        if (sessionData.id) {
+          queryClient.invalidateQueries({ queryKey: ['session', sessionData.id] })
+        }
         if (logLevel === 'trace') {
-          console.debug('[WS] Session update → invalidating sessions + session caches')
+          console.debug(`[WS] Session update → invalidating sessions + session ${sessionData.id?.slice(0, 8) ?? '?'}`)
         }
       } else if (msg.type === 'project_update') {
         queryClient.invalidateQueries({ queryKey: ['projects'] })
-        queryClient.invalidateQueries({ queryKey: ['session'] })
         if (logLevel === 'trace') {
-          console.debug('[WS] Project update → invalidating projects + session caches')
+          console.debug('[WS] Project update → invalidating projects')
         }
       }
     },
