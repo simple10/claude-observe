@@ -1,6 +1,9 @@
-FROM node:22-slim
+FROM node:22-slim AS builder
 
 WORKDIR /app
+
+# Build tools for native addons (better-sqlite3 via node-gyp)
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 # Install server dependencies (includes native better-sqlite3)
 COPY app/server/package*.json server/
@@ -14,9 +17,21 @@ COPY app/client/ client/
 COPY package.json /package.json
 RUN cd client && npm run build
 
-# Copy server source ONLY (not node_modules — those were built above for Linux)
+# --- Production image (no build tools) ---
+FROM node:22-slim
+
+WORKDIR /app
+
+# Copy built server node_modules (includes native better-sqlite3 binary)
+COPY --from=builder /app/server/node_modules server/node_modules
+
+# Copy built client dist
+COPY --from=builder /app/client/dist client/dist
+
+# Copy server source
 COPY app/server/src server/src
 COPY app/server/tsconfig.json server/
+COPY app/server/package.json server/
 
 # Copy VERSION file for /api/health endpoint
 COPY VERSION /app/VERSION
