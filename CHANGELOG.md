@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.8.6 — Session stats and UI polish
+
+This release introduces a new session stats tab showing sub-agent token usage and session metrics at a glance. It also adds convenient copy buttons for event details and improves overall UI responsiveness with smoother scrolling and better click interactions.
+
+### Features
+
+- New session stats tab displaying token usage breakdowns and agent results with color-coded names and click-to-scroll navigation
+- Copy button on expanded event detail fields for quick clipboard access
+
+### Fixes
+
+- Sidebar clicks now always navigate to the selected session
+- Docker image includes python3 and build tools required for better-sqlite3 native compilation
+
+### Other
+
+- Improved scroll performance for expanded rows in the virtualizer
+- Refined UI interactions: cursor-pointer on session rows, fixed tooltip placement for timeline agents and dots
+
 ## v0.8.5 — Performance fixes and API overhaul
 
 Removed WorktreeCreate hook from the plugin to prevent plugin from blocking worktree creation. Major performance improvements eliminate CPU spikes on large sessions. The REST API has been restructured with standardized error responses. New features include permission mode detection and a resume command in the session modal.
