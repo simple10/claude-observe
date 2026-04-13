@@ -9,6 +9,8 @@ interface AgentLabelProps {
   className?: string
   /** Disable tooltip — just render the name */
   disableTooltip?: boolean
+  /** Tooltip placement (default: "right") */
+  tooltipSide?: 'top' | 'right' | 'bottom' | 'left'
   children?: React.ReactNode
 }
 
@@ -22,6 +24,7 @@ export function AgentLabel({
   parentAgent,
   className,
   disableTooltip,
+  tooltipSide = 'right',
   children,
 }: AgentLabelProps) {
   const displayName = getAgentDisplayName(agent)
@@ -37,7 +40,7 @@ export function AgentLabel({
       <TooltipTrigger asChild>
         <span className={className}>{children ?? displayName}</span>
       </TooltipTrigger>
-      <TooltipContent side="bottom" className="max-w-xs">
+      <TooltipContent side={tooltipSide} className="max-w-xs">
         <div className="flex flex-col gap-0.5 text-left">
           {agent.description && agent.description !== displayName && (
             <span>{agent.description}</span>

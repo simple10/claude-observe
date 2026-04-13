@@ -89,7 +89,7 @@ function DotContainer({
                 </span>
               </button>
             </TooltipTrigger>
-            <TooltipContent side="left" className="text-xs max-w-64">
+            <TooltipContent side="top" className="text-xs max-w-64">
               <DotTooltipContent event={event} />
             </TooltipContent>
           </Tooltip>
@@ -193,7 +193,7 @@ export function AgentLane({
         onClick={handleAgentNameClick}
       >
         {isSubagent ? '↳ ' : ''}
-        <AgentLabel agent={agent} parentAgent={parentAgent} />
+        <AgentLabel agent={agent} parentAgent={parentAgent} tooltipSide="top" />
       </button>
 
       <div className="flex-1 relative h-full overflow-hidden">
