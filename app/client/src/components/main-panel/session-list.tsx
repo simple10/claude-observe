@@ -63,7 +63,7 @@ export function SessionList({
           <button
             key={session.id}
             className={cn(
-              'w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors',
+              'w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors cursor-pointer',
               'focus:outline-none focus-visible:ring-1 focus-visible:ring-ring',
             )}
             onClick={() =>
