@@ -105,11 +105,11 @@ export function SessionEditModal() {
     typeof session?.metadata?.permission_mode === 'string'
       ? session.metadata.permission_mode
       : typeof session?.metadata?.permissionMode === 'string'
-        ? session.metadata.permissionMode
-        : null
+      ? session.metadata.permissionMode
+      : null
   const permFlag = permissionMode ? ` --permission-mode ${permissionMode}` : ''
   const resumeCmd = session ? `claude --resume ${session.id}${permFlag}` : null
-  const forkCmd = session ? `claude --fork ${session.id}${permFlag}` : null
+  const forkCmd = session ? `claude --fork-session --resume ${session.id}${permFlag}` : null
 
   function copyToClipboard(field: string, text: string) {
     navigator.clipboard.writeText(text)
@@ -364,9 +364,7 @@ export function SessionEditModal() {
           )}
 
           {/* Stats tab */}
-          {session && activeTab === 'stats' && (
-            <SessionStats sessionId={session.id} />
-          )}
+          {session && activeTab === 'stats' && <SessionStats sessionId={session.id} />}
 
           {/* Action buttons */}
           {session && (
@@ -562,7 +560,10 @@ function computeStats(events: ParsedEvent[]): SessionStatsData {
   const totalTokens = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0 }
 
   for (const e of events) {
-    if ((e.subtype === 'PostToolUse' || e.subtype === 'PostToolUseFailure') && e.toolName === 'Agent') {
+    if (
+      (e.subtype === 'PostToolUse' || e.subtype === 'PostToolUseFailure') &&
+      e.toolName === 'Agent'
+    ) {
       const resp = (e.payload as any)?.tool_response
       if (!resp) continue
 
@@ -619,9 +620,7 @@ function computeStats(events: ParsedEvent[]): SessionStatsData {
   // Tool success rate
   const totalCompleted = postToolUseCount + postToolUseFailureCount
   const toolSuccessRate =
-    totalCompleted > 0
-      ? `${Math.round((postToolUseCount / totalCompleted) * 100)}%`
-      : '—'
+    totalCompleted > 0 ? `${Math.round((postToolUseCount / totalCompleted) * 100)}%` : '—'
 
   // Top tools sorted by count
   const topTools = [...toolCounts.entries()]
@@ -772,14 +771,19 @@ function SessionStats({ sessionId }: { sessionId: string }) {
             <StatCard
               label="Total Input"
               value={formatTokens(
-                stats.totalTokens.input + stats.totalTokens.cacheRead + stats.totalTokens.cacheCreation,
+                stats.totalTokens.input +
+                  stats.totalTokens.cacheRead +
+                  stats.totalTokens.cacheCreation,
               )}
             />
             <StatCard label="Total Output" value={formatTokens(stats.totalTokens.output)} />
             <StatCard
               label="Cache Hit Rate"
               value={
-                stats.totalTokens.input + stats.totalTokens.cacheRead + stats.totalTokens.cacheCreation > 0
+                stats.totalTokens.input +
+                  stats.totalTokens.cacheRead +
+                  stats.totalTokens.cacheCreation >
+                0
                   ? `${Math.round(
                       (stats.totalTokens.cacheRead /
                         (stats.totalTokens.input +
@@ -793,68 +797,68 @@ function SessionStats({ sessionId }: { sessionId: string }) {
           </div>
           {stats.agentUsage.length > 0 && (
             <TooltipProvider>
-            <div className="rounded-md border border-border/50 overflow-hidden">
-              <table className="w-full text-[10px]">
-                <thead>
-                  <tr className="bg-muted/30 text-muted-foreground">
-                    <th className="text-left px-2 py-1.5 font-medium">Agent</th>
-                    <th className="text-right px-2 py-1.5 font-medium">Input</th>
-                    <th className="text-right px-2 py-1.5 font-medium">Output</th>
-                    <th className="text-right px-2 py-1.5 font-medium">Cache Hit</th>
-                    <th className="text-right px-2 py-1.5 font-medium">Tools</th>
-                    <th className="text-right px-2 py-1.5 font-medium">Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.agentUsage.map((agent) => {
-                    const totalInput =
-                      agent.inputTokens + agent.cacheReadTokens + agent.cacheCreationTokens
-                    const cacheHitPct =
-                      totalInput > 0
-                        ? `${Math.round((agent.cacheReadTokens / totalInput) * 100)}%`
-                        : '—'
-                    const agentObj = agents.find((a) => a.id === agent.agentId)
-                    const parentAgent = agentObj?.parentAgentId
-                      ? agents.find((a) => a.id === agentObj.parentAgentId)
-                      : null
-                    const color = getAgentColorById(agent.agentId, agentColorMap)
-                    return (
-                      <tr key={agent.agentId} className="border-t border-border/30">
-                        <td className="px-2 py-1.5 truncate max-w-[200px]">
-                          {agentObj ? (
-                            <button
-                              className={`truncate cursor-pointer hover:underline ${color.textOnly}`}
-                              onClick={() => scrollToAgent(agent.agentId)}
-                            >
-                              <AgentLabel agent={agentObj} parentAgent={parentAgent} />
-                            </button>
-                          ) : (
-                            <span className="truncate" title={agent.description}>
-                              {agent.description}
-                            </span>
-                          )}
-                        </td>
-                        <td className="text-right px-2 py-1.5 text-muted-foreground">
-                          {formatTokens(totalInput)}
-                        </td>
-                        <td className="text-right px-2 py-1.5 text-muted-foreground">
-                          {formatTokens(agent.outputTokens)}
-                        </td>
-                        <td className="text-right px-2 py-1.5 text-muted-foreground">
-                          {cacheHitPct}
-                        </td>
-                        <td className="text-right px-2 py-1.5 text-muted-foreground">
-                          {agent.toolUseCount}
-                        </td>
-                        <td className="text-right px-2 py-1.5 text-muted-foreground">
-                          {formatDuration(agent.totalDurationMs)}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+              <div className="rounded-md border border-border/50 overflow-hidden">
+                <table className="w-full text-[10px]">
+                  <thead>
+                    <tr className="bg-muted/30 text-muted-foreground">
+                      <th className="text-left px-2 py-1.5 font-medium">Agent</th>
+                      <th className="text-right px-2 py-1.5 font-medium">Input</th>
+                      <th className="text-right px-2 py-1.5 font-medium">Output</th>
+                      <th className="text-right px-2 py-1.5 font-medium">Cache Hit</th>
+                      <th className="text-right px-2 py-1.5 font-medium">Tools</th>
+                      <th className="text-right px-2 py-1.5 font-medium">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.agentUsage.map((agent) => {
+                      const totalInput =
+                        agent.inputTokens + agent.cacheReadTokens + agent.cacheCreationTokens
+                      const cacheHitPct =
+                        totalInput > 0
+                          ? `${Math.round((agent.cacheReadTokens / totalInput) * 100)}%`
+                          : '—'
+                      const agentObj = agents.find((a) => a.id === agent.agentId)
+                      const parentAgent = agentObj?.parentAgentId
+                        ? agents.find((a) => a.id === agentObj.parentAgentId)
+                        : null
+                      const color = getAgentColorById(agent.agentId, agentColorMap)
+                      return (
+                        <tr key={agent.agentId} className="border-t border-border/30">
+                          <td className="px-2 py-1.5 truncate max-w-[200px]">
+                            {agentObj ? (
+                              <button
+                                className={`truncate cursor-pointer hover:underline ${color.textOnly}`}
+                                onClick={() => scrollToAgent(agent.agentId)}
+                              >
+                                <AgentLabel agent={agentObj} parentAgent={parentAgent} />
+                              </button>
+                            ) : (
+                              <span className="truncate" title={agent.description}>
+                                {agent.description}
+                              </span>
+                            )}
+                          </td>
+                          <td className="text-right px-2 py-1.5 text-muted-foreground">
+                            {formatTokens(totalInput)}
+                          </td>
+                          <td className="text-right px-2 py-1.5 text-muted-foreground">
+                            {formatTokens(agent.outputTokens)}
+                          </td>
+                          <td className="text-right px-2 py-1.5 text-muted-foreground">
+                            {cacheHitPct}
+                          </td>
+                          <td className="text-right px-2 py-1.5 text-muted-foreground">
+                            {agent.toolUseCount}
+                          </td>
+                          <td className="text-right px-2 py-1.5 text-muted-foreground">
+                            {formatDuration(agent.totalDurationMs)}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </TooltipProvider>
           )}
         </div>
