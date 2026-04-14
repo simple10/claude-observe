@@ -3,6 +3,30 @@
 
 import type { ParsedEvent } from '@/types'
 
+/** Extract the binary/command name from a bash command string, skipping env vars and cd prefixes. */
+function extractBashBinary(cmd: string): string | null {
+  // Take first line only (multi-line commands)
+  const first = cmd.split('\n')[0].trim()
+  // Skip env var assignments (FOO=bar), cd prefixes (cd dir &&), shell operators
+  const tokens = first.split(/\s+/)
+  let skipNext = false
+  for (const token of tokens) {
+    if (skipNext) {
+      skipNext = false
+      continue
+    }
+    if (token.includes('=') || token === '&&' || token === ';' || token === '||') continue
+    if (token === 'cd') {
+      skipNext = true // skip the directory argument
+      continue
+    }
+    // Strip path prefix to get just the binary name
+    const bin = token.replace(/^.*\//, '')
+    if (bin && bin !== '(' && bin !== '{') return bin
+  }
+  return null
+}
+
 export function getEventSummary(event: ParsedEvent): string {
   const p = event.payload as Record<string, any>
   const cwd = p.cwd as string | undefined
@@ -102,10 +126,13 @@ function getToolSummary(
 
   switch (toolName) {
     case 'Bash': {
-      const desc = toolInput.description
+      const desc = toolInput.description as string | undefined
       const cmd = toolInput.command as string | undefined
-      // Prefer description; collapse multi-line commands into one line
-      return desc || (cmd ? cmd.replace(/\s*\n\s*/g, ' \\n ').trim() : '')
+      // Extract the binary name from the command (first word, ignoring env vars and flags)
+      const bin = cmd ? extractBashBinary(cmd) : null
+      const binPrefix = bin ? `[${bin}] ` : ''
+      if (desc) return `${binPrefix}${desc}`
+      return cmd ? `${binPrefix}${cmd.replace(/\s*\n\s*/g, ' \\n ').trim()}` : ''
     }
     case 'Read':
     case 'Write':
