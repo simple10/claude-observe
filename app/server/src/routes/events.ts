@@ -46,7 +46,11 @@ const pendingAgentTypes = new Map<string, string>() // toolUseId -> subagent_typ
 const pendingAgentMetaQueue = new Map<string, PendingAgentMeta[]>() // sessionId -> FIFO queue
 const namedAgents = new Map<string, Set<string>>() // sessionId -> set of agent IDs already named via queue
 
-async function ensureRootAgent(store: EventStore, sessionId: string): Promise<string> {
+async function ensureRootAgent(
+  store: EventStore,
+  sessionId: string,
+  agentClass?: string,
+): Promise<string> {
   // Fast path: trust the in-memory cache. Cache invalidation happens in all
   // delete paths (DELETE /projects/:id, DELETE /sessions/:id, DELETE /data),
   // and the startup repairOrphans pass cleans up any pre-existing orphans.
@@ -55,7 +59,7 @@ async function ensureRootAgent(store: EventStore, sessionId: string): Promise<st
   let rootId = sessionRootAgents.get(sessionId)
   if (!rootId) {
     rootId = sessionId
-    await store.upsertAgent(rootId, sessionId, null, null, null)
+    await store.upsertAgent(rootId, sessionId, null, null, null, null, null, agentClass)
     sessionRootAgents.set(sessionId, rootId)
   }
   return rootId
@@ -75,8 +79,9 @@ router.post('/events', async (c) => {
     }
 
     const hookPayload = body.hook_payload as Record<string, unknown>
-    const meta: { env?: Record<string, string> } =
-      (body.meta as { env?: Record<string, string> }) || {}
+    const meta: { env?: Record<string, string>; agentClass?: string } =
+      (body.meta as { env?: Record<string, string>; agentClass?: string }) || {}
+    const agentClass = meta.agentClass || 'claude-code'
 
     if (LOG_LEVEL === 'debug' || LOG_LEVEL === 'trace') {
       const logKeys = Object.keys(hookPayload).join(', ')
@@ -143,7 +148,7 @@ router.post('/events', async (c) => {
       parsed.transcriptPath,
     )
 
-    const rootAgentId = await ensureRootAgent(store, parsed.sessionId)
+    const rootAgentId = await ensureRootAgent(store, parsed.sessionId, agentClass)
 
     // When PreToolUse:Agent fires, stash name + description for early naming.
     // We store it both by toolUseId (for definitive lookup at PostToolUse) and
@@ -206,6 +211,7 @@ router.post('/events', async (c) => {
         pending?.description ?? null,
         ownerAgentType,
         agentTranscriptPath,
+        agentClass,
       )
     }
     let agentId = parsed.ownerAgentId || rootAgentId
@@ -240,6 +246,8 @@ router.post('/events', async (c) => {
         subAgentName,
         subAgentDescription,
         subAgentType,
+        null,
+        agentClass,
       )
 
       // agent_progress events belong to the subagent

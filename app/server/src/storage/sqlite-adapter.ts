@@ -86,7 +86,7 @@ export class SqliteAdapter implements EventStore {
         name TEXT,
         description TEXT,
         agent_type TEXT,
-        agent_class TEXT DEFAULT 'claude-code',
+        agent_class TEXT,
         transcript_path TEXT,
         metadata TEXT,
         created_at INTEGER NOT NULL,
@@ -103,6 +103,9 @@ export class SqliteAdapter implements EventStore {
     }
     if (!agentCols.some((c) => c.name === 'transcript_path')) {
       this.db.exec('ALTER TABLE agents ADD COLUMN transcript_path TEXT')
+    }
+    if (!agentCols.some((c) => c.name === 'agent_class')) {
+      this.db.exec('ALTER TABLE agents ADD COLUMN agent_class TEXT')
     }
 
     this.db.exec(`
@@ -236,19 +239,21 @@ export class SqliteAdapter implements EventStore {
     description: string | null,
     agentType?: string | null,
     transcriptPath?: string | null,
+    agentClass?: string | null,
   ): Promise<void> {
     const now = Date.now()
     const existing = this.db.prepare('SELECT id FROM agents WHERE id = ?').get(id)
     this.db
       .prepare(
         `
-      INSERT INTO agents (id, session_id, parent_agent_id, name, description, agent_type, transcript_path, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO agents (id, session_id, parent_agent_id, name, description, agent_type, transcript_path, agent_class, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         name = COALESCE(excluded.name, agents.name),
         description = COALESCE(excluded.description, agents.description),
         agent_type = COALESCE(excluded.agent_type, agents.agent_type),
         transcript_path = COALESCE(excluded.transcript_path, agents.transcript_path),
+        agent_class = COALESCE(excluded.agent_class, agents.agent_class),
         updated_at = ?
     `,
       )
@@ -260,6 +265,7 @@ export class SqliteAdapter implements EventStore {
         description,
         agentType ?? null,
         transcriptPath ?? null,
+        agentClass ?? null,
         now,
         now,
         now,

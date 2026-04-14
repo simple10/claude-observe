@@ -289,7 +289,8 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   editingSessionId: null,
   editingSessionTab: 'details',
-  setEditingSessionId: (id, tab) => set({ editingSessionId: id, editingSessionTab: tab ?? 'details' }),
+  setEditingSessionId: (id, tab) =>
+    set({ editingSessionId: id, editingSessionTab: tab ?? 'details' }),
 
   autoFollow: true,
   setAutoFollow: (enabled) => set({ autoFollow: enabled }),

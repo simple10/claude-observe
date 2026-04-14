@@ -72,4 +72,39 @@ describe('agent routes', () => {
       expect(mockStore.updateAgentName).not.toHaveBeenCalled()
     })
   })
+
+  describe('GET /api/agents/:id', () => {
+    test('returns agentClass in response', async () => {
+      mockStore.getAgentById.mockResolvedValue({
+        id: 'agent-1',
+        session_id: 'sess-1',
+        parent_agent_id: null,
+        name: 'Main',
+        description: null,
+        agent_type: 'general-purpose',
+        agent_class: 'claude-code',
+      })
+
+      const res = await app.request('/api/agents/agent-1', { method: 'GET' })
+      expect(res.status).toBe(200)
+      const body = await res.json()
+      expect(body.agentClass).toBe('claude-code')
+    })
+
+    test('returns null agentClass when not set', async () => {
+      mockStore.getAgentById.mockResolvedValue({
+        id: 'agent-1',
+        session_id: 'sess-1',
+        parent_agent_id: null,
+        name: null,
+        description: null,
+        agent_type: null,
+        agent_class: null,
+      })
+
+      const res = await app.request('/api/agents/agent-1', { method: 'GET' })
+      const body = await res.json()
+      expect(body.agentClass).toBeNull()
+    })
+  })
 })

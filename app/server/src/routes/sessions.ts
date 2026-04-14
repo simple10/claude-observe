@@ -80,6 +80,7 @@ router.get('/sessions/:id/agents', async (c) => {
     name: r.name,
     description: r.description,
     agentType: r.agent_type || null,
+    agentClass: r.agent_class || null,
   }))
   return c.json(agents)
 })

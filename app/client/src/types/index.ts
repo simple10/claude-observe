@@ -30,6 +30,7 @@ export interface ServerAgent {
   name: string | null
   description: string | null
   agentType?: string | null
+  agentClass?: string | null
 }
 
 /** Agent with UI-derived state (computed from events) */

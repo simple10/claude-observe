@@ -101,7 +101,9 @@ export function useWebSocket(sessionId: string | null) {
           queryClient.invalidateQueries({ queryKey: ['session', sessionData.id] })
         }
         if (logLevel === 'trace') {
-          console.debug(`[WS] Session update → invalidating sessions + session ${sessionData.id?.slice(0, 8) ?? '?'}`)
+          console.debug(
+            `[WS] Session update → invalidating sessions + session ${sessionData.id?.slice(0, 8) ?? '?'}`,
+          )
         }
       } else if (msg.type === 'project_update') {
         queryClient.invalidateQueries({ queryKey: ['projects'] })

@@ -105,8 +105,8 @@ export function SessionEditModal() {
     typeof session?.metadata?.permission_mode === 'string'
       ? session.metadata.permission_mode
       : typeof session?.metadata?.permissionMode === 'string'
-      ? session.metadata.permissionMode
-      : null
+        ? session.metadata.permissionMode
+        : null
   const permFlag = permissionMode ? ` --permission-mode ${permissionMode}` : ''
   const resumeCmd = session ? `claude --resume ${session.id}${permFlag}` : null
   const forkCmd = session ? `claude --fork-session --resume ${session.id}${permFlag}` : null

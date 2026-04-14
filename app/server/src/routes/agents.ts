@@ -51,6 +51,7 @@ router.get('/agents/:id', async (c) => {
     name: row.name,
     description: row.description,
     agentType: row.agent_type || null,
+    agentClass: row.agent_class || null,
   })
 })
 
