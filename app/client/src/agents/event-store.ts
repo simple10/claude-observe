@@ -32,9 +32,8 @@ export class EventStore {
     this.agentClassMap.clear()
     for (const agent of agents) {
       this.agentMap.set(agent.id, agent)
-      if (agent.agentClass) {
-        this.agentClassMap.set(agent.id, agent.agentClass)
-      }
+      // Default to 'claude-code' for agents without an explicit agentClass
+      this.agentClassMap.set(agent.id, agent.agentClass || 'claude-code')
     }
   }
 
@@ -83,7 +82,7 @@ export class EventStore {
   // ---------------------------------------------------------------------------
 
   private processOne(raw: RawEvent) {
-    const agentClass = this.agentClassMap.get(raw.agentId) ?? null
+    const agentClass = this.agentClassMap.get(raw.agentId) ?? 'claude-code'
     const registration = AgentRegistry.get(agentClass)
 
     const ctx = this.createProcessingContext()
