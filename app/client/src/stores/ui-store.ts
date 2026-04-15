@@ -348,6 +348,17 @@ export const useUIStore = create<UIState>((set, get) => ({
 }))
 
 if (typeof window !== 'undefined') {
+  // Seed history for direct URL loads so the back button has somewhere to go.
+  // If loading #/project/session, push #/project first (project view),
+  // then replace with the full URL. Back then goes to project view.
+  if (initialProjectSlug && initialSessionId) {
+    window.history.replaceState(null, '', `#/${initialProjectSlug}`)
+    window.history.pushState(null, '', `#/${initialProjectSlug}/${initialSessionId}`)
+  } else if (initialProjectSlug) {
+    window.history.replaceState(null, '', `#/`)
+    window.history.pushState(null, '', `#/${initialProjectSlug}`)
+  }
+
   window.addEventListener('hashchange', () => {
     const { projectSlug, sessionId } = parseHash()
     const state = useUIStore.getState()
