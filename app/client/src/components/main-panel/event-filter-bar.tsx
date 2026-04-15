@@ -1,8 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useUIStore } from '@/stores/ui-store'
-import { useEvents } from '@/hooks/use-events'
-import { useAgents } from '@/hooks/use-agents'
-import { useEventProcessing } from '@/agents/use-event-processing'
+import { useProcessedEvents } from '@/agents/event-processing-context'
 import { cn } from '@/lib/utils'
 import { Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -32,7 +30,6 @@ export function EventFilterBar() {
     clearAllFilters,
     searchQuery,
     setSearchQuery,
-    selectedSessionId,
     selectedAgentIds,
   } = useUIStore()
 
@@ -54,9 +51,7 @@ export function EventFilterBar() {
     }
   }
 
-  const { data: rawEvents } = useEvents(selectedSessionId)
-  const agents = useAgents(selectedSessionId, rawEvents)
-  const { events: enrichedEvents } = useEventProcessing(rawEvents, agents)
+  const { events: enrichedEvents } = useProcessedEvents()
 
   // Only consider displayed events for filter state
   const displayedEvents = useMemo(

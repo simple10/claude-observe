@@ -3,7 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useQuery } from '@tanstack/react-query'
 import { useEffectiveEvents } from '@/hooks/use-effective-events'
 import { useAgents } from '@/hooks/use-agents'
-import { useEventProcessing } from '@/agents/use-event-processing'
+import { useProcessedEvents } from '@/agents/event-processing-context'
 import { usePermissionModeBackfill } from '@/hooks/use-permission-mode-backfill'
 import { getTimelineScrollTo, registerEventStreamScroll, withSyncLock } from '@/lib/scroll-sync'
 import { api } from '@/lib/api-client'
@@ -35,18 +35,18 @@ export function EventStream() {
   const deferredSearchQuery = useDeferredValue(searchQuery)
 
   const eventsQuery = useEffectiveEvents(selectedSessionId)
-  const events = useDeferredValue(eventsQuery.data)
+  const rawEvents = useDeferredValue(eventsQuery.data)
   const displayQuery = useMemo(
     () => ({
-      data: events,
-      isLoading: eventsQuery.isLoading || (eventsQuery.data !== undefined && events === undefined),
+      data: rawEvents,
+      isLoading: eventsQuery.isLoading || (eventsQuery.data !== undefined && rawEvents === undefined),
       isError: eventsQuery.isError,
       error: eventsQuery.error,
     }),
-    [events, eventsQuery.data, eventsQuery.isLoading, eventsQuery.isError, eventsQuery.error],
+    [rawEvents, eventsQuery.data, eventsQuery.isLoading, eventsQuery.isError, eventsQuery.error],
   )
 
-  const agents = useAgents(selectedSessionId, events)
+  const agents = useAgents(selectedSessionId, rawEvents)
 
   // Backfill permission_mode into session metadata if missing.
   const { data: sessionForBackfill } = useQuery({
@@ -55,12 +55,12 @@ export function EventStream() {
     enabled: !!selectedSessionId,
     staleTime: Infinity,
   })
-  usePermissionModeBackfill(sessionForBackfill, events, agents)
+  usePermissionModeBackfill(sessionForBackfill, rawEvents, agents)
 
   const agentColorMap = useMemo(() => buildAgentColorMap(agents), [agents])
 
-  // Process raw events through agent class registry
-  const { events: enrichedEvents, dataApi } = useEventProcessing(events, agents)
+  // Use shared processed events from context (single EventStore for both stream + timeline)
+  const { events: enrichedEvents, dataApi } = useProcessedEvents()
 
   // Apply all client-side filters on enriched events
   const filteredEvents = useMemo(() => {
@@ -268,7 +268,7 @@ export function EventStream() {
 
   const firstTs = filteredEvents[0]?.timestamp
   const lastTs = filteredEvents[filteredEvents.length - 1]?.timestamp
-  const rawCount = events?.length ?? 0
+  const rawCount = rawEvents?.length ?? 0
   const showRawCount = rawCount !== filteredEvents.length
 
   return (

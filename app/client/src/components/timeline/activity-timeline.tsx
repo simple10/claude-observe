@@ -3,7 +3,7 @@ import { getRangeMs, TIME_RANGE_KEYS } from '@/config/time-ranges'
 import { useUIStore } from '@/stores/ui-store'
 import { useEffectiveEvents } from '@/hooks/use-effective-events'
 import { useAgents } from '@/hooks/use-agents'
-import { useEventProcessing } from '@/agents/use-event-processing'
+import { useProcessedEvents } from '@/agents/event-processing-context'
 import { useSessions } from '@/hooks/use-sessions'
 import { buildAgentColorMap, getAgentColorById } from '@/lib/agent-utils'
 import { AgentLane } from './agent-lane'
@@ -32,7 +32,7 @@ export function ActivityTimeline() {
   const effectiveSessionId = selectedSessionId || sessions?.[0]?.id || null
   const rawEvents = useEffectiveEvents(effectiveSessionId).data
   const agents = useAgents(effectiveSessionId, rawEvents)
-  const { events: enrichedEvents } = useEventProcessing(rawEvents, agents)
+  const { events: enrichedEvents } = useProcessedEvents()
   // Keep raw events reference for rewind mode (which does its own processing)
   const events = rawEvents
   const resizing = useRef(false)
