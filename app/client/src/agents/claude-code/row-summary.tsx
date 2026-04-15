@@ -8,10 +8,18 @@ import type { EventProps } from '../types'
  * The framework handles the chrome (agent label, type badge, icon, timestamp).
  * This component renders the content area — tool name, status, and summary text.
  */
+/** Extract [binary] prefix from summary if present */
+function parseBinaryPrefix(summary: string): { binary: string | null; rest: string } {
+  const match = summary.match(/^\[([^\]]+)\]\s*(.*)$/)
+  if (match) return { binary: match[1], rest: match[2] }
+  return { binary: null, rest: summary }
+}
+
 export function ClaudeCodeRowSummary({ event }: EventProps) {
   const summary = (event.summary as string) || ''
   const toolName = event.toolName
   const isTool = event.subtype === 'PreToolUse' || event.subtype === 'PostToolUse' || event.subtype === 'PostToolUseFailure'
+  const { binary, rest } = isTool ? parseBinaryPrefix(summary) : { binary: null, rest: summary }
 
   return (
     <>
@@ -20,16 +28,19 @@ export function ClaudeCodeRowSummary({ event }: EventProps) {
           {toolName}
         </span>
       )}
-      {summary.includes('\n') ? (
+      {binary && (
+        <span className="text-[10px] text-muted-foreground/50 shrink-0">{binary}</span>
+      )}
+      {rest.includes('\n') ? (
         <div className="text-xs text-muted-foreground flex-1 min-w-0">
-          {summary.split('\n').map((line, i) => (
+          {rest.split('\n').map((line, i) => (
             <div key={i} className="truncate">
               {line}
             </div>
           ))}
         </div>
       ) : (
-        <span className="text-xs text-muted-foreground truncate flex-1 min-w-0">{summary}</span>
+        <span className="text-xs text-muted-foreground truncate flex-1 min-w-0">{rest}</span>
       )}
     </>
   )
