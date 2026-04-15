@@ -45,9 +45,10 @@ export const EventRow = memo(function EventRow({
   const iconColor = event.iconColor || 'text-muted-foreground'
   const customHex = event.iconColorHex
 
-  const isTool = event.subtype === 'PreToolUse' || event.subtype === 'PostToolUse' || event.subtype === 'PostToolUseFailure'
-  const isFailure = event.subtype === 'PostToolUseFailure' || event.status === 'failed'
+  const isFailure = event.status === 'failed'
   const isCompleted = event.status === 'completed'
+  const isPending = event.status === 'pending' || event.status === 'running'
+  const showStatus = isFailure || isCompleted || isPending
 
   // Get the agent class registration for the RowSummary and EventDetail components
   const agentClass = agent?.agentClass || 'claude-code'
@@ -121,8 +122,8 @@ export const EventRow = memo(function EventRow({
             {event.label}
           </span>
 
-          {/* Status indicator for tools (framework-owned) */}
-          {isTool && (
+          {/* Status indicator (framework-owned) */}
+          {showStatus && (
             <span
               className={cn(
                 'shrink-0',
