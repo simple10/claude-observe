@@ -19,16 +19,14 @@ export function GeneralSettings() {
             <div>
               <div className="text-sm font-medium">Event deduplication</div>
               <div className="text-xs text-muted-foreground mt-0.5">
-                Merge related hook events into single rows. When enabled, PreToolUse and PostToolUse
-                are combined into one tool row, task events are grouped by task ID, and the event
-                stream shows a clean summary view.
+                Groups related hook events into single rows. Combines PreToolUse and PostToolUse
+                events into one tool row, individual events are shown in expanded row details.
               </div>
-              <div className="text-xs text-muted-foreground/70 mt-1">
-                When disabled, every hook event is shown individually with its raw hook name,
-                making it easier to debug event payloads and timing.
+              <div className="text-xs text-muted-foreground mt-2">
+                When disabled, every hook event is shown as an individual row.
               </div>
-              <div className="text-[10px] text-muted-foreground/50 mt-1">
-                Changing this setting will reload the page.
+              <div className="text-xs text-orange-500 dark:text-orange-400 mt-2">
+                Changing this setting auto reloads the page.
               </div>
             </div>
           </label>
