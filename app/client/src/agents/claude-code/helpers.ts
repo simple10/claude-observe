@@ -23,7 +23,19 @@ export function extractBashBinary(cmd: string): string | null {
       continue
     }
     // Skip shell keywords that aren't binaries
-    if (token === 'for' || token === 'do' || token === 'done' || token === 'if' || token === 'then' || token === 'else' || token === 'fi' || token === 'while' || token === 'case' || token === 'esac') continue
+    if (
+      token === 'for' ||
+      token === 'do' ||
+      token === 'done' ||
+      token === 'if' ||
+      token === 'then' ||
+      token === 'else' ||
+      token === 'fi' ||
+      token === 'while' ||
+      token === 'case' ||
+      token === 'esac'
+    )
+      continue
     const bin = token.replace(/^.*\//, '')
     // Validate: must look like a real binary name
     if (bin && VALID_BINARY_RE.test(bin)) return bin

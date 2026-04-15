@@ -29,9 +29,7 @@ export function ClaudeCodeDotTooltip({ event }: { event: EnrichedEvent }) {
   return (
     <div className="space-y-0.5">
       <div className="font-medium">{label}</div>
-      {summary && (
-        <div className="opacity-90 max-w-48 truncate">{summary}</div>
-      )}
+      {summary && <div className="opacity-90 max-w-48 truncate">{summary}</div>}
       <div className="opacity-60 text-[10px]">
         {formatTimeOfDay(event.timestamp)} · {format(event.timestamp)}
       </div>

@@ -3,7 +3,13 @@
 
 import { CircleDot } from 'lucide-react'
 import { AgentRegistry } from '../registry'
-import type { RawEvent, EnrichedEvent, ProcessingContext, ProcessEventResult, EventProps } from '../types'
+import type {
+  RawEvent,
+  EnrichedEvent,
+  ProcessingContext,
+  ProcessEventResult,
+  EventProps,
+} from '../types'
 
 function processEvent(raw: RawEvent, ctx: ProcessingContext): ProcessEventResult {
   const turnId = ctx.getCurrentTurn(raw.agentId)

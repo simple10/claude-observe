@@ -1,10 +1,5 @@
 import type { Agent } from '@/types'
-import type {
-  EnrichedEvent,
-  RawEvent,
-  ProcessingContext,
-  FrameworkDataApi,
-} from './types'
+import type { EnrichedEvent, RawEvent, ProcessingContext, FrameworkDataApi } from './types'
 import { AgentRegistry } from './registry'
 
 /**

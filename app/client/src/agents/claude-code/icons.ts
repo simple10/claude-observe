@@ -6,31 +6,84 @@ import type { LucideIcon } from 'lucide-react'
 import dynamicIconImports from 'lucide-react/dynamicIconImports'
 import { resolveIconName } from '@/lib/dynamic-icon'
 import {
-  Rocket, Flag, CircleStop, Bomb, MessageSquare, MessageSquareReply,
-  Wrench, Zap, BookOpen, Pencil, FilePen, Bot, Search, SearchCode,
-  Globe, CircleCheck, CircleX, Moon, ClipboardList, Lock, Bell,
-  FileText, Settings, FolderOpen, Minimize, CircleHelp, GitBranch,
-  Trash, Hourglass, User, Pin,
+  Rocket,
+  Flag,
+  CircleStop,
+  Bomb,
+  MessageSquare,
+  MessageSquareReply,
+  Wrench,
+  Zap,
+  BookOpen,
+  Pencil,
+  FilePen,
+  Bot,
+  Search,
+  SearchCode,
+  Globe,
+  CircleCheck,
+  CircleX,
+  Moon,
+  ClipboardList,
+  Lock,
+  Bell,
+  FileText,
+  Settings,
+  FolderOpen,
+  Minimize,
+  CircleHelp,
+  GitBranch,
+  Trash,
+  Hourglass,
+  User,
+  Pin,
 } from 'lucide-react'
 import { getIconCustomization, COLOR_PRESETS } from '@/hooks/use-icon-customizations'
 
 const lazyIconCache = new Map<string, LucideIcon>()
 
 export const eventIcons: Record<string, LucideIcon> = {
-  SessionStart: Rocket, SessionEnd: Flag, Stop: CircleStop, StopFailure: Bomb,
-  UserPromptSubmit: MessageSquare, UserPromptSubmitResponse: MessageSquareReply,
-  Bash: Zap, Read: BookOpen, Write: Pencil, Edit: FilePen, Agent: Bot,
-  Glob: Search, Grep: SearchCode, WebSearch: Globe, WebFetch: Globe,
-  _ToolDefault: Wrench, _ToolSuccess: CircleCheck, _ToolFailure: CircleX,
-  SubagentStart: Bot, SubagentStop: Bot, TeammateIdle: Moon,
-  TaskCreated: ClipboardList, TaskCompleted: CircleCheck,
-  PermissionRequest: Lock, Notification: Bell,
-  InstructionsLoaded: FileText, ConfigChange: Settings, CwdChanged: FolderOpen, FileChanged: FilePen,
-  PreCompact: Minimize, PostCompact: Minimize,
-  Elicitation: CircleHelp, ElicitationResult: MessageSquare,
-  WorktreeCreate: GitBranch, WorktreeRemove: Trash,
-  progress: Hourglass, agent_progress: Bot, system: Settings,
-  stop_hook_summary: CircleStop, user: User, assistant: Bot,
+  SessionStart: Rocket,
+  SessionEnd: Flag,
+  Stop: CircleStop,
+  StopFailure: Bomb,
+  UserPromptSubmit: MessageSquare,
+  UserPromptSubmitResponse: MessageSquareReply,
+  Bash: Zap,
+  Read: BookOpen,
+  Write: Pencil,
+  Edit: FilePen,
+  Agent: Bot,
+  Glob: Search,
+  Grep: SearchCode,
+  WebSearch: Globe,
+  WebFetch: Globe,
+  _ToolDefault: Wrench,
+  _ToolSuccess: CircleCheck,
+  _ToolFailure: CircleX,
+  SubagentStart: Bot,
+  SubagentStop: Bot,
+  TeammateIdle: Moon,
+  TaskCreated: ClipboardList,
+  TaskCompleted: CircleCheck,
+  PermissionRequest: Lock,
+  Notification: Bell,
+  InstructionsLoaded: FileText,
+  ConfigChange: Settings,
+  CwdChanged: FolderOpen,
+  FileChanged: FilePen,
+  PreCompact: Minimize,
+  PostCompact: Minimize,
+  Elicitation: CircleHelp,
+  ElicitationResult: MessageSquare,
+  WorktreeCreate: GitBranch,
+  WorktreeRemove: Trash,
+  progress: Hourglass,
+  agent_progress: Bot,
+  system: Settings,
+  stop_hook_summary: CircleStop,
+  user: User,
+  assistant: Bot,
 }
 
 export const defaultEventIcon: LucideIcon = Pin
@@ -42,7 +95,10 @@ export const eventColors: Record<string, [string, string]> = {
   StopFailure: ['text-red-600 dark:text-red-400', 'bg-red-600 dark:bg-red-500'],
   stop_hook_summary: ['text-yellow-600 dark:text-yellow-400', 'bg-yellow-600 dark:bg-yellow-500'],
   UserPromptSubmit: ['text-green-600 dark:text-green-400', 'bg-green-600 dark:bg-green-500'],
-  UserPromptSubmitResponse: ['text-green-600 dark:text-green-400', 'bg-green-600 dark:bg-green-500'],
+  UserPromptSubmitResponse: [
+    'text-green-600 dark:text-green-400',
+    'bg-green-600 dark:bg-green-500',
+  ],
   user: ['text-green-600 dark:text-green-400', 'bg-green-600 dark:bg-green-500'],
   Bash: ['text-blue-600 dark:text-blue-400', 'bg-blue-600 dark:bg-blue-500'],
   Read: ['text-blue-600 dark:text-blue-400', 'bg-blue-600 dark:bg-blue-500'],
@@ -85,7 +141,8 @@ const defaultEventColor: [string, string] = [
 ]
 
 export function resolveEventKey(subtype: string | null, toolName?: string | null): string {
-  const isTool = subtype === 'PreToolUse' || subtype === 'PostToolUse' || subtype === 'PostToolUseFailure'
+  const isTool =
+    subtype === 'PreToolUse' || subtype === 'PostToolUse' || subtype === 'PostToolUseFailure'
   if (isTool && toolName) return toolName
   return subtype || 'unknown'
 }
@@ -101,7 +158,8 @@ export function getEventColor(
   toolName?: string | null,
 ): { iconColor: string; dotColor: string; customHex?: string } {
   const key = resolveEventKey(subtype, toolName)
-  const isTool = subtype === 'PreToolUse' || subtype === 'PostToolUse' || subtype === 'PostToolUseFailure'
+  const isTool =
+    subtype === 'PreToolUse' || subtype === 'PostToolUse' || subtype === 'PostToolUseFailure'
 
   const custom = getIconCustomization(key)
   if (custom?.colorName === 'custom' && custom.customHex) {
@@ -120,7 +178,8 @@ export function getEventColor(
 
 export function getEventIcon(subtype: string | null, toolName?: string | null): LucideIcon {
   const key = resolveEventKey(subtype, toolName)
-  const isTool = subtype === 'PreToolUse' || subtype === 'PostToolUse' || subtype === 'PostToolUseFailure'
+  const isTool =
+    subtype === 'PreToolUse' || subtype === 'PostToolUse' || subtype === 'PostToolUseFailure'
 
   const custom = getIconCustomization(key)
   if (custom?.iconName) {

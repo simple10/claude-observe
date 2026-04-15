@@ -41,7 +41,8 @@ function getFilterTags(
 ): EnrichedEvent['filterTags'] {
   if (!display) return { static: null, dynamic: [] }
 
-  const isTool = subtype === 'PreToolUse' || subtype === 'PostToolUse' || subtype === 'PostToolUseFailure'
+  const isTool =
+    subtype === 'PreToolUse' || subtype === 'PostToolUse' || subtype === 'PostToolUseFailure'
 
   if (isTool) {
     const dynamic: string[] = []
@@ -70,17 +71,25 @@ function getFilterTags(
     return { static: 'Tasks', dynamic: [] }
   if (subtype === 'SessionStart' || subtype === 'SessionEnd')
     return { static: 'Session', dynamic: [] }
-  if (subtype === 'Stop' || subtype === 'StopFailure' || subtype === 'SubagentStop' || subtype === 'stop_hook_summary')
+  if (
+    subtype === 'Stop' ||
+    subtype === 'StopFailure' ||
+    subtype === 'SubagentStop' ||
+    subtype === 'stop_hook_summary'
+  )
     return { static: 'Stop', dynamic: [] }
-  if (subtype === 'PermissionRequest')
-    return { static: 'Permissions', dynamic: [] }
-  if (subtype === 'Notification')
-    return { static: 'Notifications', dynamic: [] }
+  if (subtype === 'PermissionRequest') return { static: 'Permissions', dynamic: [] }
+  if (subtype === 'Notification') return { static: 'Notifications', dynamic: [] }
   if (subtype === 'Elicitation' || subtype === 'ElicitationResult')
     return { static: 'MCP', dynamic: [] }
   if (subtype === 'PreCompact' || subtype === 'PostCompact')
     return { static: 'Compaction', dynamic: [] }
-  if (subtype === 'InstructionsLoaded' || subtype === 'ConfigChange' || subtype === 'CwdChanged' || subtype === 'FileChanged')
+  if (
+    subtype === 'InstructionsLoaded' ||
+    subtype === 'ConfigChange' ||
+    subtype === 'CwdChanged' ||
+    subtype === 'FileChanged'
+  )
     return { static: 'Config', dynamic: [subtype] }
 
   return { static: null, dynamic: subtype ? [subtype] : [] }
@@ -117,7 +126,12 @@ export function processEvent(raw: RawEvent, ctx: ProcessingContext): ProcessEven
   if (subtype === 'UserPromptSubmit' || subtype === 'SubagentStart') {
     turnId = `turn-${raw.id}`
     ctx.setCurrentTurn(raw.agentId, turnId)
-  } else if (subtype === 'Stop' || subtype === 'SessionEnd' || subtype === 'SubagentStop' || subtype === 'stop_hook_summary') {
+  } else if (
+    subtype === 'Stop' ||
+    subtype === 'SessionEnd' ||
+    subtype === 'SubagentStop' ||
+    subtype === 'stop_hook_summary'
+  ) {
     // Keep the current turnId for this event, then clear
     ctx.clearCurrentTurn(raw.agentId)
   }
@@ -129,7 +143,9 @@ export function processEvent(raw: RawEvent, ctx: ProcessingContext): ProcessEven
   let statusOverride: EnrichedEvent['status'] | null = null
 
   // Task grouping: group by task_id, hide TaskUpdate/TaskCompleted tool events
-  const taskId = (p.task_id ?? p.tool_input?.taskId ?? p.tool_response?.taskId) as string | undefined
+  const taskId = (p.task_id ?? p.tool_input?.taskId ?? p.tool_response?.taskId) as
+    | string
+    | undefined
   if (taskId) {
     groupId = `task-${taskId}`
   }

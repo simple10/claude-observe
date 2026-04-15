@@ -15,9 +15,7 @@ export const AgentRegistry = {
   get(agentClass: string | null | undefined): AgentClassRegistration {
     const reg = registrations.get(agentClass ?? '') ?? defaultRegistration
     if (!reg) {
-      throw new Error(
-        `No agent class registered for "${agentClass}" and no default registered`,
-      )
+      throw new Error(`No agent class registered for "${agentClass}" and no default registered`)
     }
     return reg
   },

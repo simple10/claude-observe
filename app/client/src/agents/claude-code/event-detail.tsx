@@ -5,7 +5,16 @@
 
 import { useState, lazy, Suspense } from 'react'
 import Markdown from 'react-markdown'
-import { Copy, Check, ChevronDown, ChevronRight, Loader, FileText, Code, CircleDot } from 'lucide-react'
+import {
+  Copy,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Loader,
+  FileText,
+  Code,
+  CircleDot,
+} from 'lucide-react'
 
 const ReactDiffViewer = lazy(() => import('react-diff-viewer-continued'))
 import { cn } from '@/lib/utils'
@@ -360,8 +369,7 @@ function ToolDetail({
     // Find the prompt from the turn events or payload
     const promptEvent = turnEvents.find((e) => e.subtype === 'UserPromptSubmit')
     const promptText = promptEvent
-      ? (promptEvent.payload as any)?.prompt ||
-        (promptEvent.payload as any)?.message?.content
+      ? (promptEvent.payload as any)?.prompt || (promptEvent.payload as any)?.message?.content
       : null
 
     return (
@@ -531,14 +539,17 @@ function ToolDetail({
                 const statusChange = ep.tool_response?.statusChange
                 const statusTo = statusChange?.to || ti.status
                 const activeForm = ti.activeForm as string | undefined
-                const desc = (ti.description || ti.subject || ep.task_description) as string | undefined
-                const label = e.subtype === 'TaskCreated'
-                  ? 'Created'
-                  : e.subtype === 'TaskCompleted'
-                    ? 'Completed'
-                    : e.toolName === 'TaskUpdate'
-                      ? `Updated → ${statusTo || '?'}`
-                      : e.label || e.subtype || 'Event'
+                const desc = (ti.description || ti.subject || ep.task_description) as
+                  | string
+                  | undefined
+                const label =
+                  e.subtype === 'TaskCreated'
+                    ? 'Created'
+                    : e.subtype === 'TaskCompleted'
+                      ? 'Completed'
+                      : e.toolName === 'TaskUpdate'
+                        ? `Updated → ${statusTo || '?'}`
+                        : e.label || e.subtype || 'Event'
                 const detail = activeForm || desc
                 return (
                   <div
@@ -762,7 +773,9 @@ function ToolDetail({
     case 'Agent': {
       const postPayload = pairedEvent?.payload as Record<string, any> | undefined
       const toolResponse = postPayload?.tool_response || payload.tool_response
-      const spawnedAgentId = (toolResponse?.agentId || postPayload?.tool_response?.agentId) as string | undefined
+      const spawnedAgentId = (toolResponse?.agentId || postPayload?.tool_response?.agentId) as
+        | string
+        | undefined
       const spawnedAgent = spawnedAgentId ? getAgent(spawnedAgentId) : undefined
       const agentAssignedName = spawnedAgent ? getAgentDisplayName(spawnedAgent) : null
       const agentRawName = ti.name as string | undefined
@@ -970,13 +983,7 @@ function DetailDiff({ oldValue, newValue }: { oldValue: string; newValue: string
 
 // ── Thread event (for conversation view) ──────────────────
 
-function ThreadEvent({
-  event,
-  isCurrentEvent,
-}: {
-  event: EnrichedEvent
-  isCurrentEvent: boolean
-}) {
+function ThreadEvent({ event, isCurrentEvent }: { event: EnrichedEvent; isCurrentEvent: boolean }) {
   const Icon = event.icon || getEventIcon(event.subtype, event.toolName)
   const isTool = event.subtype === 'PreToolUse' || event.subtype === 'PostToolUse'
   const isCompleted = event.status === 'completed'

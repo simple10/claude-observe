@@ -61,11 +61,7 @@ export function EventProcessingProvider({
     }
   }, [rawEvents, agents, dedupEnabled])
 
-  return (
-    <EventProcessingContext.Provider value={value}>
-      {children}
-    </EventProcessingContext.Provider>
-  )
+  return <EventProcessingContext.Provider value={value}>{children}</EventProcessingContext.Provider>
 }
 
 export function useProcessedEvents(): EventProcessingValue {

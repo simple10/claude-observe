@@ -18,7 +18,10 @@ function parseBinaryPrefix(summary: string): { binary: string | null; rest: stri
 export function ClaudeCodeRowSummary({ event }: EventProps) {
   const summary = (event.summary as string) || ''
   const toolName = event.toolName
-  const isTool = event.subtype === 'PreToolUse' || event.subtype === 'PostToolUse' || event.subtype === 'PostToolUseFailure'
+  const isTool =
+    event.subtype === 'PreToolUse' ||
+    event.subtype === 'PostToolUse' ||
+    event.subtype === 'PostToolUseFailure'
   const { binary, rest } = isTool ? parseBinaryPrefix(summary) : { binary: null, rest: summary }
 
   return (
@@ -31,9 +34,7 @@ export function ClaudeCodeRowSummary({ event }: EventProps) {
       {isTool && toolName?.startsWith('mcp__') && (
         <span className="text-[10px] text-muted-foreground/50 shrink-0">{toolName}</span>
       )}
-      {binary && (
-        <span className="text-[10px] text-muted-foreground/50 shrink-0">{binary}</span>
-      )}
+      {binary && <span className="text-[10px] text-muted-foreground/50 shrink-0">{binary}</span>}
       {rest.includes('\n') ? (
         <div className="text-xs text-muted-foreground flex-1 min-w-0">
           {rest.split('\n').map((line, i) => (

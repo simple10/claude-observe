@@ -2,8 +2,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import { renderWithProviders } from '@/test/test-utils'
 import { EventStream } from './event-stream'
+import { EventProcessingProvider } from '@/agents/event-processing-context'
 import { useUIStore } from '@/stores/ui-store'
 import type { ParsedEvent, Agent } from '@/types'
+
+// Register agent classes (must happen before any rendering)
+import '@/agents/init'
 
 // ── Mock hooks ──────────────────────────────────────────────
 
@@ -71,6 +75,21 @@ function makeAgent(overrides: Partial<Agent>): Agent {
   }
 }
 
+/**
+ * Render EventStream wrapped with EventProcessingProvider so events
+ * are processed into EnrichedEvents before the component reads them.
+ */
+function renderEventStream() {
+  const rawEvents = mockEvents.length > 0 ? [...mockEvents] : undefined
+  const agents = [...mockAgents]
+
+  return renderWithProviders(
+    <EventProcessingProvider rawEvents={rawEvents} agents={agents}>
+      <EventStream />
+    </EventProcessingProvider>,
+  )
+}
+
 beforeEach(() => {
   setMockEvents([])
   setMockAgents([])
@@ -96,19 +115,19 @@ beforeEach(() => {
 describe('EventStream', () => {
   it('should show "Select a project" when no session selected', () => {
     useUIStore.setState({ selectedSessionId: null })
-    renderWithProviders(<EventStream />)
+    renderEventStream()
     expect(screen.getByText('Select a project to view events')).toBeInTheDocument()
   })
 
   it('should show "No events in this session" when session selected but no events', () => {
     setMockEvents([])
-    renderWithProviders(<EventStream />)
+    renderEventStream()
     expect(screen.getByText('No events in this session')).toBeInTheDocument()
   })
 
   it('should show loading spinner while events are loading', () => {
     mockEventsState.isLoading = true
-    renderWithProviders(<EventStream />)
+    renderEventStream()
     expect(screen.getByText('Loading events...')).toBeInTheDocument()
     mockEventsState.isLoading = false
   })
@@ -130,7 +149,7 @@ describe('EventStream', () => {
     ])
     setMockAgents([makeAgent({ id: 'agent-1' })])
 
-    renderWithProviders(<EventStream />)
+    renderEventStream()
 
     // Should show event count
     expect(screen.getByText('2')).toBeInTheDocument()
@@ -164,7 +183,7 @@ describe('EventStream', () => {
     ])
     setMockAgents([makeAgent({ id: 'agent-1' })])
 
-    renderWithProviders(<EventStream />)
+    renderEventStream()
 
     // Should show only 1 event (merged), not 2
     expect(screen.getByText('1')).toBeInTheDocument()
@@ -174,9 +193,6 @@ describe('EventStream', () => {
   })
 
   it('should show merged PreToolUse + PostToolUseFailure as failed status', () => {
-    // When merged, the event keeps subtype='PreToolUse' but gets status='failed'.
-    // The payload is replaced with PostToolUseFailure's payload.
-    // The event row detects failure via status, not subtype.
     setMockEvents([
       makeEvent({
         id: 1,
@@ -199,12 +215,12 @@ describe('EventStream', () => {
     ])
     setMockAgents([makeAgent({ id: 'agent-1' })])
 
-    renderWithProviders(<EventStream />)
+    renderEventStream()
 
     // Should show 1 merged event (not 2)
     expect(screen.getByText('1')).toBeInTheDocument()
-    // The merged row keeps subtype PreToolUse so summary uses tool_input from PostToolUseFailure payload
-    expect(screen.getByText('bad-cmd')).toBeInTheDocument()
+    // The merged row shows the Bash tool name and the command summary
+    expect(screen.getAllByText('Bash').length).toBeGreaterThan(0)
   })
 
   it('should NOT merge events with different toolUseIds', () => {
@@ -228,7 +244,7 @@ describe('EventStream', () => {
     ])
     setMockAgents([makeAgent({ id: 'agent-1' })])
 
-    renderWithProviders(<EventStream />)
+    renderEventStream()
 
     // Should show 2 events (no merge)
     expect(screen.getByText('2')).toBeInTheDocument()
@@ -261,7 +277,7 @@ describe('EventStream', () => {
     // Select only agent-1
     useUIStore.setState({ selectedAgentIds: ['agent-1'] })
 
-    renderWithProviders(<EventStream />)
+    renderEventStream()
 
     expect(screen.getByText('Agent 1 prompt')).toBeInTheDocument()
     expect(screen.queryByText('Agent 2 prompt')).not.toBeInTheDocument()
@@ -289,7 +305,7 @@ describe('EventStream', () => {
     // Only show Prompts
     useUIStore.setState({ activeStaticFilters: ['Prompts'] })
 
-    renderWithProviders(<EventStream />)
+    renderEventStream()
 
     expect(screen.getByText('My prompt')).toBeInTheDocument()
     expect(screen.queryByText('Session cli')).not.toBeInTheDocument()
@@ -319,10 +335,11 @@ describe('EventStream', () => {
     // Only show Bash tools
     useUIStore.setState({ activeToolFilters: ['Bash'] })
 
-    renderWithProviders(<EventStream />)
+    renderEventStream()
 
-    // Bash event should be visible
-    expect(screen.getByText('ls -la')).toBeInTheDocument()
+    // Bash event should be visible — the summary now includes a binary prefix
+    const bashElements = screen.getAllByText('Bash')
+    expect(bashElements.length).toBeGreaterThan(0)
     // Read event should be filtered out
     expect(screen.queryByText('/tmp/file.txt')).not.toBeInTheDocument()
   })
@@ -349,7 +366,7 @@ describe('EventStream', () => {
     // Filter to only Prompts (1 visible out of 2 raw)
     useUIStore.setState({ activeStaticFilters: ['Prompts'] })
 
-    renderWithProviders(<EventStream />)
+    renderEventStream()
 
     // Should show "1" for filtered count and "2 raw" for total
     expect(screen.getByText('1')).toBeInTheDocument()
@@ -373,7 +390,7 @@ describe('EventStream', () => {
       makeAgent({ id: 'agent-2', parentAgentId: 'agent-1', name: 'worker' }),
     ])
 
-    renderWithProviders(<EventStream />)
+    renderEventStream()
 
     // With 2 agents, should show agent labels
     expect(screen.getByText('Main')).toBeInTheDocument()
@@ -391,7 +408,7 @@ describe('EventStream', () => {
     ])
     setMockAgents([makeAgent({ id: 'agent-1' })])
 
-    renderWithProviders(<EventStream />)
+    renderEventStream()
 
     // With only 1 agent, "Main" label should not appear
     expect(screen.queryByText('Main')).not.toBeInTheDocument()

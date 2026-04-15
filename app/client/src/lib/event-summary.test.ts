@@ -275,7 +275,7 @@ describe('getEventSummary', () => {
         toolName: 'Bash',
         payload: { tool_input: { description: 'List files', command: 'ls -la' } },
       })
-      expect(getEventSummary(event)).toBe('List files')
+      expect(getEventSummary(event)).toBe('[ls] List files')
     })
 
     it('should fall back to command', () => {
@@ -284,7 +284,7 @@ describe('getEventSummary', () => {
         toolName: 'Bash',
         payload: { tool_input: { command: 'npm test' } },
       })
-      expect(getEventSummary(event)).toBe('npm test')
+      expect(getEventSummary(event)).toBe('[npm] npm test')
     })
 
     it('should collapse multi-line commands with \\n separators', () => {
@@ -298,7 +298,7 @@ describe('getEventSummary', () => {
         },
       })
       expect(getEventSummary(event)).toBe(
-        'cat > /tmp/test.js << \'EOF\' \\n console.log("hello") \\n EOF \\n node /tmp/test.js',
+        '[cat] cat > /tmp/test.js << \'EOF\' \\n console.log("hello") \\n EOF \\n node /tmp/test.js',
       )
     })
 
@@ -524,7 +524,7 @@ describe('getEventSummary', () => {
         toolName: 'Bash',
         payload: { tool_input: { command: 'bad-cmd' } },
       })
-      expect(getEventSummary(event)).toBe('bad-cmd')
+      expect(getEventSummary(event)).toBe('[bad-cmd] bad-cmd')
     })
 
     it('should fall back to "Tool failed"', () => {

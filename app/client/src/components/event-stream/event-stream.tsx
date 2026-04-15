@@ -61,7 +61,13 @@ export function EventStream() {
       isError: eventsQuery.isError,
       error: eventsQuery.error,
     }),
-    [enrichedEvents, eventsQuery.data, eventsQuery.isLoading, eventsQuery.isError, eventsQuery.error],
+    [
+      enrichedEvents,
+      eventsQuery.data,
+      eventsQuery.isLoading,
+      eventsQuery.isError,
+      eventsQuery.error,
+    ],
   )
 
   // Apply all client-side filters on enriched events
