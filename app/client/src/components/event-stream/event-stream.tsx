@@ -126,21 +126,20 @@ export function EventStream() {
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
 
-  // Track the previous session so we can detect switches
-  const prevSessionRef = useRef(selectedSessionId)
-  const sessionChanged = prevSessionRef.current !== selectedSessionId
-  if (sessionChanged) prevSessionRef.current = selectedSessionId
+  // Track whether we've scrolled for the current session
+  const scrolledSessionRef = useRef<string | null>(null)
 
   // Scroll to bottom when:
   // 1. Session changes and events load (always — initial view)
   // 2. New events arrive and autoFollow is on
   useEffect(() => {
     if (filteredEvents.length === 0) return
-    if (sessionChanged || autoFollow) {
-      // Use rAF to ensure the virtualizer has measured after the render
+    const needsInitialScroll = scrolledSessionRef.current !== selectedSessionId
+    if (needsInitialScroll || autoFollow) {
       requestAnimationFrame(() => {
         virtualizer.scrollToIndex(filteredEvents.length - 1, { align: 'end' })
       })
+      if (needsInitialScroll) scrolledSessionRef.current = selectedSessionId
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredEvents.length, selectedSessionId, autoFollow])
