@@ -1,12 +1,36 @@
 import { useUIStore } from '@/stores/ui-store'
+import { useTheme } from '@/components/theme-provider'
 import { Checkbox } from '@/components/ui/checkbox'
 
 export function GeneralSettings() {
   const dedupEnabled = useUIStore((s) => s.dedupEnabled)
   const setDedupEnabled = useUIStore((s) => s.setDedupEnabled)
+  const { mode, setMode } = useTheme()
 
   return (
     <div className="space-y-6">
+      <div>
+        <h3 className="text-sm font-medium mb-3">Appearance</h3>
+        <div className="space-y-2">
+          <label className="text-xs text-muted-foreground">Theme</label>
+          <div className="flex gap-1">
+            {(['light', 'dark', 'system'] as const).map((opt) => (
+              <button
+                key={opt}
+                className={`px-3 py-1.5 text-xs rounded-md border transition-colors cursor-pointer ${
+                  mode === opt
+                    ? 'border-primary bg-primary/10 text-foreground'
+                    : 'border-border text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                }`}
+                onClick={() => setMode(opt)}
+              >
+                {opt.charAt(0).toUpperCase() + opt.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <div>
         <h3 className="text-sm font-medium mb-3">Event Stream</h3>
         <div className="space-y-4">
