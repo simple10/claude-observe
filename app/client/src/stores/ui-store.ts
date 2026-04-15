@@ -22,7 +22,11 @@ function parseHash(): { projectSlug: string | null; sessionId: string | null } {
   return { projectSlug: null, sessionId: null }
 }
 
+// When true, skip pushState (the URL is already correct from browser navigation)
+let suppressHashPush = false
+
 function updateHash(projectSlug: string | null, sessionId: string | null) {
+  if (suppressHashPush) return
   let hash = '/'
   if (projectSlug && sessionId) {
     hash = `/${projectSlug}/${sessionId}`
@@ -347,12 +351,18 @@ if (typeof window !== 'undefined') {
   window.addEventListener('hashchange', () => {
     const { projectSlug, sessionId } = parseHash()
     const state = useUIStore.getState()
-    if (projectSlug !== state.selectedProjectSlug) {
-      // Slug changed in URL — update slug but keep projectId (will be resolved by components)
-      useUIStore.setState({ selectedProjectSlug: projectSlug })
-    }
-    if (sessionId !== state.selectedSessionId) {
-      state.setSelectedSessionId(sessionId)
+    // Suppress pushState during browser-initiated navigation (back/forward)
+    // — the URL is already correct, pushing would wipe the forward stack
+    suppressHashPush = true
+    try {
+      if (projectSlug !== state.selectedProjectSlug) {
+        useUIStore.setState({ selectedProjectSlug: projectSlug })
+      }
+      if (sessionId !== state.selectedSessionId) {
+        state.setSelectedSessionId(sessionId)
+      }
+    } finally {
+      suppressHashPush = false
     }
   })
 
