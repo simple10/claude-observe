@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogClose, DialogTitle } from '@/components/ui
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ProjectsTab } from './projects-tab'
 import { IconSettings } from './icon-settings'
+import { GeneralSettings } from './general-settings'
 import { Button } from '@/components/ui/button'
 import { API_BASE } from '@/config/api'
 import { Database, Container, Monitor, X } from 'lucide-react'
@@ -57,6 +58,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             <TabsList>
               <TabsTrigger value="projects">Projects</TabsTrigger>
               <TabsTrigger value="icons">Icons</TabsTrigger>
+              <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
           </div>
           <TabsContent value="projects" className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-4">
@@ -68,6 +70,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             style={{ maxHeight: 'calc(80vh - 140px)' }}
           >
             <IconSettings />
+          </TabsContent>
+          <TabsContent value="settings" className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-4">
+            <GeneralSettings />
           </TabsContent>
         </Tabs>
         {serverInfo && (
