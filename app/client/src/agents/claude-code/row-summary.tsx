@@ -31,7 +31,13 @@ export function ClaudeCodeRowSummary({ event }: EventProps) {
         <span className="text-[10px] text-muted-foreground/40 shrink-0">{event.subtype}</span>
       )}
       {isTool && toolName && (
-        <span className="text-xs font-medium text-blue-700 dark:text-blue-400 shrink-0">
+        <span
+          className={`text-xs font-medium shrink-0 ${
+            toolName.startsWith('mcp__')
+              ? (event.iconColor || 'text-cyan-600 dark:text-cyan-400')
+              : 'text-blue-700 dark:text-blue-400'
+          }`}
+        >
           {toolName.startsWith('mcp__') ? 'MCP' : toolName}
         </span>
       )}
