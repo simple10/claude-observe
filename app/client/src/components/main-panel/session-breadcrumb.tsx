@@ -6,7 +6,8 @@ import { useUIStore } from '@/stores/ui-store'
 import { useEvents } from '@/hooks/use-events'
 
 export function SessionBreadcrumb() {
-  const { selectedSessionId, selectedProjectId, setSelectedSessionId } = useUIStore()
+  const { selectedSessionId, selectedProjectId, setSelectedSessionId, dedupEnabled, openSettings } =
+    useUIStore()
 
   const { data: session } = useQuery({
     queryKey: ['session', selectedSessionId],
@@ -66,9 +67,20 @@ export function SessionBreadcrumb() {
           </button>
         </>
       )}
+      <button
+        className={`ml-auto rounded-full px-2 py-0.5 text-[10px] border cursor-pointer transition-colors shrink-0 ${
+          dedupEnabled
+            ? 'border-border/50 text-muted-foreground/50 hover:border-border hover:text-muted-foreground'
+            : 'border-orange-500/50 text-orange-500 hover:border-orange-500 hover:text-orange-600'
+        }`}
+        onClick={() => openSettings('settings')}
+        title={dedupEnabled ? 'Event dedup is on' : 'Event dedup is off — showing raw events'}
+      >
+        {dedupEnabled ? 'Dedup Events' : 'Raw Events'}
+      </button>
       {transcriptPath && (
         <button
-          className="ml-auto shrink-0 opacity-0 group-hover/breadcrumb:opacity-40 hover:!opacity-100 transition-opacity cursor-pointer"
+          className="shrink-0 opacity-0 group-hover/breadcrumb:opacity-40 hover:!opacity-100 transition-opacity cursor-pointer"
           onClick={() => {
             navigator.clipboard.writeText(transcriptPath)
             setTranscriptCopied(true)

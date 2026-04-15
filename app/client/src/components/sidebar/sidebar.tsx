@@ -22,7 +22,7 @@ export function Sidebar({ connected }: SidebarProps) {
   const versionMismatch = serverVersion ? serverVersion !== __APP_VERSION__ : false
   const { theme, toggleTheme } = useTheme()
   const resizing = useRef(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const openSettings = useUIStore((s) => s.openSettings)
   const [changelogOpen, setChangelogOpen] = useState(false)
 
   const sidebarRef = useRef<HTMLDivElement>(null)
@@ -121,7 +121,7 @@ export function Sidebar({ connected }: SidebarProps) {
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          onClick={() => setSettingsOpen(true)}
+          onClick={() => openSettings()}
         >
           <Settings className="h-3.5 w-3.5" />
         </Button>
@@ -157,7 +157,7 @@ export function Sidebar({ connected }: SidebarProps) {
         )}
       </div>
 
-      <SettingsModal open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SettingsModal />
       <ChangelogModal open={changelogOpen} onOpenChange={setChangelogOpen} />
 
       {/* Resize handle */}

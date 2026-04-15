@@ -4,6 +4,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { ProjectsTab } from './projects-tab'
 import { IconSettings } from './icon-settings'
 import { GeneralSettings } from './general-settings'
+import { useUIStore } from '@/stores/ui-store'
 import { Button } from '@/components/ui/button'
 import { API_BASE } from '@/config/api'
 import { Database, Container, Monitor, X } from 'lucide-react'
@@ -13,14 +14,21 @@ interface ServerInfo {
   runtime: 'docker' | 'local'
 }
 
-interface SettingsModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}
-
-export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
-  const [activeTab, setActiveTab] = useState('projects')
+export function SettingsModal() {
+  const open = useUIStore((s) => s.settingsOpen)
+  const settingsTab = useUIStore((s) => s.settingsTab)
+  const closeSettings = useUIStore((s) => s.closeSettings)
+  const [activeTab, setActiveTab] = useState(settingsTab)
   const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null)
+
+  // Sync tab when opened programmatically (e.g., from dedup pill)
+  useEffect(() => {
+    if (open) setActiveTab(settingsTab)
+  }, [open, settingsTab])
+
+  const onOpenChange = (o: boolean) => {
+    if (!o) closeSettings()
+  }
 
   useEffect(() => {
     if (open && !serverInfo) {
@@ -58,7 +66,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
             <TabsList>
               <TabsTrigger value="projects">Projects</TabsTrigger>
               <TabsTrigger value="icons">Icons</TabsTrigger>
-              <TabsTrigger value="settings">Settings</TabsTrigger>
+              <TabsTrigger value="settings">Display</TabsTrigger>
             </TabsList>
           </div>
           <TabsContent value="projects" className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-4">

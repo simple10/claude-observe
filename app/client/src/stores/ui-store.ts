@@ -104,6 +104,12 @@ interface UIState {
   editingSessionTab: 'details' | 'stats'
   setEditingSessionId: (id: string | null, tab?: 'details' | 'stats') => void
 
+  // Settings modal
+  settingsOpen: boolean
+  settingsTab: string
+  openSettings: (tab?: string) => void
+  closeSettings: () => void
+
   // Auto-follow
   autoFollow: boolean
   setAutoFollow: (enabled: boolean) => void
@@ -299,6 +305,11 @@ export const useUIStore = create<UIState>((set, get) => ({
   editingSessionTab: 'details',
   setEditingSessionId: (id, tab) =>
     set({ editingSessionId: id, editingSessionTab: tab ?? 'details' }),
+
+  settingsOpen: false,
+  settingsTab: 'projects',
+  openSettings: (tab) => set({ settingsOpen: true, settingsTab: tab ?? 'projects' }),
+  closeSettings: () => set({ settingsOpen: false }),
 
   autoFollow: true,
   setAutoFollow: (enabled) => set({ autoFollow: enabled }),

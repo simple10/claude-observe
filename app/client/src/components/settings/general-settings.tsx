@@ -17,7 +17,10 @@ export function GeneralSettings() {
               className="mt-0.5"
             />
             <div>
-              <div className="text-sm font-medium">Event deduplication</div>
+              <div className="text-sm font-medium">
+                Event deduplication
+                <span className="mx-2 text-muted-foreground/70 font-xs">(Recommended)</span>
+              </div>
               <div className="text-xs text-muted-foreground mt-0.5">
                 Groups related hook events into single rows. Combines PreToolUse and PostToolUse
                 events into one tool row, individual events are shown in expanded row details.
@@ -26,7 +29,7 @@ export function GeneralSettings() {
                 When disabled, every hook event is shown as an individual row.
               </div>
               <div className="text-xs text-orange-500 dark:text-orange-400 mt-2">
-                Changing this setting auto reloads the page.
+                Changing this setting reloads the page.
               </div>
             </div>
           </label>
