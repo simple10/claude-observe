@@ -37,6 +37,7 @@ import {
   Hourglass,
   User,
   Pin,
+  Plug,
 } from 'lucide-react'
 import { getIconCustomization, COLOR_PRESETS } from '@/hooks/use-icon-customizations'
 
@@ -61,6 +62,7 @@ export const eventIcons: Record<string, LucideIcon> = {
   _ToolDefault: Wrench,
   _ToolSuccess: CircleCheck,
   _ToolFailure: CircleX,
+  _MCP: Plug,
   SubagentStart: Bot,
   SubagentStop: Bot,
   TeammateIdle: Moon,
@@ -111,6 +113,7 @@ export const eventColors: Record<string, [string, string]> = {
   _ToolDefault: ['text-blue-600 dark:text-blue-400', 'bg-blue-600 dark:bg-blue-500'],
   _ToolSuccess: ['text-blue-600 dark:text-blue-400', 'bg-blue-600 dark:bg-blue-500'],
   _ToolFailure: ['text-red-600 dark:text-red-400', 'bg-red-600 dark:bg-red-500'],
+  _MCP: ['text-cyan-600 dark:text-cyan-400', 'bg-cyan-600 dark:bg-cyan-500'],
   Agent: ['text-purple-600 dark:text-purple-400', 'bg-purple-600 dark:bg-purple-500'],
   SubagentStart: ['text-purple-600 dark:text-purple-400', 'bg-purple-600 dark:bg-purple-500'],
   SubagentStop: ['text-purple-600 dark:text-purple-400', 'bg-purple-600 dark:bg-purple-500'],
@@ -143,7 +146,11 @@ const defaultEventColor: [string, string] = [
 export function resolveEventKey(subtype: string | null, toolName?: string | null): string {
   const isTool =
     subtype === 'PreToolUse' || subtype === 'PostToolUse' || subtype === 'PostToolUseFailure'
-  if (isTool && toolName) return toolName
+  if (isTool && toolName) {
+    // MCP tools resolve to _MCP for icon/color (individual tools can be customized)
+    if (toolName.startsWith('mcp__')) return '_MCP'
+    return toolName
+  }
   return subtype || 'unknown'
 }
 

@@ -76,6 +76,7 @@ const CURATED_EVENTS: EventEntry[] = [
   { key: 'PostCompact', label: 'Post-Compact', category: 'Compaction' },
 
   // MCP
+  { key: '_MCP', label: 'MCP Tool', category: 'MCP' },
   { key: 'Elicitation', label: 'Elicitation', category: 'MCP' },
   { key: 'ElicitationResult', label: 'Elicitation Result', category: 'MCP' },
 
