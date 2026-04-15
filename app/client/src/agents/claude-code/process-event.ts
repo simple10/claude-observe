@@ -1,5 +1,5 @@
 import type { RawEvent, EnrichedEvent, ProcessingContext, ProcessEventResult } from '../types'
-import { getEventIcon, getEventColor, resolveEventKey } from './icons'
+import { getEventIcon, getEventColor } from './icons'
 import { getEventSummary, buildSearchText } from './helpers'
 
 // Label mapping for the framework's left-side chrome
@@ -84,7 +84,6 @@ export function processEvent(raw: RawEvent, ctx: ProcessingContext): ProcessEven
   const toolUseId = raw.toolUseId
 
   // Resolve icon and color
-  const iconKey = resolveEventKey(subtype, toolName)
   const icon = getEventIcon(subtype, toolName)
   const { iconColor, dotColor, customHex } = getEventColor(subtype, toolName)
 
@@ -150,6 +149,7 @@ export function processEvent(raw: RawEvent, ctx: ProcessingContext): ProcessEven
     toolUseId,
     icon,
     iconColor,
+    dotColor,
     iconColorHex: customHex ?? null,
     status: deriveStatus(subtype),
     filterTags: getFilterTags(subtype, toolName),

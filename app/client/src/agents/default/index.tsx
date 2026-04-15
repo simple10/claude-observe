@@ -25,6 +25,7 @@ function processEvent(raw: RawEvent, ctx: ProcessingContext): ProcessEventResult
     toolUseId: raw.toolUseId,
     icon: null,
     iconColor: 'text-muted-foreground',
+    dotColor: 'bg-muted-foreground',
     iconColorHex: null,
     status: 'completed',
     filterTags: raw.toolName ? ['tool', raw.toolName] : [raw.type || 'event'],

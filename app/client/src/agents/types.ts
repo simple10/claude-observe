@@ -30,6 +30,7 @@ export interface EnrichedEvent {
   toolUseId: string | null
   icon: ComponentType | null
   iconColor: string | null
+  dotColor: string | null
   iconColorHex: string | null
   status: 'running' | 'completed' | 'failed' | 'pending'
   filterTags: string[]

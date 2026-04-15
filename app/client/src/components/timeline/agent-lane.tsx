@@ -1,26 +1,22 @@
 import { useRef, useMemo, useState, useEffect, useCallback } from 'react'
 import { cn } from '@/lib/utils'
-import { getEventIcon, getEventColor } from '@/config/event-icons'
 import { getRangeMs, getRangeTicks } from '@/config/time-ranges'
 import { useUIStore } from '@/stores/ui-store'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { AgentLabel } from '@/components/shared/agent-label'
-import { DotTooltipContent } from './dot-tooltip'
-import type { Agent, ParsedEvent } from '@/types'
+import { AgentRegistry } from '@/agents/registry'
+import { Pin } from 'lucide-react'
+import type { Agent } from '@/types'
+import type { EnrichedEvent } from '@/agents/types'
 
 // Renders event dots inside a single animated container.
-// Instead of per-dot CSS transitions (which drift at different speeds and
-// conflict with React re-renders), all dots share one container animation:
-// translateX(0) → translateX(-100%) over rangeMs. Dots have static left
-// positions relative to the container, so they all move at exactly the
-// same speed and can never pass each other.
 function DotContainer({
   events,
   rangeMs,
   generation,
   setScrollToEventId,
 }: {
-  events: ParsedEvent[]
+  events: EnrichedEvent[]
   rangeMs: number
   generation: number
   setScrollToEventId: (id: number | null) => void
@@ -28,12 +24,10 @@ function DotContainer({
   const [anchorTime, setAnchorTime] = useState(() => Date.now())
   const containerRef = useRef<HTMLDivElement>(null)
 
-  // Reset anchor when generation changes (time range switch, icon customization)
   useEffect(() => {
     setAnchorTime(Date.now())
   }, [generation])
 
-  // Re-anchor when tab becomes visible so dots snap to correct positions
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState === 'visible') setAnchorTime(Date.now())
@@ -42,9 +36,6 @@ function DotContainer({
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
 
-  // Start/restart the container animation via Web Animations API.
-  // On finish, re-anchor — the math cancels out so there's zero visual
-  // discontinuity (see spec-timeline-animation-bugs.md).
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -62,13 +53,13 @@ function DotContainer({
   return (
     <div ref={containerRef} className="absolute inset-0">
       {events.map((event) => {
-        // Static position relative to the container. The container's
-        // translateX animation slides everything left uniformly.
         const position = ((event.timestamp - anchorTime) / rangeMs) * 100 + 100
         if (position < -5 || position > 205) return null
 
-        const Icon = getEventIcon(event.subtype, event.toolName)
-        const { dotColor, customHex } = getEventColor(event.subtype, event.toolName)
+        // Get icon and color from the enriched event
+        const Icon = event.icon || Pin
+        const dotColor = event.dotColor || 'bg-muted-foreground'
+        const customHex = event.iconColorHex
 
         return (
           <Tooltip key={event.id}>
@@ -90,7 +81,7 @@ function DotContainer({
               </button>
             </TooltipTrigger>
             <TooltipContent side="top" className="text-xs max-w-64">
-              <DotTooltipContent event={event} />
+              <DotTooltipForEvent event={event} />
             </TooltipContent>
           </Tooltip>
         )
@@ -99,11 +90,20 @@ function DotContainer({
   )
 }
 
+/** Renders the dot tooltip using the registered agent class's DotTooltip component. */
+function DotTooltipForEvent({ event }: { event: EnrichedEvent }) {
+  // For now, use the default registration since we don't have agentClass on the event yet.
+  // When agentClass is tracked per-event, this can use AgentRegistry.get(event.agentClass).
+  const registration = AgentRegistry.get('claude-code')
+  const DotTooltip = registration.DotTooltip
+  return <DotTooltip event={event} />
+}
+
 interface AgentLaneProps {
   agent: Agent
   parentAgent?: Agent | null
-  events: ParsedEvent[]
-  allEvents: ParsedEvent[]
+  events: EnrichedEvent[]
+  allEvents: EnrichedEvent[]
   isSubagent: boolean
   color: string
 }
@@ -121,7 +121,6 @@ export function AgentLane({
 
   const rangeMs = useMemo(() => getRangeMs(timeRange), [timeRange])
 
-  // Increment generation on scale change to reset anchor + animation
   const generationRef = useRef(0)
   const prevRangeRef = useRef(rangeMs)
   if (prevRangeRef.current !== rangeMs) {
@@ -129,7 +128,6 @@ export function AgentLane({
     generationRef.current++
   }
 
-  // Also reset when icon customizations change
   const prevCustomVersionRef = useRef(iconCustomizationVersion)
   if (prevCustomVersionRef.current !== iconCustomizationVersion) {
     prevCustomVersionRef.current = iconCustomizationVersion
@@ -139,8 +137,6 @@ export function AgentLane({
   const generation = generationRef.current
 
   const visibleEvents = useMemo(() => {
-    // Events are sorted by timestamp ascending. Binary search for the cutoff
-    // point instead of scanning the entire array — O(log n) vs O(n).
     const cutoff = Date.now() - rangeMs
     let lo = 0
     let hi = events.length
@@ -153,7 +149,6 @@ export function AgentLane({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events, rangeMs])
 
-  // Tick marks based on time range
   const ticks = useMemo(() => {
     const rangeSec = rangeMs / 1000
     const count = getRangeTicks(timeRange)
@@ -173,10 +168,8 @@ export function AgentLane({
   }, [timeRange, rangeMs])
 
   const handleAgentNameClick = useCallback(() => {
-    // Find the first event from this agent across all events (sorted by id ascending)
     const agentEvents = allEvents.filter((e) => e.agentId === agentId)
     if (agentEvents.length > 0) {
-      // Events are ordered by id; the first one is the earliest
       const first = agentEvents.reduce((a, b) => (a.id < b.id ? a : b))
       setScrollToEventId(first.id)
     }
@@ -206,7 +199,6 @@ export function AgentLane({
           />
         )}
 
-        {/* Time tick marks — outside the animated container so they stay fixed */}
         {ticks.map(({ pct, label }, i) => (
           <div
             key={i}

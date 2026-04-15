@@ -3,6 +3,7 @@ import { getRangeMs, TIME_RANGE_KEYS } from '@/config/time-ranges'
 import { useUIStore } from '@/stores/ui-store'
 import { useEffectiveEvents } from '@/hooks/use-effective-events'
 import { useAgents } from '@/hooks/use-agents'
+import { useEventProcessing } from '@/agents/use-event-processing'
 import { useSessions } from '@/hooks/use-sessions'
 import { buildAgentColorMap, getAgentColorById } from '@/lib/agent-utils'
 import { AgentLane } from './agent-lane'
@@ -10,7 +11,8 @@ import { TimelineRewind } from './timeline-rewind'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Rewind, Play } from 'lucide-react'
-import type { Agent, ParsedEvent } from '@/types'
+import type { Agent } from '@/types'
+import type { EnrichedEvent } from '@/agents/types'
 
 export function ActivityTimeline() {
   const {
@@ -28,8 +30,11 @@ export function ActivityTimeline() {
 
   const { data: sessions } = useSessions(selectedProjectId)
   const effectiveSessionId = selectedSessionId || sessions?.[0]?.id || null
-  const events = useEffectiveEvents(effectiveSessionId).data
-  const agents = useAgents(effectiveSessionId, events)
+  const rawEvents = useEffectiveEvents(effectiveSessionId).data
+  const agents = useAgents(effectiveSessionId, rawEvents)
+  const { events: enrichedEvents } = useEventProcessing(rawEvents, agents)
+  // Keep raw events reference for rewind mode (which does its own processing)
+  const events = rawEvents
   const resizing = useRef(false)
   const startY = useRef(0)
   const startHeight = useRef(0)
@@ -80,14 +85,15 @@ export function ActivityTimeline() {
   const agentColorMap = useMemo(() => buildAgentColorMap(agents), [agents])
 
   const eventsByAgent = useMemo(() => {
-    const map = new Map<string, ParsedEvent[]>()
-    events?.forEach((e) => {
+    const map = new Map<string, EnrichedEvent[]>()
+    for (const e of enrichedEvents) {
+      if (!e.displayTimeline) continue
       const list = map.get(e.agentId) || []
       list.push(e)
       map.set(e.agentId, list)
-    })
+    }
     return map
-  }, [events])
+  }, [enrichedEvents])
 
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -204,7 +210,7 @@ export function ActivityTimeline() {
                     agent.parentAgentId ? agents.find((a) => a.id === agent.parentAgentId) : null
                   }
                   events={eventsByAgent.get(agent.id) || []}
-                  allEvents={events || []}
+                  allEvents={enrichedEvents}
                   isSubagent={isSubagent}
                   color={getAgentColorById(agent.id, agentColorMap).textOnly}
                 />
