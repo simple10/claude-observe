@@ -128,36 +128,20 @@ export function EventStream() {
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
 
-  // Reset scroll position when switching sessions so the virtualizer
-  // doesn't render at the old (potentially huge) scroll offset.
-  const prevSessionForScrollRef = useRef(selectedSessionId)
-  useEffect(() => {
-    if (prevSessionForScrollRef.current !== selectedSessionId) {
-      prevSessionForScrollRef.current = selectedSessionId
-      const container = scrollRef.current
-      if (container) container.scrollTop = 0
-    }
-  }, [selectedSessionId])
+  // No need to track session changes for scroll — the entire component
+  // remounts on session change (key={sessionId} in main-panel).
 
-  // Track whether we've scrolled for the current session
-  const scrolledSessionRef = useRef<string | null>(null)
-
-  // Scroll to bottom when:
-  // 1. Session changes and events from the NEW session load (initial view)
-  // 2. New events arrive and autoFollow is on
+  // Scroll to bottom on initial load and when new events arrive (if autoFollow).
+  // Component remounts on session change, so initial scroll always fires.
+  const hasScrolledRef = useRef(false)
   useEffect(() => {
     if (filteredEvents.length === 0) return
-
-    const eventsMatchSession = filteredEvents[0]?.sessionId === selectedSessionId
-    if (!eventsMatchSession) return
-
-    const needsInitialScroll = scrolledSessionRef.current !== selectedSessionId
-    if (needsInitialScroll || autoFollow) {
+    if (!hasScrolledRef.current || autoFollow) {
       virtualizer.scrollToIndex(filteredEvents.length - 1, { align: 'end' })
-      if (needsInitialScroll) scrolledSessionRef.current = selectedSessionId
+      hasScrolledRef.current = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredEvents.length, selectedSessionId, autoFollow])
+  }, [filteredEvents.length, autoFollow])
 
   // Expand all events when requested from the scope bar
   useEffect(() => {
@@ -323,7 +307,7 @@ export function EventStream() {
                 </span>
               )}
             </div>
-            <div key={selectedSessionId} ref={scrollRef} className="flex-1 overflow-y-auto">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto">
               {filteredEvents.length === 0 ? (
                 <EmptyState text="No events match the current filters" />
               ) : (

@@ -39,7 +39,7 @@ function SessionView({ sessionId, projectId }: { sessionId: string; projectId: n
         <ScopeBar />
         <EventFilterBar />
         <ActivityTimeline />
-        <EventStream />
+        <EventStream key={sessionId} />
       </div>
     </EventProcessingProvider>
   )
