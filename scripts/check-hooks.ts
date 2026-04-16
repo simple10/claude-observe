@@ -114,25 +114,67 @@ async function fetchDocumentedHooks(): Promise<string[]> {
 function buildAiPrompt(hooksDocMd: string): string {
   return `You are analyzing Claude Code hook documentation for a plugin called "agents-observe" that is purely an observability/logging plugin. It should ONLY register hooks where it can safely observe events WITHOUT affecting Claude Code's behavior.
 
-Analyze the hook documentation below and return a JSON object with a single key "exclude" containing an array of hook event names that this plugin should NOT register. A hook should be excluded if:
-- It replaces default Claude Code behavior (e.g., the hook takes ownership of an action like creating a worktree)
-- Registering it with a no-op response would cause Claude Code to fail or behave incorrectly
-- The hook expects the handler to perform an action and return a result (not just observe)
+Your task is to classify each hook event documented below into one of three categories:
 
-Do NOT exclude hooks that are safe to register with exit 0 and no stdout (i.e., hooks where empty/no response means "allow" or "proceed normally").
+## Categories
 
-Return ONLY the JSON object, no other text.
+### "blacklist" — NEVER register
+Hooks where registering a handler that exits 0 with no stdout causes Claude Code to break, skip, or corrupt default behavior. These hooks either:
+- Replace a default Claude Code action (the handler takes ownership of performing the action itself and must return a result), OR
+- Require the handler to produce specific stdout/JSON on exit 0 for Claude Code to proceed normally — absence of that output is treated as failure, blocking, or incorrect behavior
+
+The defining property: a silent, successful handler (exit 0, empty stdout) does NOT mean "allow / proceed normally" for these hooks. An observability plugin must never register them.
+
+### "flagged" — safe when handler exits 0 with no output, but ambiguous parsing is a risk
+Hooks that correctly treat exit 0 with no stdout as "allow / proceed normally", BUT where Claude Code parses stdout on exit 0 looking for specific JSON decision fields, and malformed or partial output could be misinterpreted as a blocking/modifying directive. Include a hook here only if BOTH conditions hold:
+1. Exit 0 with truly empty stdout preserves default behavior (otherwise it's blacklist), AND
+2. Claude Code inspects stdout on exit 0 for decision fields (e.g., "decision": "block", "permissionDecision": "deny", "continue": false, hookSpecificOutput directives), such that accidental output — stray logging to stdout, a misformatted JSON fragment, a shell profile banner, or a partial write — could be parsed as a directive that blocks or alters Claude's flow
+
+These are acceptable for an observability plugin only if the handler strictly writes logs to stderr or a file (never stdout) and exits 0. Flag them so the plugin author knows stdout hygiene is critical.
+
+### Neither list — purely observational or no stdout parsing
+Hooks that fall into either of these buckets:
+- The docs explicitly state exit code and output are ignored (no decision control at all), OR
+- The hook only supports blocking via exit code 2 or stderr, with no JSON decision parsing on exit 0 — meaning accidental stdout on exit 0 cannot be misinterpreted as a blocking directive
+
+These are safe for observability without special stdout-hygiene concerns.
+
+## Classification rules
+
+- Each hook appears in AT MOST one list (blacklist OR flagged), or neither.
+- Exit code 2 behavior is NOT a reason to flag a hook. Flagging is exclusively about exit-0 stdout parsing risk. An observability handler that exits 0 cannot accidentally exit 2.
+- The universal "continue: false" field applies to all hooks, so its presence alone doesn't warrant flagging. Only flag if the hook has event-specific decision fields parsed from exit-0 stdout.
+- When in doubt between "blacklist" and "flagged": if a handler that exits 0 with genuinely empty stdout preserves default behavior, it's "flagged" (or neither). If that same handler breaks things, it's "blacklist".
+- Hooks whose exit code and stdout are explicitly documented as "ignored" belong in neither list.
+
+## Output format
+
+Return ONLY a JSON object of this exact shape, with no prose, no markdown fences, no commentary:
+
+{
+  "blacklist": ["HookA", "HookB"],
+  "flagged":   ["HookC", "HookD"]
+}
+
+Use the exact PascalCase hook event names as documented (e.g., "PreToolUse", "WorktreeCreate"). Do not invent hooks that aren't in the documentation.
 
 <hooks-documentation>
 ${hooksDocMd}
 </hooks-documentation>`
 }
 
+interface AiAnalysis {
+  blacklist: string[]
+  flagged: string[]
+}
+
 /**
- * Ask Claude CLI to analyze the hooks documentation and identify hooks
- * that an observability-only plugin should NOT register.
+ * Ask Claude CLI to analyze the hooks documentation and classify hooks
+ * into "blacklist" (must not be registered) and "flagged" (safe if
+ * configured correctly but dangerous if misconfigured).
  */
-function aiAnalyzeHooks(hooksDocMd: string): string[] {
+function aiAnalyzeHooks(hooksDocMd: string): AiAnalysis {
+  const empty: AiAnalysis = { blacklist: [], flagged: [] }
   const prompt = buildAiPrompt(hooksDocMd)
 
   try {
@@ -153,21 +195,21 @@ function aiAnalyzeHooks(hooksDocMd: string): string[] {
     const text = cliOutput.result || ''
 
     // Extract JSON from Claude's response text (may be wrapped in markdown code blocks)
-    const jsonMatch = text.match(/\{[\s\S]*"exclude"[\s\S]*\}/)
+    const jsonMatch = text.match(/\{[\s\S]*"blacklist"[\s\S]*"flagged"[\s\S]*\}/)
     if (!jsonMatch) {
       console.warn('  ⚠  AI analysis returned no parseable JSON')
-      return []
+      return empty
     }
 
     const parsed = JSON.parse(jsonMatch[0])
-    if (Array.isArray(parsed.exclude)) {
-      return parsed.exclude
+    if (Array.isArray(parsed.blacklist) && Array.isArray(parsed.flagged)) {
+      return { blacklist: parsed.blacklist, flagged: parsed.flagged }
     }
     console.warn('  ⚠  AI analysis returned unexpected format')
-    return []
+    return empty
   } catch (err) {
     console.warn(`  ⚠  AI analysis failed: ${err instanceof Error ? err.message : err}`)
-    return []
+    return empty
   }
 }
 
@@ -313,48 +355,63 @@ async function main() {
       const res = await fetch(HOOKS_DOC_URL)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const md = await res.text()
-      const aiExclusions = aiAnalyzeHooks(md)
+      const { blacklist: aiBlacklist, flagged: aiFlagged } = aiAnalyzeHooks(md)
 
-      if (aiExclusions.length > 0) {
-        console.log(`  AI recommends excluding: ${aiExclusions.join(', ')}`)
+      // --- Blacklist cross-check -----------------------------------------
+      if (aiBlacklist.length > 0) {
+        console.log(`  AI blacklist: ${aiBlacklist.join(', ')}`)
 
-        // Check if AI found anything not in our blacklist
-        const newExclusions = aiExclusions.filter((h) => !BLACKLIST.has(h))
-        if (newExclusions.length > 0) {
-          const registered = newExclusions.filter((h) => authEvents.has(h))
+        // AI-blacklisted hooks we haven't captured in our local BLACKLIST
+        const missingFromLocal = aiBlacklist.filter((h) => !BLACKLIST.has(h))
+        if (missingFromLocal.length > 0) {
+          const registered = missingFromLocal.filter((h) => authEvents.has(h))
           if (registered.length > 0) {
             hasErrors = true
             console.error(
-              `✗ AI flagged ${
+              `✗ AI blacklisted ${
                 registered.length
-              } registered hook(s) not in blacklist: ${registered.join(', ')}`,
+              } registered hook(s) not in local BLACKLIST: ${registered.join(', ')}`,
             )
             console.error(`  Review these hooks and add to BLACKLIST if confirmed unsafe.`)
           } else {
             console.log(
-              `  AI flagged ${newExclusions.length} hook(s) not in blacklist but none are registered`,
+              `  AI blacklisted ${missingFromLocal.length} hook(s) not in local BLACKLIST but none are registered`,
             )
           }
         }
 
-        // Check if our blacklist has entries AI didn't flag (potential false positive in our list)
-        const notFlaggedByAI = [...BLACKLIST].filter((h) => !aiExclusions.includes(h))
-        if (notFlaggedByAI.length > 0) {
+        // Local BLACKLIST entries the AI didn't blacklist (possible false positive)
+        const notInAi = [...BLACKLIST].filter((h) => !aiBlacklist.includes(h))
+        if (notInAi.length > 0) {
           console.warn(
-            `  ⚠  Blacklist contains ${
-              notFlaggedByAI.length
-            } hook(s) AI did not flag: ${notFlaggedByAI.join(', ')}`,
+            `  ⚠  Local BLACKLIST contains ${
+              notInAi.length
+            } hook(s) AI did not blacklist: ${notInAi.join(', ')}`,
           )
-          console.warn(`  These may be safe — review and remove from blacklist if appropriate.`)
+          console.warn(`  These may be safe — review and remove from BLACKLIST if appropriate.`)
         }
 
-        // Agreement
-        const agreed = [...BLACKLIST].filter((h) => aiExclusions.includes(h))
+        const agreed = [...BLACKLIST].filter((h) => aiBlacklist.includes(h))
         if (agreed.length > 0) {
-          console.log(`  ✓ AI agrees with blacklist on: ${agreed.join(', ')}`)
+          console.log(`  ✓ AI agrees with BLACKLIST on: ${agreed.join(', ')}`)
         }
       } else {
-        console.log(`  AI returned no exclusions`)
+        console.log(`  AI returned an empty blacklist`)
+      }
+
+      // --- Flagged cross-check -------------------------------------------
+      if (aiFlagged.length > 0) {
+        console.log(`  AI flagged: ${aiFlagged.join(', ')}`)
+        const flaggedRegistered = aiFlagged.filter((h) => authEvents.has(h))
+        if (flaggedRegistered.length > 0) {
+          console.log(
+            `  ⚠  ${
+              flaggedRegistered.length
+            } flagged hook(s) are registered — ensure handlers always exit 0 and emit no directive output: ${flaggedRegistered.join(
+              ', ',
+            )}`,
+          )
+        }
       }
     } catch (err) {
       console.warn(`  ⚠  AI analysis skipped: ${err instanceof Error ? err.message : err}`)
