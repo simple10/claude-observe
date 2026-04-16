@@ -32,11 +32,7 @@ export function ClaudeCodeRowSummary({ event }: EventProps) {
       )}
       {isTool && toolName && (
         <span
-          className={`text-xs font-medium shrink-0 ${
-            toolName.startsWith('mcp__')
-              ? (event.iconColor || 'text-cyan-600 dark:text-cyan-400')
-              : 'text-blue-700 dark:text-blue-400'
-          }`}
+          className={`text-xs font-medium shrink-0 ${event.iconColor || 'text-blue-700 dark:text-blue-400'}`}
         >
           {toolName.startsWith('mcp__') ? 'MCP' : toolName}
         </span>
