@@ -36,6 +36,11 @@ export function ActivityTimeline() {
   const { events: enrichedEvents } = useProcessedEvents()
   // Keep raw events reference for rewind mode (which does its own processing)
   const events = rawEvents
+  // Freeze agents snapshot when entering rewind so TimelineRewind doesn't
+  // re-render on every live agent update.
+  const frozenAgentsRef = useRef(agents)
+  if (!rewindMode) frozenAgentsRef.current = agents
+
   const resizing = useRef(false)
   const startY = useRef(0)
   const startHeight = useRef(0)
@@ -204,7 +209,7 @@ export function ActivityTimeline() {
           style={{ height: timelineHeight - 32 }}
         >
           {rewindMode ? (
-            <TimelineRewind events={frozenEvents || events || []} agents={agents} />
+            <TimelineRewind events={frozenEvents || events || []} agents={frozenAgentsRef.current} />
           ) : (
             <>
               {flatAgents.map(({ agent, isSubagent }) => (

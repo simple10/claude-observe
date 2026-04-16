@@ -1,4 +1,4 @@
-import { useRef, useMemo, useEffect, useCallback } from 'react'
+import { memo, useRef, useMemo, useEffect, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { getRangeMs } from '@/config/time-ranges'
 import { useUIStore } from '@/stores/ui-store'
@@ -44,7 +44,7 @@ interface TimelineRewindProps {
   agents: Agent[]
 }
 
-export function TimelineRewind({ events, agents }: TimelineRewindProps) {
+export const TimelineRewind = memo(function TimelineRewind({ events, agents }: TimelineRewindProps) {
   const { timeRange, selectedAgentIds, setScrollToEventId } = useUIStore()
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -280,4 +280,4 @@ export function TimelineRewind({ events, agents }: TimelineRewindProps) {
       </div>
     </div>
   )
-}
+})
