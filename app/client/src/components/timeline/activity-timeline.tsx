@@ -166,8 +166,8 @@ export function ActivityTimeline() {
               size="sm"
               className={
                 rewindMode
-                  ? 'h-5 px-2 text-[10px] mr-1 border-green-500 bg-green-500/10 text-green-600 dark:text-green-400 hover:bg-green-500/20'
-                  : 'h-5 px-2 text-[10px] mr-1 border-orange-500/70 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10'
+                  ? 'h-5 px-2 text-[10px] mr-1 border-orange-500/70 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10'
+                  : 'h-5 px-2 text-[10px] mr-1 border-green-500 bg-green-500/10 text-green-600 dark:text-green-400 hover:bg-green-500/20'
               }
               onClick={handleToggleRewind}
               title={rewindMode ? 'Resume live view' : 'Pause and rewind'}
