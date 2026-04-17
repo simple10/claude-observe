@@ -105,6 +105,8 @@ export function getConfig(overrides = {}) {
     clientPort:
       process.env.AGENTS_OBSERVE_DEV_CLIENT_PORT || (runtime === 'dev' ? '5174' : serverPort),
 
+    agentClass: overrides.agentClass || process.env.AGENTS_OBSERVE_AGENT_CLASS || 'claude-code',
+
     cliPath: resolve(installDir, './hooks/scripts/observe_cli.mjs'),
     logLevel: (overrides.logLevel || process.env.AGENTS_OBSERVE_LOG_LEVEL || 'warn').toLowerCase(),
     logsDir: resolve(installDir, process.env.AGENTS_OBSERVE_LOGS_DIR || `${localDataRootDir}/logs`),

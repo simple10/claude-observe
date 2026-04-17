@@ -89,7 +89,7 @@ describe('observe_cli', () => {
 
       try {
         await runCli(['hook'], {
-          stdin: JSON.stringify({ event: 'SessionStart', session_id: 'test-1' }),
+          stdin: JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'test-1' }),
           env: { AGENTS_OBSERVE_API_BASE_URL: `${url}/api` },
         })
         // Give fire-and-forget a moment
@@ -97,7 +97,33 @@ describe('observe_cli', () => {
         expect(mock.received.some((r) => r.url === '/api/events')).toBe(true)
         const eventReq = mock.received.find((r) => r.url === '/api/events')
         const parsed = JSON.parse(eventReq.body)
-        expect(parsed.hook_payload.event).toBe('SessionStart')
+        expect(parsed.hook_payload.hook_event_name).toBe('SessionStart')
+        expect(parsed.meta.agentClass).toBe('claude-code')
+      } finally {
+        server.close()
+      }
+    })
+
+    it('adds project slug metadata without mutating hook payload', async () => {
+      const mock = mockApiHandler({
+        'POST /api/events': { status: 201, body: { ok: true } },
+      })
+      const { server, url } = await startMockServer(mock.handler)
+
+      try {
+        await runCli(['hook'], {
+          stdin: JSON.stringify({ hook_event_name: 'SessionStart', session_id: 'test-2' }),
+          env: {
+            AGENTS_OBSERVE_API_BASE_URL: `${url}/api`,
+            AGENTS_OBSERVE_PROJECT_SLUG: 'my-repo',
+          },
+        })
+        await new Promise((r) => setTimeout(r, 200))
+        const eventReq = mock.received.find((r) => r.url === '/api/events')
+        const parsed = JSON.parse(eventReq.body)
+        expect(parsed.meta.env.AGENTS_OBSERVE_PROJECT_SLUG).toBe('my-repo')
+        expect(parsed.hook_payload.project_name).toBeUndefined()
+        expect(parsed.hook_payload.hook_event_name).toBe('SessionStart')
       } finally {
         server.close()
       }
@@ -123,7 +149,7 @@ describe('observe_cli', () => {
 
       try {
         const { stdout } = await runCli(['hook-sync'], {
-          stdin: JSON.stringify({ event: 'SessionStart' }),
+          stdin: JSON.stringify({ hook_event_name: 'SessionStart' }),
           env: { AGENTS_OBSERVE_API_BASE_URL: `${url}/api` },
         })
         const parsed = JSON.parse(stdout)
@@ -145,7 +171,7 @@ describe('observe_cli', () => {
 
       try {
         const { stdout } = await runCli(['hook-sync'], {
-          stdin: JSON.stringify({ event: 'SessionStart' }),
+          stdin: JSON.stringify({ hook_event_name: 'SessionStart' }),
           env: { AGENTS_OBSERVE_API_BASE_URL: `${url}/api` },
         })
         const parsed = JSON.parse(stdout)
@@ -157,7 +183,7 @@ describe('observe_cli', () => {
 
     it('returns error systemMessage when server is unreachable', async () => {
       const { stdout } = await runCli(['hook-sync'], {
-        stdin: JSON.stringify({ event: 'SessionStart' }),
+        stdin: JSON.stringify({ hook_event_name: 'SessionStart' }),
         env: { AGENTS_OBSERVE_API_BASE_URL: 'http://127.0.0.1:19999/api' },
       })
       const parsed = JSON.parse(stdout)
@@ -181,7 +207,7 @@ describe('observe_cli', () => {
 
       try {
         const { stdout } = await runCli(['hook-sync'], {
-          stdin: JSON.stringify({ event: 'Test' }),
+          stdin: JSON.stringify({ hook_event_name: 'SessionStart' }),
           env: {
             AGENTS_OBSERVE_API_BASE_URL: `${url}/api`,
             AGENTS_OBSERVE_LOG_LEVEL: 'trace',
@@ -206,7 +232,7 @@ describe('observe_cli', () => {
 
       try {
         const { stdout } = await runCli(['hook-autostart'], {
-          stdin: JSON.stringify({ event: 'SessionStart' }),
+          stdin: JSON.stringify({ hook_event_name: 'SessionStart' }),
           env: { AGENTS_OBSERVE_API_BASE_URL: `${url}/api` },
         })
         const parsed = JSON.parse(stdout)
@@ -218,7 +244,7 @@ describe('observe_cli', () => {
 
     it('skips auto-start when custom API URL is set and unreachable', async () => {
       const { stdout } = await runCli(['hook-autostart'], {
-        stdin: JSON.stringify({ event: 'SessionStart' }),
+        stdin: JSON.stringify({ hook_event_name: 'SessionStart' }),
         env: {
           AGENTS_OBSERVE_API_BASE_URL: 'http://remote-server:9999/api',
           AGENTS_OBSERVE_HOOK_STARTUP_TIMEOUT: '1000',
@@ -231,7 +257,7 @@ describe('observe_cli', () => {
 
     it('always returns valid JSON even on error', async () => {
       const { stdout } = await runCli(['hook-autostart'], {
-        stdin: JSON.stringify({ event: 'SessionStart' }),
+        stdin: JSON.stringify({ hook_event_name: 'SessionStart' }),
         env: {
           AGENTS_OBSERVE_API_BASE_URL: 'http://127.0.0.1:19999/api',
           AGENTS_OBSERVE_HOOK_STARTUP_TIMEOUT: '1000',

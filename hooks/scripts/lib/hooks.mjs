@@ -8,6 +8,26 @@ import { startServer } from './docker.mjs'
 
 // -- Helpers ----------------------------------------------------------
 
+function getHookEventName(hookPayload) {
+  return hookPayload.hook_event_name || 'unknown'
+}
+
+function buildEnvelope(config, hookPayload) {
+  const envelope = {
+    hook_payload: hookPayload,
+    meta: {
+      env: {},
+      agentClass: config.agentClass,
+    },
+  }
+
+  if (config.projectSlug) {
+    envelope.meta.env.AGENTS_OBSERVE_PROJECT_SLUG = config.projectSlug
+  }
+
+  return envelope
+}
+
 /**
  * Mute console.log/error/warn so only our final JSON goes to stdout.
  * Logger file writes still work — only the console output methods are silenced.
@@ -58,15 +78,11 @@ async function sendHookSync(config, log) {
     return { result: null, envelope: null }
   }
 
-  const hookEvent = hookPayload.event || 'unknown'
+  const hookEvent = getHookEventName(hookPayload)
   const toolName = hookPayload.tool_name || hookPayload.tool?.name || ''
   log.debug(`Hook event: ${hookEvent}${toolName ? ` tool=${toolName}` : ''}`)
 
-  const envelope = { hook_payload: hookPayload, meta: { env: {} } }
-  if (config.projectSlug) {
-    envelope.meta.env.AGENTS_OBSERVE_PROJECT_SLUG = config.projectSlug
-  }
-
+  const envelope = buildEnvelope(config, hookPayload)
   const result = await postJson(`${config.apiBaseUrl}/events`, envelope, { log })
   return { result, envelope }
 }
@@ -113,16 +129,12 @@ export function hookCommand(config, log) {
       return
     }
 
-    const hookEvent = hookPayload.event || 'unknown'
+    const hookEvent = getHookEventName(hookPayload)
     const toolName = hookPayload.tool_name || hookPayload.tool?.name || ''
     log.debug(`Hook event: ${hookEvent}${toolName ? ` tool=${toolName}` : ''}`)
     log.trace(`Hook payload: ${input.trim().slice(0, 500)}`)
 
-    const envelope = { hook_payload: hookPayload, meta: { env: {} } }
-    if (config.projectSlug) {
-      envelope.meta.env.AGENTS_OBSERVE_PROJECT_SLUG = config.projectSlug
-    }
-
+    const envelope = buildEnvelope(config, hookPayload)
     postJson(`${config.apiBaseUrl}/events`, envelope, {
       fireAndForget: config.allowedCallbacks.size === 0,
       log,
