@@ -1,0 +1,5 @@
+# Repo-local Codex config for agents-observe integration.
+# Codex loads this only after the project is trusted.
+
+[features]
+codex_hooks = true

@@ -1,0 +1,58 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENTS_OBSERVE_LOG_LEVEL=trace AGENTS_OBSERVE_AGENT_CLASS=codex bash \"$(git rev-parse --show-toplevel)/hooks/scripts/hook.sh\"",
+            "statusMessage": "Starting Agents Observe"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENTS_OBSERVE_LOG_LEVEL=trace AGENTS_OBSERVE_AGENT_CLASS=codex bash \"$(git rev-parse --show-toplevel)/hooks/scripts/hook.sh\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENTS_OBSERVE_LOG_LEVEL=trace AGENTS_OBSERVE_AGENT_CLASS=codex bash \"$(git rev-parse --show-toplevel)/hooks/scripts/hook.sh\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENTS_OBSERVE_LOG_LEVEL=trace AGENTS_OBSERVE_AGENT_CLASS=codex bash \"$(git rev-parse --show-toplevel)/hooks/scripts/hook.sh\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENTS_OBSERVE_LOG_LEVEL=trace AGENTS_OBSERVE_AGENT_CLASS=codex bash \"$(git rev-parse --show-toplevel)/hooks/scripts/hook.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}
