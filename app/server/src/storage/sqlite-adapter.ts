@@ -378,9 +378,12 @@ export class SqliteAdapter implements EventStore {
       .prepare(
         `
       SELECT s.*,
-        a.agent_class as agent_class
+        (
+          SELECT GROUP_CONCAT(DISTINCT a.agent_class)
+          FROM agents a
+          WHERE a.session_id = s.id AND a.agent_class IS NOT NULL
+        ) AS agent_classes
       FROM sessions s
-      LEFT JOIN agents a ON a.id = s.id
       WHERE s.project_id = ?
       ORDER BY COALESCE(s.last_activity, s.started_at) DESC
     `,
@@ -396,10 +399,13 @@ export class SqliteAdapter implements EventStore {
       SELECT s.*,
         p.slug as project_slug,
         p.name as project_name,
-        a.agent_class as agent_class
+        (
+          SELECT GROUP_CONCAT(DISTINCT a.agent_class)
+          FROM agents a
+          WHERE a.session_id = s.id AND a.agent_class IS NOT NULL
+        ) AS agent_classes
       FROM sessions s
       LEFT JOIN projects p ON p.id = s.project_id
-      LEFT JOIN agents a ON a.id = s.id
       WHERE s.id = ?
     `,
         )
@@ -595,10 +601,13 @@ export class SqliteAdapter implements EventStore {
       SELECT s.*,
         p.slug as project_slug,
         p.name as project_name,
-        a.agent_class as agent_class
+        (
+          SELECT GROUP_CONCAT(DISTINCT a.agent_class)
+          FROM agents a
+          WHERE a.session_id = s.id AND a.agent_class IS NOT NULL
+        ) AS agent_classes
       FROM sessions s
       LEFT JOIN projects p ON p.id = s.project_id
-      LEFT JOIN agents a ON a.id = s.id
       ORDER BY COALESCE(s.last_activity, s.started_at) DESC
       LIMIT ?
     `,

@@ -947,6 +947,96 @@ describe('SqliteAdapter — getRecentSessions', () => {
 })
 
 // ---------------------------------------------------------------------------
+// agent_classes aggregation — session queries return DISTINCT classes
+// across every agent in the session (root + subagents).
+// ---------------------------------------------------------------------------
+describe('SqliteAdapter — agent_classes aggregation', () => {
+  // The three session queries return agent_classes as a comma-joined string
+  // of DISTINCT values. Routes split it into an array; at the storage layer
+  // we just verify the set of classes is correct.
+  function parseClasses(row: { agent_classes: string | null }): string[] {
+    if (!row.agent_classes) return []
+    return row.agent_classes.split(',').sort()
+  }
+
+  test('getSessionById returns empty agent_classes when session has no agents', async () => {
+    const projId = await store.createProject('proj1', 'Project 1', null)
+    await store.upsertSession('sess1', projId, null, null, 1000)
+
+    const session = await store.getSessionById('sess1')
+    expect(parseClasses(session)).toEqual([])
+  })
+
+  test('getSessionById returns single class for single-class session', async () => {
+    const projId = await store.createProject('proj1', 'Project 1', null)
+    await store.upsertSession('sess1', projId, null, null, 1000)
+    await store.upsertAgent('a1', 'sess1', null, null, null, null, null, 'claude-code')
+
+    const session = await store.getSessionById('sess1')
+    expect(parseClasses(session)).toEqual(['claude-code'])
+  })
+
+  test('getSessionById deduplicates repeated agent classes', async () => {
+    const projId = await store.createProject('proj1', 'Project 1', null)
+    await store.upsertSession('sess1', projId, null, null, 1000)
+    await store.upsertAgent('a1', 'sess1', null, null, null, null, null, 'claude-code')
+    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', null, null, 'claude-code')
+    await store.upsertAgent('a3', 'sess1', 'a1', null, 'sub2', null, null, 'claude-code')
+
+    const session = await store.getSessionById('sess1')
+    expect(parseClasses(session)).toEqual(['claude-code'])
+  })
+
+  test('getSessionById returns multiple distinct classes sorted', async () => {
+    const projId = await store.createProject('proj1', 'Project 1', null)
+    await store.upsertSession('sess1', projId, null, null, 1000)
+    await store.upsertAgent('a1', 'sess1', null, null, null, null, null, 'claude-code')
+    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', null, null, 'codex')
+
+    const session = await store.getSessionById('sess1')
+    expect(parseClasses(session)).toEqual(['claude-code', 'codex'])
+  })
+
+  test('getSessionById omits NULL agent_class values', async () => {
+    // Legacy row with NULL agent_class + a new row with 'codex' → only codex
+    const projId = await store.createProject('proj1', 'Project 1', null)
+    await store.upsertSession('sess1', projId, null, null, 1000)
+    await store.upsertAgent('a1', 'sess1', null, null, null) // no agentClass
+    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', null, null, 'codex')
+
+    const session = await store.getSessionById('sess1')
+    expect(parseClasses(session)).toEqual(['codex'])
+  })
+
+  test('getSessionsForProject aggregates per-session without leaking across sessions', async () => {
+    const projId = await store.createProject('proj1', 'Project 1', null)
+    await store.upsertSession('sess1', projId, null, null, 1000)
+    await store.upsertSession('sess2', projId, null, null, 2000)
+    await store.upsertAgent('a1', 'sess1', null, null, null, null, null, 'claude-code')
+    await store.upsertAgent('a2', 'sess2', null, null, null, null, null, 'codex')
+
+    const sessions = await store.getSessionsForProject(projId)
+    const bySessionId = new Map(sessions.map((s) => [s.id, parseClasses(s)]))
+    expect(bySessionId.get('sess1')).toEqual(['claude-code'])
+    expect(bySessionId.get('sess2')).toEqual(['codex'])
+  })
+
+  test('getRecentSessions aggregates per-session without leaking across sessions', async () => {
+    const projId = await store.createProject('proj1', 'Project 1', null)
+    await store.upsertSession('sess1', projId, null, null, 1000)
+    await store.upsertSession('sess2', projId, null, null, 2000)
+    await store.upsertAgent('a1', 'sess1', null, null, null, null, null, 'claude-code')
+    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', null, null, 'codex')
+    await store.upsertAgent('a3', 'sess2', null, null, null, null, null, 'codex')
+
+    const recent = await store.getRecentSessions()
+    const bySessionId = new Map(recent.map((s) => [s.id, parseClasses(s)]))
+    expect(bySessionId.get('sess1')).toEqual(['claude-code', 'codex'])
+    expect(bySessionId.get('sess2')).toEqual(['codex'])
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Deletion
 // ---------------------------------------------------------------------------
 describe('SqliteAdapter — deletion', () => {

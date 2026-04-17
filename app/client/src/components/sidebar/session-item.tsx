@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils'
 import { Pin, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { AgentClassIcon, agentClassDisplayName } from '@/components/shared/agent-class-icon'
 import type { Session } from '@/types'
 
 interface SessionItemProps {
@@ -199,6 +200,20 @@ export function SessionItem({
       <TooltipContent side="right" className="text-xs space-y-0.5 max-w-xs">
         <div className="truncate font-medium">{label}</div>
         {cwd && <div className="truncate">{shortenCwd(cwd)}</div>}
+        {session.agentClasses.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap opacity-80">
+            <span>Agents:</span>
+            {session.agentClasses.map((cls, i) => (
+              <span key={cls} className="flex items-center gap-0.5">
+                <AgentClassIcon agentClass={cls} />
+                <span>
+                  {agentClassDisplayName(cls)}
+                  {i < session.agentClasses.length - 1 ? ',' : ''}
+                </span>
+              </span>
+            ))}
+          </div>
+        )}
         <div className="opacity-80">
           {statusLabel}: {formatRelativeTime(lastActivityTs)} - Created:{' '}
           {formatRelativeTime(session.startedAt)}

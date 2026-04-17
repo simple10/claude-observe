@@ -67,6 +67,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     agentCount: 1,
     eventCount: 5,
     lastActivity: null,
+    agentClasses: [],
     ...overrides,
   }
 }

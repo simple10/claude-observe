@@ -20,9 +20,9 @@ export interface Session {
   agentCount: number
   eventCount: number
   lastActivity: number | null
-  // Root agent's class (the agent whose id === session.id). Nullable for
-  // legacy rows that predate the agent_class column.
-  agentClass?: string | null
+  // Distinct agent_class values across every agent in the session (root +
+  // subagents). Empty array for legacy sessions predating the column.
+  agentClasses: string[]
 }
 
 /** Agent metadata from the server — no derived state */
@@ -72,7 +72,7 @@ export interface RecentSession {
   agentCount: number
   eventCount: number
   lastActivity: number
-  agentClass?: string | null
+  agentClasses: string[]
 }
 
 export type WSMessage =

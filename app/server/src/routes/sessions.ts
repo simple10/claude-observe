@@ -11,6 +11,11 @@ function deriveEventStatus(subtype: string | null): string {
   return 'pending'
 }
 
+function parseAgentClasses(raw: unknown): string[] {
+  if (typeof raw !== 'string' || !raw) return []
+  return raw.split(',').filter(Boolean)
+}
+
 type Env = {
   Variables: {
     store: EventStore
@@ -41,7 +46,7 @@ router.get('/sessions/recent', async (c) => {
     agentCount: r.agent_count,
     eventCount: r.event_count,
     lastActivity: r.last_activity,
-    agentClass: r.agent_class || null,
+    agentClasses: parseAgentClasses(r.agent_classes),
   }))
   return c.json(sessions)
 })
@@ -66,7 +71,7 @@ router.get('/sessions/:id', async (c) => {
     agentCount: row.agent_count,
     eventCount: row.event_count,
     lastActivity: row.last_activity,
-    agentClass: row.agent_class || null,
+    agentClasses: parseAgentClasses(row.agent_classes),
   })
 })
 
