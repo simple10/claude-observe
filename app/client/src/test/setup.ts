@@ -1,4 +1,8 @@
 import '@testing-library/jest-dom/vitest'
+// Register all agent classes so any component using AgentRegistry (e.g. the
+// shared AgentClassIcon rendered in sidebar/session-list) can resolve a
+// registration in tests without each test having to import ./agents/init.
+import '@/agents/init'
 
 // JSDOM doesn't compute layout, so @tanstack/react-virtual can't measure
 // its scroll container and renders 0 items. Mock element dimensions so the

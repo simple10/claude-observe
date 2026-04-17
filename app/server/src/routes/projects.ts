@@ -44,6 +44,7 @@ router.get('/projects/:id/sessions', async (c) => {
     agentCount: r.agent_count,
     eventCount: r.event_count,
     lastActivity: r.last_activity,
+    agentClass: r.agent_class || null,
   }))
   return c.json(sessions)
 })

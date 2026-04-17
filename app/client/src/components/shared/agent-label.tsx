@@ -1,5 +1,6 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { getAgentDisplayName } from '@/lib/agent-utils'
+import { AgentClassIcon, agentClassDisplayName } from '@/components/shared/agent-class-icon'
 import type { Agent } from '@/types'
 
 interface AgentLabelProps {
@@ -29,7 +30,8 @@ export function AgentLabel({
 }: AgentLabelProps) {
   const displayName = getAgentDisplayName(agent)
   const hasTooltipContent =
-    !disableTooltip && (agent.description || agent.agentType || agent.parentAgentId)
+    !disableTooltip &&
+    (agent.description || agent.agentType || agent.parentAgentId || agent.agentClass)
 
   if (!hasTooltipContent) {
     return <span className={className}>{children ?? displayName}</span>
@@ -45,7 +47,18 @@ export function AgentLabel({
           {agent.description && agent.description !== displayName && (
             <span>{agent.description}</span>
           )}
-          <span className="font-medium">{displayName}</span>
+          <span className="flex items-center gap-1.5">
+            <AgentClassIcon agentClass={agent.agentClass} />
+            <span className="font-medium">{displayName}</span>
+            <span className="text-[10px] opacity-60">
+              {agentClassDisplayName(agent.agentClass)}
+            </span>
+          </span>
+          {agent.cwd && (
+            <span className="text-[10px] opacity-60 font-mono truncate" dir="rtl">
+              <span dir="ltr">{agent.cwd.replace(/^\/(?:Users|home)\/[^/]+/, '~')}</span>
+            </span>
+          )}
           {agent.agentType && <span className="opacity-70">Type: {agent.agentType}</span>}
           {agent.parentAgentId && (
             <span className="text-[10px] opacity-50">

@@ -377,8 +377,10 @@ export class SqliteAdapter implements EventStore {
     return this.db
       .prepare(
         `
-      SELECT s.*
+      SELECT s.*,
+        a.agent_class as agent_class
       FROM sessions s
+      LEFT JOIN agents a ON a.id = s.id
       WHERE s.project_id = ?
       ORDER BY COALESCE(s.last_activity, s.started_at) DESC
     `,
@@ -393,9 +395,11 @@ export class SqliteAdapter implements EventStore {
           `
       SELECT s.*,
         p.slug as project_slug,
-        p.name as project_name
+        p.name as project_name,
+        a.agent_class as agent_class
       FROM sessions s
       LEFT JOIN projects p ON p.id = s.project_id
+      LEFT JOIN agents a ON a.id = s.id
       WHERE s.id = ?
     `,
         )
@@ -590,9 +594,11 @@ export class SqliteAdapter implements EventStore {
         `
       SELECT s.*,
         p.slug as project_slug,
-        p.name as project_name
+        p.name as project_name,
+        a.agent_class as agent_class
       FROM sessions s
       LEFT JOIN projects p ON p.id = s.project_id
+      LEFT JOIN agents a ON a.id = s.id
       ORDER BY COALESCE(s.last_activity, s.started_at) DESC
       LIMIT ?
     `,

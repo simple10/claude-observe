@@ -165,9 +165,6 @@ export function SessionItem({
                 className={cn(
                   'text-[9px] h-3.5 px-1 shrink-0 hidden @[200px]:inline-flex group-hover:!hidden',
                   'text-muted-foreground/60',
-                  // When relativeTime is shown, the time gets ml-auto and the
-                  // badge sits next to it. When there's no relativeTime, the
-                  // badge takes ml-auto so it pins to the right edge.
                   relativeTime ? 'ml-auto @[275px]:ml-0' : 'ml-auto',
                 )}
               >

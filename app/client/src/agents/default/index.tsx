@@ -11,7 +11,7 @@ import type {
   EventProps,
 } from '../types'
 
-function processEvent(raw: RawEvent, ctx: ProcessingContext): ProcessEventResult {
+export function processEvent(raw: RawEvent, ctx: ProcessingContext): ProcessEventResult {
   const turnId = ctx.getCurrentTurn(raw.agentId)
 
   const enriched: EnrichedEvent = {
@@ -48,12 +48,12 @@ function processEvent(raw: RawEvent, ctx: ProcessingContext): ProcessEventResult
   return { event: enriched }
 }
 
-function DefaultRowSummary({ event }: EventProps) {
+export function DefaultRowSummary({ event }: EventProps) {
   const summary = (event.summary as string) || ''
   return <span className="text-xs text-muted-foreground truncate flex-1 min-w-0">{summary}</span>
 }
 
-function DefaultEventDetail({ event }: EventProps) {
+export function DefaultEventDetail({ event }: EventProps) {
   return (
     <pre className="overflow-x-auto rounded bg-muted/50 p-2 font-mono text-[10px] leading-relaxed max-h-60 overflow-y-auto">
       {JSON.stringify(event.payload, null, 2)}
@@ -61,7 +61,7 @@ function DefaultEventDetail({ event }: EventProps) {
   )
 }
 
-function DefaultDotTooltip({ event }: { event: EnrichedEvent }) {
+export function DefaultDotTooltip({ event }: { event: EnrichedEvent }) {
   return (
     <div>
       <div className="font-medium">{event.label}</div>
@@ -72,9 +72,14 @@ function DefaultDotTooltip({ event }: { event: EnrichedEvent }) {
 
 AgentRegistry.registerDefault({
   agentClass: 'default',
-  displayName: 'Unknown Agent',
+  displayName: 'unknown',
   Icon: CircleDot,
   processEvent,
+  getEventIcon: () => CircleDot,
+  getEventColor: () => ({
+    iconColor: 'text-muted-foreground',
+    dotColor: 'bg-muted-foreground',
+  }),
   RowSummary: DefaultRowSummary,
   EventDetail: DefaultEventDetail,
   DotTooltip: DefaultDotTooltip,

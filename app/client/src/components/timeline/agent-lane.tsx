@@ -5,9 +5,8 @@ import { useUIStore } from '@/stores/ui-store'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { AgentLabel } from '@/components/shared/agent-label'
 import { AgentRegistry } from '@/agents/registry'
-import { getEventIcon, getEventColor } from '@/agents/claude-code/icons'
 import type { Agent } from '@/types'
-import type { EnrichedEvent } from '@/agents/types'
+import type { EnrichedEvent, AgentClassRegistration } from '@/agents/types'
 
 // Renders event dots inside a single animated container.
 function DotContainer({
@@ -15,11 +14,13 @@ function DotContainer({
   rangeMs,
   generation,
   setScrollToEventId,
+  registration,
 }: {
   events: EnrichedEvent[]
   rangeMs: number
   generation: number
   setScrollToEventId: (id: number | null) => void
+  registration: AgentClassRegistration
 }) {
   const [anchorTime, setAnchorTime] = useState(() => Date.now())
   const containerRef = useRef<HTMLDivElement>(null)
@@ -57,8 +58,8 @@ function DotContainer({
         if (position < -5 || position > 205) return null
 
         // Resolve icon/color at render time for instant customization updates
-        const Icon = getEventIcon(event.subtype, event.toolName)
-        const { dotColor, customHex } = getEventColor(event.subtype, event.toolName)
+        const Icon = registration.getEventIcon(event)
+        const { dotColor, customHex } = registration.getEventColor(event)
 
         return (
           <Tooltip key={event.id}>
@@ -80,7 +81,7 @@ function DotContainer({
               </button>
             </TooltipTrigger>
             <TooltipContent side="top" className="text-xs max-w-64">
-              <DotTooltipForEvent event={event} />
+              <DotTooltipForEvent event={event} registration={registration} />
             </TooltipContent>
           </Tooltip>
         )
@@ -90,10 +91,13 @@ function DotContainer({
 }
 
 /** Renders the dot tooltip using the registered agent class's DotTooltip component. */
-function DotTooltipForEvent({ event }: { event: EnrichedEvent }) {
-  // For now, use the default registration since we don't have agentClass on the event yet.
-  // When agentClass is tracked per-event, this can use AgentRegistry.get(event.agentClass).
-  const registration = AgentRegistry.get('claude-code')
+function DotTooltipForEvent({
+  event,
+  registration,
+}: {
+  event: EnrichedEvent
+  registration: AgentClassRegistration
+}) {
   const DotTooltip = registration.DotTooltip
   return <DotTooltip event={event} />
 }
@@ -116,6 +120,7 @@ export function AgentLane({
   color,
 }: AgentLaneProps) {
   const agentId = agent.id
+  const registration = AgentRegistry.get(agent.agentClass || 'claude-code')
   const { timeRange, setScrollToEventId, iconCustomizationVersion } = useUIStore()
 
   const rangeMs = useMemo(() => getRangeMs(timeRange), [timeRange])
@@ -178,13 +183,14 @@ export function AgentLane({
     <div className="flex items-center h-8 border-b border-border/30">
       <button
         className={cn(
-          'w-40 shrink-0 text-[10px] truncate px-2 text-left cursor-pointer hover:underline',
+          'w-40 shrink-0 text-[10px] truncate px-2 text-left cursor-pointer hover:underline flex items-center gap-1',
           color,
           isSubagent ? 'opacity-80 dark:opacity-50' : 'opacity-100 dark:opacity-70',
         )}
         onClick={handleAgentNameClick}
       >
-        {isSubagent ? '↳ ' : ''}
+        {isSubagent ? <span className="shrink-0">↳</span> : null}
+        <registration.Icon className="h-3 w-3 shrink-0" />
         <AgentLabel agent={agent} parentAgent={parentAgent} tooltipSide="top" />
       </button>
 
@@ -195,6 +201,7 @@ export function AgentLane({
             rangeMs={rangeMs}
             generation={generation}
             setScrollToEventId={setScrollToEventId}
+            registration={registration}
           />
         )}
 

@@ -108,6 +108,7 @@ export function useAgents(sessionId: string | null, events: ParsedEvent[] | unde
         description: server?.description ?? null,
         name: server?.name ?? null,
         agentType: server?.agentType ?? null,
+        agentClass: server?.agentClass ?? null,
         // Agent is stopped if the last stop signal came after or at the last activity
         status: stats.lastStoppedAt >= stats.lastEventAt ? 'stopped' : 'active',
         eventCount: stats.eventCount,

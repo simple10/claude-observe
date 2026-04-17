@@ -41,6 +41,7 @@ router.get('/sessions/recent', async (c) => {
     agentCount: r.agent_count,
     eventCount: r.event_count,
     lastActivity: r.last_activity,
+    agentClass: r.agent_class || null,
   }))
   return c.json(sessions)
 })
@@ -65,6 +66,7 @@ router.get('/sessions/:id', async (c) => {
     agentCount: row.agent_count,
     eventCount: row.event_count,
     lastActivity: row.last_activity,
+    agentClass: row.agent_class || null,
   })
 })
 

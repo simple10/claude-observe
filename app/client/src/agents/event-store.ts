@@ -28,7 +28,8 @@ export class EventStore {
     this.agentClassMap.clear()
     for (const agent of agents) {
       this.agentMap.set(agent.id, agent)
-      // Default to 'claude-code' for agents without an explicit agentClass
+      // Legacy rows lack agent_class; treat missing as claude-code so the
+      // historical Claude Code data keeps rendering correctly.
       this.agentClassMap.set(agent.id, agent.agentClass || 'claude-code')
     }
   }

@@ -4,6 +4,7 @@ import { useAgents } from '@/hooks/use-agents'
 import { useUIStore } from '@/stores/ui-store'
 import { getAgentDisplayName, buildAgentColorMap, getAgentColorById } from '@/lib/agent-utils'
 import { AgentLabel } from '@/components/shared/agent-label'
+import { AgentClassIcon, agentClassDisplayName } from '@/components/shared/agent-class-icon'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -148,35 +149,44 @@ export function AgentCombobox() {
                         )}
                       />
                       <div className="flex flex-col min-w-0 flex-1">
-                        <AgentLabel
-                          agent={agent}
-                          disableTooltip
-                          className={cn('truncate', isMain && 'font-medium', agentColor.textOnly)}
-                        />
-                        {!isMain &&
-                          (() => {
-                            const showDesc =
-                              agent.description && agent.description !== getAgentDisplayName(agent)
-                            const showType = !!agent.agentType
-                            const showCwd = !!agent.cwd
-                            return (
-                              <div className="flex items-center gap-0 text-[10px] text-muted-foreground/50 min-w-0">
-                                {showDesc && <span className="truncate">{agent.description}</span>}
-                                {showDesc && showType && <span className="shrink-0 mx-1">-</span>}
-                                {showType && (
-                                  <span className="font-mono shrink-0">{agent.agentType}</span>
-                                )}
-                                {!showDesc && !showType && !showCwd && <span>&nbsp;</span>}
-                                {showCwd && (
-                                  <span className="ml-auto truncate pl-2" dir="rtl">
-                                    <span dir="ltr">
-                                      {agent.cwd!.replace(/^\/(?:Users|home)\/[^/]+/, '~')}
-                                    </span>
+                        <div className="flex items-center gap-1 min-w-0">
+                          <AgentClassIcon
+                            agentClass={agent.agentClass}
+                            className="text-muted-foreground/70"
+                          />
+                          <AgentLabel
+                            agent={agent}
+                            disableTooltip
+                            className={cn('truncate', isMain && 'font-medium', agentColor.textOnly)}
+                          />
+                        </div>
+                        {(() => {
+                          const showDesc =
+                            !isMain &&
+                            agent.description &&
+                            agent.description !== getAgentDisplayName(agent)
+                          const showType = !isMain && !!agent.agentType
+                          const showCwd = !isMain && !!agent.cwd
+                          const className = agentClassDisplayName(agent.agentClass)
+                          return (
+                            <div className="flex items-center gap-0 text-[10px] text-muted-foreground/50 min-w-0">
+                              <span className="shrink-0">{className}</span>
+                              {(showDesc || showType) && <span className="shrink-0 mx-1">-</span>}
+                              {showDesc && <span className="truncate">{agent.description}</span>}
+                              {showDesc && showType && <span className="shrink-0 mx-1">-</span>}
+                              {showType && (
+                                <span className="font-mono shrink-0">{agent.agentType}</span>
+                              )}
+                              {showCwd && (
+                                <span className="ml-auto truncate pl-2" dir="rtl">
+                                  <span dir="ltr">
+                                    {agent.cwd!.replace(/^\/(?:Users|home)\/[^/]+/, '~')}
                                   </span>
-                                )}
-                              </div>
-                            )
-                          })()}
+                                </span>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </div>
                       <div className="flex items-center gap-2 shrink-0 text-[10px] text-muted-foreground">
                         <span>{formatStartTime(agent.firstEventAt ?? 0)}</span>

@@ -95,12 +95,23 @@ export interface EventProps {
 // ---------------------------------------------------------------------------
 // Agent class registration
 // ---------------------------------------------------------------------------
+export interface EventColor {
+  iconColor: string
+  dotColor: string
+  customHex?: string
+}
+
 export interface AgentClassRegistration {
   agentClass: string
   displayName: string
-  Icon: ComponentType
+  Icon: ComponentType<{ className?: string }>
 
   processEvent(raw: RawEvent, ctx: ProcessingContext): ProcessEventResult
+
+  // Render-time icon/color resolvers — called per-row so live icon
+  // customization propagates without a full reprocess.
+  getEventIcon(event: EnrichedEvent): ComponentType<{ className?: string }>
+  getEventColor(event: EnrichedEvent): EventColor
 
   // Rendering components
   RowSummary: ComponentType<EventProps>

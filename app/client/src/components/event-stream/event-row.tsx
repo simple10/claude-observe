@@ -3,8 +3,8 @@ import { cn } from '@/lib/utils'
 import { getAgentColorById } from '@/lib/agent-utils'
 import { AgentLabel } from '@/components/shared/agent-label'
 import { AgentRegistry } from '@/agents/registry'
+import { AgentClassIcon } from '@/components/shared/agent-class-icon'
 import { useUIStore } from '@/stores/ui-store'
-import { getEventIcon, getEventColor } from '@/agents/claude-code/icons'
 import { Check, X, Loader } from 'lucide-react'
 import type { EnrichedEvent, FrameworkDataApi } from '@/agents/types'
 
@@ -45,19 +45,20 @@ export const EventRow = memo(function EventRow({
   // icon customization changes propagate instantly without full reprocess.
   // eslint-disable-next-line react-hooks/rules-of-hooks
   useUIStore((s) => s.iconCustomizationVersion) // subscribe to trigger re-render
-  const Icon = getEventIcon(event.subtype, event.toolName)
-  const { iconColor, customHex } = getEventColor(event.subtype, event.toolName)
+
+  // Resolve the registration from the agent's class (falls back to default
+  // when unknown, or claude-code for legacy rows with null agentClass), then
+  // use its icon/color resolvers so each agent class controls its own rendering.
+  const registration = AgentRegistry.get(agent?.agentClass || 'claude-code')
+  const Icon = registration.getEventIcon(event)
+  const { iconColor, customHex } = registration.getEventColor(event)
+  const RowSummary = registration.RowSummary
+  const EventDetail = registration.EventDetail
 
   const isFailure = event.status === 'failed'
   const isCompleted = event.status === 'completed'
   const isPending = event.status === 'pending' || event.status === 'running'
   const showStatus = isFailure || isCompleted || isPending
-
-  // Get the agent class registration for the RowSummary and EventDetail components
-  const agentClass = agent?.agentClass || 'claude-code'
-  const registration = AgentRegistry.get(agentClass)
-  const RowSummary = registration.RowSummary
-  const EventDetail = registration.EventDetail
 
   const handleRowClick = (e: React.MouseEvent) => {
     if (e.button === 1 || e.ctrlKey || e.metaKey) {
@@ -150,8 +151,9 @@ export const EventRow = memo(function EventRow({
           {/* Summary line (agent-class-owned) */}
           <RowSummary event={event} dataApi={dataApi} />
 
-          {/* Timestamp (framework-owned) */}
-          <span className="text-[10px] text-muted-foreground/80 dark:text-muted-foreground/60 tabular-nums shrink-0">
+          {/* Agent class icon + timestamp (framework-owned) */}
+          <span className="flex items-center gap-1 text-[10px] text-muted-foreground/80 dark:text-muted-foreground/60 tabular-nums shrink-0">
+            <AgentClassIcon agentClass={agent?.agentClass} />
             {formatTime(event.timestamp)}
           </span>
         </div>

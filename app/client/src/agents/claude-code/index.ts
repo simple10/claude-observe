@@ -4,15 +4,18 @@
 import { Bot } from 'lucide-react'
 import { AgentRegistry } from '../registry'
 import { processEvent } from './process-event'
+import { getEventIcon, getEventColor } from './icons'
 import { ClaudeCodeRowSummary } from './row-summary'
 import { ClaudeCodeEventDetail } from './event-detail'
 import { ClaudeCodeDotTooltip } from './dot-tooltip'
 
 AgentRegistry.register({
   agentClass: 'claude-code',
-  displayName: 'Claude Code',
+  displayName: 'claude',
   Icon: Bot,
   processEvent,
+  getEventIcon: (event) => getEventIcon(event.subtype, event.toolName),
+  getEventColor: (event) => getEventColor(event.subtype, event.toolName),
   RowSummary: ClaudeCodeRowSummary,
   EventDetail: ClaudeCodeEventDetail,
   DotTooltip: ClaudeCodeDotTooltip,
