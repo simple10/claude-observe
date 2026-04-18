@@ -74,11 +74,14 @@ router.post('/callbacks/session-info/:sessionId', async (c) => {
 
     // Auto-name the session. If the agent lib returned an explicit slug,
     // use it verbatim (future use — most agents return null today).
-    // Otherwise build a slug from the first UUID segment + branch, and
-    // tag it with the agent class short name (e.g. "claude-code" ->
-    // "claude") so it's obvious which tool produced the session and so
-    // two different agents running on the same branch don't collide.
-    //   Result shape: "<uuidPrefix>-<branch>:<agentShortName>"
+    // Otherwise build a slug in the shape:
+    //   "<branch>:<uuidPrefix>:<agentShortName>"
+    // Branch first because most users work on one agent (claude) and
+    // the branch is the most useful identifier to eyeball. The first
+    // UUID segment keeps two sessions on the same branch distinct;
+    // the trailing agent short name (e.g. "claude-code" -> "claude")
+    // calls out non-default agents. When agentClass is missing the
+    // trailing segment is dropped: "<branch>:<uuidPrefix>".
     // Leaving slug null lets the next event re-trigger the callback.
     const uuidPrefix = sessionId.split('-')[0]
     const agentClass =
@@ -88,8 +91,8 @@ router.post('/callbacks/session-info/:sessionId', async (c) => {
       explicitSlug ??
       (gitBranch
         ? agentShortName
-          ? `${uuidPrefix}-${gitBranch}:${agentShortName}`
-          : `${uuidPrefix}-${gitBranch}`
+          ? `${gitBranch}:${uuidPrefix}:${agentShortName}`
+          : `${gitBranch}:${uuidPrefix}`
         : null)
     if (slug) {
       await store.updateSessionSlug(sessionId, slug)

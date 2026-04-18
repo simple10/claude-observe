@@ -54,7 +54,7 @@ describe('callback routes', () => {
       })
     })
 
-    test('auto-names slug as uuidPrefix-<branch>:<agentShortName> for claude-code', async () => {
+    test('auto-names slug as <branch>:<uuidPrefix>:<agentShort> for claude-code', async () => {
       const res = await app.request('/api/callbacks/session-info/019d9d13-24c6-76f0', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -65,14 +65,14 @@ describe('callback routes', () => {
         }),
       })
       expect(res.status).toBe(200)
-      // claude-code -> "claude"; prefix is the first UUID segment.
-      expect(updateSessionSlug).toHaveBeenCalledWith('019d9d13-24c6-76f0', '019d9d13-feat/x:claude')
+      // Branch first, then uuid prefix, then agent short name ("claude").
+      expect(updateSessionSlug).toHaveBeenCalledWith('019d9d13-24c6-76f0', 'feat/x:019d9d13:claude')
       expect(patchSessionMetadata).toHaveBeenCalledWith('019d9d13-24c6-76f0', {
         git: { branch: 'feat/x', repository_url: 'git@ex:r.git' },
       })
     })
 
-    test('auto-names slug with :codex suffix when agent class is codex', async () => {
+    test('auto-names slug with trailing :codex when agent class is codex', async () => {
       const res = await app.request('/api/callbacks/session-info/019d9d13-24c6-76f0', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -83,10 +83,10 @@ describe('callback routes', () => {
         }),
       })
       expect(res.status).toBe(200)
-      expect(updateSessionSlug).toHaveBeenCalledWith('019d9d13-24c6-76f0', '019d9d13-feat/x:codex')
+      expect(updateSessionSlug).toHaveBeenCalledWith('019d9d13-24c6-76f0', 'feat/x:019d9d13:codex')
     })
 
-    test('omits agent suffix when agentClass is absent from the body', async () => {
+    test('omits trailing agent segment when agentClass is absent from the body', async () => {
       const res = await app.request('/api/callbacks/session-info/019d9d13-24c6-76f0', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -96,7 +96,7 @@ describe('callback routes', () => {
         }),
       })
       expect(res.status).toBe(200)
-      expect(updateSessionSlug).toHaveBeenCalledWith('019d9d13-24c6-76f0', '019d9d13-feat/x')
+      expect(updateSessionSlug).toHaveBeenCalledWith('019d9d13-24c6-76f0', 'feat/x:019d9d13')
     })
 
     test('uses explicit slug verbatim even when agentClass is present', async () => {
