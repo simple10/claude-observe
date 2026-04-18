@@ -61,6 +61,37 @@ describe('SqliteAdapter — projects', () => {
     expect(project).toBeNull()
   })
 
+  test('createProject stores cwd when provided', async () => {
+    const id = await store.createProject('proj1', 'P', null, '/Users/joe/proj1')
+    const project = await store.getProjectById(id)
+    expect(project.cwd).toBe('/Users/joe/proj1')
+  })
+
+  test('createProject leaves cwd null when omitted (back-compat)', async () => {
+    const id = await store.createProject('proj1', 'P', null)
+    const project = await store.getProjectById(id)
+    expect(project.cwd).toBeNull()
+  })
+
+  test('getProjectByCwd finds project by exact cwd', async () => {
+    const id = await store.createProject('proj-a', 'A', null, '/Users/joe/proj-a')
+    const project = await store.getProjectByCwd('/Users/joe/proj-a')
+    expect(project).not.toBeNull()
+    expect(project.id).toBe(id)
+  })
+
+  test('getProjectByCwd returns null for unknown cwd', async () => {
+    const project = await store.getProjectByCwd('/nowhere')
+    expect(project).toBeNull()
+  })
+
+  test('updateProjectCwd sets cwd on a project', async () => {
+    const id = await store.createProject('proj1', 'P', null, null)
+    await store.updateProjectCwd(id, '/Users/joe/proj1')
+    const project = await store.getProjectById(id)
+    expect(project.cwd).toBe('/Users/joe/proj1')
+  })
+
   test('updateProjectName changes the name', async () => {
     const id = await store.createProject('proj1', 'Original Name', null)
     await store.updateProjectName(id, 'Updated Name')

@@ -34,10 +34,17 @@ export interface StoredEvent {
 }
 
 export interface EventStore {
-  createProject(slug: string, name: string, transcriptPath: string | null): Promise<number>
+  createProject(
+    slug: string,
+    name: string,
+    transcriptPath: string | null,
+    cwd?: string | null,
+  ): Promise<number>
   getProjectById(id: number): Promise<any | null>
   getProjectBySlug(slug: string): Promise<any | null>
+  getProjectByCwd(cwd: string): Promise<any | null>
   getProjectByTranscriptPath(transcriptPath: string): Promise<any | null>
+  updateProjectCwd(projectId: number, cwd: string): Promise<void>
   updateProjectName(projectId: number, name: string): Promise<void>
   isSlugAvailable(slug: string): Promise<boolean>
   deleteProject(

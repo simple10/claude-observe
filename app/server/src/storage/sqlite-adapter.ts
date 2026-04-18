@@ -30,6 +30,7 @@ export class SqliteAdapter implements EventStore {
         slug TEXT UNIQUE NOT NULL,
         name TEXT NOT NULL,
         transcript_path TEXT,
+        cwd TEXT,
         metadata TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
@@ -40,6 +41,9 @@ export class SqliteAdapter implements EventStore {
     const projectCols = this.db.prepare("PRAGMA table_info('projects')").all() as { name: string }[]
     if (!projectCols.some((c) => c.name === 'metadata')) {
       this.db.exec('ALTER TABLE projects ADD COLUMN metadata TEXT')
+    }
+    if (!projectCols.some((c) => c.name === 'cwd')) {
+      this.db.exec('ALTER TABLE projects ADD COLUMN cwd TEXT')
     }
 
     this.db.exec(`
@@ -143,6 +147,7 @@ export class SqliteAdapter implements EventStore {
     this.db.exec(
       'CREATE INDEX IF NOT EXISTS idx_projects_transcript_path ON projects(transcript_path)',
     )
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_projects_cwd ON projects(cwd)')
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_events_session ON events(session_id, timestamp)')
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_events_agent ON events(agent_id, timestamp)')
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_events_type ON events(type, subtype)')
@@ -155,13 +160,18 @@ export class SqliteAdapter implements EventStore {
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id)')
   }
 
-  async createProject(slug: string, name: string, transcriptPath: string | null): Promise<number> {
+  async createProject(
+    slug: string,
+    name: string,
+    transcriptPath: string | null,
+    cwd: string | null = null,
+  ): Promise<number> {
     const now = Date.now()
     const result = this.db
       .prepare(
-        'INSERT INTO projects (slug, name, transcript_path, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO projects (slug, name, transcript_path, cwd, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
       )
-      .run(slug, name, transcriptPath, now, now)
+      .run(slug, name, transcriptPath, cwd, now, now)
     return result.lastInsertRowid as number
   }
 
@@ -171,6 +181,17 @@ export class SqliteAdapter implements EventStore {
 
   async getProjectBySlug(slug: string): Promise<any | null> {
     return this.db.prepare(`SELECT * FROM projects WHERE slug = ?`).get(slug) || null
+  }
+
+  async getProjectByCwd(cwd: string): Promise<any | null> {
+    return this.db.prepare(`SELECT * FROM projects WHERE cwd = ?`).get(cwd) || null
+  }
+
+  async updateProjectCwd(projectId: number, cwd: string): Promise<void> {
+    const now = Date.now()
+    this.db
+      .prepare('UPDATE projects SET cwd = ?, updated_at = ? WHERE id = ?')
+      .run(cwd, now, projectId)
   }
 
   async getProjectByTranscriptPath(transcriptPath: string): Promise<any | null> {

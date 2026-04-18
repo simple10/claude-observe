@@ -102,6 +102,7 @@ router.post('/events', async (c) => {
     }
 
     const parsed = parseRawEvent(hookPayload)
+    const eventCwd = (parsed.metadata.cwd as string | undefined) ?? null
 
     // Resolve project - only on first event for this session
     const existingSession = await store.getSessionById(parsed.sessionId)
@@ -125,9 +126,31 @@ router.post('/events', async (c) => {
           sessionId: parsed.sessionId,
           slug: projectSlugOverride,
           transcriptPath: parsed.transcriptPath,
+          cwd: eventCwd,
         })
         effectiveProjectId = resolved.projectId
         await store.updateSessionProject(parsed.sessionId, effectiveProjectId)
+      } else if (parsed.subtype === 'SessionStart' && eventCwd && !projectStillExists.cwd) {
+        // Lazy re-resolve: the session was assigned before we had a cwd,
+        // so the project may have been derived from transcript_path alone
+        // (e.g. Codex's date-based session dir, producing slugs like "17").
+        // Now that SessionStart has given us a cwd, try to land on the
+        // right project — either an existing cwd-keyed one, or create a
+        // new one with a cwd-derived slug.
+        const projectSlugOverride = meta.env?.AGENTS_OBSERVE_PROJECT_SLUG || null
+        const resolved = await resolveProject(store, {
+          sessionId: parsed.sessionId,
+          slug: projectSlugOverride,
+          transcriptPath: parsed.transcriptPath,
+          cwd: eventCwd,
+        })
+        if (resolved.projectId !== effectiveProjectId) {
+          console.log(
+            `[event] Re-resolving session ${parsed.sessionId} from project ${effectiveProjectId} to ${resolved.projectId} (cwd=${eventCwd})`,
+          )
+          effectiveProjectId = resolved.projectId
+          await store.updateSessionProject(parsed.sessionId, effectiveProjectId)
+        }
       }
     } else {
       const projectSlugOverride = meta.env?.AGENTS_OBSERVE_PROJECT_SLUG || null
@@ -135,6 +158,7 @@ router.post('/events', async (c) => {
         sessionId: parsed.sessionId,
         slug: projectSlugOverride,
         transcriptPath: parsed.transcriptPath,
+        cwd: eventCwd,
       })
       effectiveProjectId = resolved.projectId
     }
