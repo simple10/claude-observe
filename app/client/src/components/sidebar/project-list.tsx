@@ -203,16 +203,25 @@ export function ProjectList({ collapsed }: ProjectListProps) {
             )
           }
 
+          const toggleProject = () =>
+            setSelectedProject(
+              isSelected ? null : project.id,
+              isSelected ? null : project.slug,
+            )
+
           return (
             <div key={project.id}>
-              <button
-                className="group flex items-center gap-2 w-full rounded-md px-2 py-0.5 text-sm transition-colors cursor-pointer text-foreground hover:bg-accent"
-                onClick={() =>
-                  setSelectedProject(
-                    isSelected ? null : project.id,
-                    isSelected ? null : project.slug,
-                  )
-                }
+              <div
+                role="button"
+                tabIndex={0}
+                className="group flex items-center gap-2 w-full rounded-md px-2 py-0.5 text-sm transition-colors cursor-pointer text-foreground hover:bg-accent focus:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                onClick={toggleProject}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    toggleProject()
+                  }
+                }}
               >
                 {isSelected ? (
                   <ChevronDown className="h-3.5 w-3.5 shrink-0" />
@@ -237,7 +246,7 @@ export function ProjectList({ collapsed }: ProjectListProps) {
                   <Pencil className="h-2.5 w-2.5" />
                   Edit
                 </span>
-              </button>
+              </div>
               {isSelected && <SessionList projectId={project.id} />}
             </div>
           )
