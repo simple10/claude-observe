@@ -326,6 +326,29 @@ router.post('/events', async (c) => {
 
     broadcastToSession(parsed.sessionId, { type: 'event', data: event })
 
+    // Fan out sidebar notification signals to every connected client so
+    // bells can light up regardless of which session the viewer is on.
+    // Any non-Notification event also bubbles as a clear signal so the
+    // UI can auto-dismiss bells once the agent resumes working.
+    if (parsed.subtype === 'Notification') {
+      broadcastToAll({
+        type: 'notification',
+        data: {
+          sessionId: parsed.sessionId,
+          projectId: effectiveProjectId,
+          ts: parsed.timestamp,
+        },
+      })
+    } else {
+      broadcastToAll({
+        type: 'notification_clear',
+        data: {
+          sessionId: parsed.sessionId,
+          ts: parsed.timestamp,
+        },
+      })
+    }
+
     // Build response -- request local data if the server is missing info
     const requests: Array<{ cmd: string; args: Record<string, unknown>; callback: string }> = []
 

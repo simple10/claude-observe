@@ -4,6 +4,12 @@ import { Pin, Pencil } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { AgentClassIcon, agentClassDisplayName } from '@/components/shared/agent-class-icon'
+import {
+  NotificationIndicator,
+  dismissNotification,
+  useSessionHasNotification,
+  useAnnounceVisibleBell,
+} from './notification-indicator'
 import type { Session } from '@/types'
 
 interface SessionItemProps {
@@ -88,6 +94,10 @@ export function SessionItem({
   const statusLabel = session.status === 'active' ? 'Active' : 'Ended'
   const eventCount = eventCountOverride ?? session.eventCount
   const lastActivityTs = session.lastActivity ?? session.startedAt
+  const needsAttention = useSessionHasNotification(session.id)
+  // Register this session's bell as visible so the parent project's
+  // folder indicator can suppress itself (no double-signaling).
+  useAnnounceVisibleBell(session.id, needsAttention && !isEditing)
 
   return (
     <Tooltip>
@@ -102,38 +112,52 @@ export function SessionItem({
           onClick={() => !isEditing && onSelect()}
         >
           <div className="flex items-center gap-1.5 text-xs">
-            <span
-              className="relative h-3 w-3 shrink-0 flex items-center justify-center"
-              onClick={(e) => {
-                e.stopPropagation()
-                onTogglePin()
-              }}
-            >
+            {needsAttention && !isEditing ? (
+              // Swap: bell replaces the status dot / pin affordance until
+              // the user acknowledges it. Clicking dismisses and the
+              // normal dot/pin returns.
+              <NotificationIndicator
+                compact
+                className="h-3 w-3 shrink-0"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  dismissNotification(session.id)
+                }}
+              />
+            ) : (
               <span
-                className={cn(
-                  'h-2 w-2 rounded-full',
-                  isPinned ? 'hidden' : 'group-hover:hidden',
-                  session.status === 'active'
-                    ? 'bg-green-500'
-                    : 'bg-muted-foreground/60 dark:bg-muted-foreground/40',
-                )}
-              />
-              <Pin
-                fill={isPinned ? 'currentColor' : 'none'}
-                className={cn(
-                  'h-3 w-3 absolute inset-0 cursor-pointer transition-opacity',
-                  isPinned
-                    ? session.status === 'active'
-                      ? 'opacity-80 text-green-500 hover:fill-none'
-                      : 'opacity-60 text-primary hover:fill-none'
-                    : 'opacity-0 group-hover:opacity-100',
-                  !isPinned &&
-                    (session.status === 'active'
-                      ? 'text-green-500/60 hover:text-green-500'
-                      : 'text-muted-foreground/50 hover:text-muted-foreground'),
-                )}
-              />
-            </span>
+                className="relative h-3 w-3 shrink-0 flex items-center justify-center"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onTogglePin()
+                }}
+              >
+                <span
+                  className={cn(
+                    'h-2 w-2 rounded-full',
+                    isPinned ? 'hidden' : 'group-hover:hidden',
+                    session.status === 'active'
+                      ? 'bg-green-500'
+                      : 'bg-muted-foreground/60 dark:bg-muted-foreground/40',
+                  )}
+                />
+                <Pin
+                  fill={isPinned ? 'currentColor' : 'none'}
+                  className={cn(
+                    'h-3 w-3 absolute inset-0 cursor-pointer transition-opacity',
+                    isPinned
+                      ? session.status === 'active'
+                        ? 'opacity-80 text-green-500 hover:fill-none'
+                        : 'opacity-60 text-primary hover:fill-none'
+                      : 'opacity-0 group-hover:opacity-100',
+                    !isPinned &&
+                      (session.status === 'active'
+                        ? 'text-green-500/60 hover:text-green-500'
+                        : 'text-muted-foreground/50 hover:text-muted-foreground'),
+                  )}
+                />
+              </span>
+            )}
             {isEditing ? (
               <input
                 ref={inputRef}

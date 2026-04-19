@@ -10,6 +10,12 @@ import { useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api-client'
 import { ProjectModal } from '@/components/settings/project-modal'
 import { SessionItem } from './session-item'
+import {
+  NotificationIndicator,
+  dismissNotifications,
+  useAnyHiddenFlaggedSession,
+  useAnySessionHasNotification,
+} from './notification-indicator'
 import type { Project, Session } from '@/types'
 
 interface ProjectListProps {
@@ -147,7 +153,7 @@ export function ProjectList({ collapsed }: ProjectListProps) {
               <Tooltip key={project.id}>
                 <TooltipTrigger asChild>
                   <button
-                    className="flex h-8 w-8 mx-auto items-center justify-center rounded-md text-xs cursor-pointer text-muted-foreground hover:bg-accent"
+                    className="relative flex h-8 w-8 mx-auto items-center justify-center rounded-md text-xs cursor-pointer text-muted-foreground hover:bg-accent"
                     onClick={() =>
                       setSelectedProject(
                         isSelected ? null : project.id,
@@ -156,6 +162,10 @@ export function ProjectList({ collapsed }: ProjectListProps) {
                     }
                   >
                     {displayLabel.charAt(0).toUpperCase()}
+                    <ProjectNotificationDot
+                      projectId={project.id}
+                      className="absolute top-0.5 right-0.5"
+                    />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right">{displayLabel}</TooltipContent>
@@ -179,7 +189,7 @@ export function ProjectList({ collapsed }: ProjectListProps) {
                 ) : (
                   <ChevronRight className="h-3.5 w-3.5 shrink-0" />
                 )}
-                <Folder className="h-3.5 w-3.5 shrink-0" />
+                <ProjectFolderWithBell projectId={project.id} />
                 <span className="truncate">{displayLabel}</span>
                 {project.sessionCount != null && (
                   <Badge
@@ -211,6 +221,69 @@ export function ProjectList({ collapsed }: ProjectListProps) {
         }}
       />
     </TooltipProvider>
+  )
+}
+
+/**
+ * Folder icon with an optional bell overlay on top. The bell shows when
+ * any session in the project is waiting on the user; clicking dismisses
+ * every flagged session in the project and the overlay disappears,
+ * revealing the plain folder icon underneath.
+ */
+/**
+ * Folder icon that swaps to a bell when a session in the project is
+ * waiting on the user AND that session isn't already showing its own
+ * bell elsewhere in the sidebar (Pinned row, or the expanded
+ * SessionList for this project). Prevents redundant double-signaling.
+ * Clicking the bell dismisses every flagged session in the project.
+ */
+function ProjectFolderWithBell({ projectId }: { projectId: number }) {
+  const { data: sessions } = useSessions(projectId)
+  const sessionIds = sessions?.map((s) => s.id) ?? []
+  const hasHiddenFlagged = useAnyHiddenFlaggedSession(sessionIds)
+  if (hasHiddenFlagged) {
+    return (
+      <NotificationIndicator
+        className="h-3.5 w-3.5 shrink-0"
+        onClick={(e) => {
+          e.stopPropagation()
+          dismissNotifications(sessionIds)
+        }}
+      />
+    )
+  }
+  return <Folder className="h-3.5 w-3.5 shrink-0" />
+}
+
+/**
+ * Collapsed-sidebar variant — pulsing amber dot in the top-right of the
+ * square project icon. Clicking dismisses every flagged session in the
+ * project so the dot goes away.
+ */
+function ProjectNotificationDot({
+  projectId,
+  className,
+}: {
+  projectId: number
+  className?: string
+}) {
+  const { data: sessions } = useSessions(projectId)
+  const sessionIds = sessions?.map((s) => s.id) ?? []
+  const anyFlagged = useAnySessionHasNotification(sessionIds)
+  if (!anyFlagged) return null
+  return (
+    <button
+      type="button"
+      className={`relative flex h-2 w-2 items-center justify-center rounded-full bg-amber-500 cursor-pointer ${className ?? ''}`}
+      aria-label="Click to dismiss notifications"
+      title="Click to dismiss notifications"
+      onClick={(e) => {
+        e.stopPropagation()
+        dismissNotifications(sessionIds)
+      }}
+    >
+      <span className="absolute inline-flex h-2 w-2 animate-ping rounded-full bg-amber-400/70" />
+    </button>
   )
 }
 

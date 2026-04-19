@@ -1,5 +1,12 @@
 import { API_BASE } from '@/config/api'
-import type { Project, Session, RecentSession, ServerAgent, ParsedEvent } from '@/types'
+import type {
+  Project,
+  Session,
+  RecentSession,
+  ServerAgent,
+  ParsedEvent,
+  NotificationPayload,
+} from '@/types'
 
 /**
  * Rich error thrown by all api.* methods on failure. Carries the HTTP status,
@@ -81,6 +88,8 @@ async function fetchVoid(path: string, init?: RequestInit): Promise<void> {
 
 export const api = {
   getProjects: () => fetchJson<Project[]>('/projects'),
+  getPendingNotifications: (sinceTs: number) =>
+    fetchJson<NotificationPayload[]>(`/notifications?since=${sinceTs}`),
   getRecentSessions: (limit?: number) =>
     fetchJson<RecentSession[]>(`/sessions/recent${limit ? `?limit=${limit}` : ''}`),
   getSessions: (projectId: number) => fetchJson<Session[]>(`/projects/${projectId}/sessions`),

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { API_BASE } from '@/config/api'
 import type { WSMessage, WSClientMessage, ParsedEvent } from '@/types'
+import { pushNotification, clearNotification } from '@/components/sidebar/notification-indicator'
 
 const WS_URL = `ws://${window.location.host}/api/events/stream`
 
@@ -110,6 +111,15 @@ export function useWebSocket(sessionId: string | null) {
         if (logLevel === 'trace') {
           console.debug('[WS] Project update → invalidating projects')
         }
+      } else if (msg.type === 'notification') {
+        const { sessionId, projectId, ts } = msg.data
+        pushNotification({ sessionId, projectId, ts })
+        if (logLevel === 'trace') {
+          console.debug(`[WS] Notification → session ${sessionId.slice(0, 8)}`)
+        }
+      } else if (msg.type === 'notification_clear') {
+        const { sessionId, ts } = msg.data
+        clearNotification(sessionId, ts)
       }
     },
     [queryClient],

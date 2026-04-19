@@ -75,9 +75,18 @@ export interface RecentSession {
   agentClasses: string[]
 }
 
+export interface NotificationPayload {
+  sessionId: string
+  projectId: number
+  latestNotificationTs: number
+  count: number
+}
+
 export type WSMessage =
   | { type: 'event'; data: ParsedEvent }
   | { type: 'session_update'; data: Session }
   | { type: 'project_update'; data: { id: number; name: string } }
+  | { type: 'notification'; data: { sessionId: string; projectId: number; ts: number } }
+  | { type: 'notification_clear'; data: { sessionId: string; ts: number } }
 
 export type WSClientMessage = { type: 'subscribe'; sessionId: string } | { type: 'unsubscribe' }

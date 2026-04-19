@@ -7,11 +7,13 @@ import { SessionEditModal } from '@/components/settings/session-modal'
 import { useWebSocket } from '@/hooks/use-websocket'
 import { useRouteSync } from '@/hooks/use-route-sync'
 import { useUIStore } from '@/stores/ui-store'
+import { useNotificationsController } from '@/components/sidebar/notification-indicator'
 
 export function App() {
   const selectedSessionId = useUIStore((s) => s.selectedSessionId)
   const { connected } = useWebSocket(selectedSessionId)
   useRouteSync()
+  useNotificationsController()
 
   // When the user navigates away from a session, immediately drop the previous
   // session's events / agents from React Query's cache. Without this, the

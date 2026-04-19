@@ -79,6 +79,7 @@ export interface EventStore {
   getSessionsForProject(projectId: number): Promise<any[]>
   getSessionById(sessionId: string): Promise<any | null>
   getAgentById(agentId: string): Promise<any | null>
+  getSessionsWithPendingNotifications(sinceTs: number): Promise<any[]>
   getAgentsForSession(sessionId: string): Promise<any[]>
   getEventsForSession(sessionId: string, filters?: EventFilters): Promise<StoredEvent[]>
   getEventsForAgent(agentId: string): Promise<StoredEvent[]>

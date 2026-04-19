@@ -5,6 +5,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 export function GeneralSettings() {
   const dedupEnabled = useUIStore((s) => s.dedupEnabled)
   const setDedupEnabled = useUIStore((s) => s.setDedupEnabled)
+  const notificationsEnabled = useUIStore((s) => s.notificationsEnabled)
+  const setNotificationsEnabled = useUIStore((s) => s.setNotificationsEnabled)
   const { mode, setMode } = useTheme()
 
   return (
@@ -54,6 +56,27 @@ export function GeneralSettings() {
               </div>
               <div className="text-xs text-orange-500 dark:text-orange-400 mt-2">
                 Changing this setting reloads the page.
+              </div>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-medium mb-3">Sidebar</h3>
+        <div className="space-y-4">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <Checkbox
+              checked={notificationsEnabled}
+              onCheckedChange={(v) => setNotificationsEnabled(v === true)}
+              className="mt-0.5"
+            />
+            <div>
+              <div className="text-sm font-medium">Show notification alerts</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                Highlights sessions (and their parent projects) in the sidebar when an agent emits a
+                Notification event and is waiting for your input. Click the bell to dismiss it for
+                that session.
               </div>
             </div>
           </label>

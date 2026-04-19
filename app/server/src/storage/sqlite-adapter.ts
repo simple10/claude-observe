@@ -59,6 +59,7 @@ export class SqliteAdapter implements EventStore {
         event_count INTEGER NOT NULL DEFAULT 0,
         agent_count INTEGER NOT NULL DEFAULT 0,
         last_activity INTEGER,
+        last_notification_ts INTEGER,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       )
@@ -79,6 +80,23 @@ export class SqliteAdapter implements EventStore {
           event_count = (SELECT COUNT(*) FROM events WHERE session_id = sessions.id),
           agent_count = (SELECT COUNT(*) FROM agents WHERE session_id = sessions.id),
           last_activity = (SELECT MAX(timestamp) FROM events WHERE session_id = sessions.id)
+      `)
+    }
+    // Notification tracking — `last_notification_ts` alongside the
+    // existing `last_activity` column is enough to test "pending":
+    // a session has a pending notification iff
+    //   last_notification_ts IS NOT NULL AND last_activity = last_notification_ts
+    // (the most recent event IS the notification). Any subsequent
+    // activity auto-clears by bumping `last_activity`.
+    if (!sessionCols.some((c) => c.name === 'last_notification_ts')) {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN last_notification_ts INTEGER')
+      // Backfill from existing events
+      this.db.exec(`
+        UPDATE sessions SET
+          last_notification_ts = (
+            SELECT MAX(timestamp) FROM events
+            WHERE session_id = sessions.id AND subtype = 'Notification'
+          )
       `)
     }
 
@@ -366,17 +384,60 @@ export class SqliteAdapter implements EventStore {
         params.toolUseId || null,
       )
 
-    // Update cached counters on session
+    // Update cached counters on session. `last_activity` is the
+    // max across all events; `last_notification_ts` only advances for
+    // Notification-subtype events. "Pending" is inferred from those
+    // two columns (see getSessionsWithPendingNotifications).
+    const isNotification = params.subtype === 'Notification'
     this.db
       .prepare(
         `UPDATE sessions SET
           event_count = event_count + 1,
-          last_activity = MAX(COALESCE(last_activity, 0), ?)
+          last_activity = MAX(COALESCE(last_activity, 0), ?),
+          last_notification_ts = CASE
+            WHEN ? = 1 THEN MAX(COALESCE(last_notification_ts, 0), ?)
+            ELSE last_notification_ts
+          END
         WHERE id = ?`,
       )
-      .run(params.timestamp, params.sessionId)
+      .run(params.timestamp, isNotification ? 1 : 0, params.timestamp, params.sessionId)
 
     return Number(result.lastInsertRowid)
+  }
+
+  async getSessionsWithPendingNotifications(sinceTs: number): Promise<any[]> {
+    // A session is "pending" when its most recent event is a
+    // Notification — i.e. last_activity equals last_notification_ts.
+    // `sinceTs` lets clients cheaply resume from their last-seen
+    // cursor on page load. The count subquery is O(k) where k is the
+    // number of events on the pending sessions (small N), and hits the
+    // existing (session_id, timestamp) index.
+    return this.db
+      .prepare(
+        `
+      SELECT
+        s.id as session_id,
+        s.project_id,
+        s.last_notification_ts,
+        (
+          SELECT COUNT(*) FROM events e
+          WHERE e.session_id = s.id
+            AND e.subtype = 'Notification'
+            AND e.timestamp > COALESCE(
+              (SELECT MAX(timestamp) FROM events e2
+                 WHERE e2.session_id = s.id
+                   AND COALESCE(e2.subtype, '') != 'Notification'),
+              0
+            )
+        ) AS count
+      FROM sessions s
+      WHERE s.last_notification_ts IS NOT NULL
+        AND s.last_activity = s.last_notification_ts
+        AND s.last_notification_ts > ?
+      ORDER BY s.last_notification_ts DESC
+    `,
+      )
+      .all(sinceTs)
   }
 
   async getProjects(): Promise<any[]> {

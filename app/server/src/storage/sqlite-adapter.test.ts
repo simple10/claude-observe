@@ -222,6 +222,106 @@ describe('SqliteAdapter — sessions', () => {
     expect(session.slug).toBe('new-slug')
   })
 
+  // -------------------------------------------------------------------------
+  // Pending-notification tracking: last_notification_ts + last_non_notification_ts
+  // are maintained on insertEvent; getSessionsWithPendingNotifications only
+  // surfaces sessions whose notification is newer than any other activity.
+  // -------------------------------------------------------------------------
+  async function insertNotification(sessionId: string, ts: number) {
+    await store.insertEvent({
+      agentId: sessionId,
+      sessionId,
+      type: 'hook',
+      subtype: 'Notification',
+      toolName: null,
+      timestamp: ts,
+      payload: {},
+    })
+  }
+  async function insertTool(sessionId: string, ts: number) {
+    await store.insertEvent({
+      agentId: sessionId,
+      sessionId,
+      type: 'hook',
+      subtype: 'PreToolUse',
+      toolName: 'Bash',
+      timestamp: ts,
+      payload: {},
+    })
+  }
+
+  test('getSessionsWithPendingNotifications — returns sessions with unresolved notifications', async () => {
+    const projId = await store.createProject('proj1', 'Project 1', null)
+    await store.upsertSession('sess1', projId, null, null, 100)
+    await store.upsertAgent('sess1', 'sess1', null, null, null)
+
+    await insertTool('sess1', 1000)
+    await insertNotification('sess1', 2000)
+
+    const rows = await store.getSessionsWithPendingNotifications(0)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].session_id).toBe('sess1')
+    expect(rows[0].project_id).toBe(projId)
+    expect(rows[0].last_notification_ts).toBe(2000)
+    expect(rows[0].count).toBe(1)
+  })
+
+  test('auto-clears once a non-notification event arrives after the notification', async () => {
+    const projId = await store.createProject('proj1', 'Project 1', null)
+    await store.upsertSession('sess1', projId, null, null, 100)
+    await store.upsertAgent('sess1', 'sess1', null, null, null)
+
+    await insertNotification('sess1', 2000)
+    await insertTool('sess1', 3000)
+
+    const rows = await store.getSessionsWithPendingNotifications(0)
+    expect(rows).toHaveLength(0)
+  })
+
+  test('respects the since cursor', async () => {
+    const projId = await store.createProject('proj1', 'Project 1', null)
+    await store.upsertSession('sess-a', projId, null, null, 100)
+    await store.upsertSession('sess-b', projId, null, null, 100)
+    await store.upsertAgent('sess-a', 'sess-a', null, null, null)
+    await store.upsertAgent('sess-b', 'sess-b', null, null, null)
+
+    await insertNotification('sess-a', 1500)
+    await insertNotification('sess-b', 2500)
+
+    const rows = await store.getSessionsWithPendingNotifications(2000)
+    expect(rows.map((r: any) => r.session_id)).toEqual(['sess-b'])
+  })
+
+  test('counts repeated notifications since last non-notification activity', async () => {
+    const projId = await store.createProject('proj1', 'Project 1', null)
+    await store.upsertSession('sess1', projId, null, null, 100)
+    await store.upsertAgent('sess1', 'sess1', null, null, null)
+
+    await insertTool('sess1', 500)
+    await insertNotification('sess1', 1000)
+    await insertNotification('sess1', 2000)
+    await insertNotification('sess1', 3000)
+
+    const rows = await store.getSessionsWithPendingNotifications(0)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].count).toBe(3)
+  })
+
+  test('count resets after a non-notification event clears the session', async () => {
+    const projId = await store.createProject('proj1', 'Project 1', null)
+    await store.upsertSession('sess1', projId, null, null, 100)
+    await store.upsertAgent('sess1', 'sess1', null, null, null)
+
+    await insertNotification('sess1', 1000)
+    await insertTool('sess1', 2000) // clears the session
+    await insertNotification('sess1', 3000) // new pending notification
+
+    const rows = await store.getSessionsWithPendingNotifications(0)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].count).toBe(1)
+    expect(rows[0].last_notification_ts).toBe(3000)
+  })
+
   test('upsertSession stores and preserves transcript_path', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000, '/path/to/session.jsonl')

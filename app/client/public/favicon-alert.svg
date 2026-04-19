@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="6" fill="#171717"/>
+  <g fill="#fbbf24" transform-origin="16 6">
+    <animateTransform
+      attributeName="transform"
+      type="rotate"
+      values="0 16 6; -15 16 6; 12 16 6; -8 16 6; 0 16 6"
+      keyTimes="0; 0.2; 0.5; 0.8; 1"
+      dur="0.9s"
+      repeatCount="indefinite"
+    />
+    <path d="M16 7c-3.3 0-6 2.7-6 6v5.3l-2 2V22h16v-1.7l-2-2V13c0-3.3-2.7-6-6-6z"/>
+    <circle cx="16" cy="25" r="2"/>
+  </g>
+</svg>
