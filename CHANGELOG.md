@@ -1,5 +1,48 @@
 # Changelog
 
+## v0.9.0 — Multi-agent support with Codex, notifications, and session bookmarking
+
+This release introduces a pluggable agent class registry with experimental Codex hook support, live notification indicators with an animated favicon and auto-dismiss, and session labels for cross-project bookmarking. Sessions now support forking, inline renaming from the sidebar, and browser back/forward navigation. Task events are grouped into a history view, MCP tool calls get distinct icon styling, and a new theme picker rounds out the settings modal.
+
+### Breaking Changes
+
+- The `getSessionInfo` callback is now agent-scoped and passes `agentClass`, `cwd`, and git metadata. The auto slug format changed to `<branch>:<uuidPrefix>:<agentShortName>` — integrators consuming the callback or parsing auto slugs will need to update to the new shape.
+
+### Features
+
+- Experimental Codex hook support and a new agent class registry that drives event rendering, filters, and UI hints per agent type
+- `AGENTS_OBSERVE_AGENT_CLASS` env var to tag sessions from the CLI; distinct `agentClasses[]` surfaced in session tooltips
+- Sidebar and main-panel notification indicators with auto-clear, auto-dismiss, and an animated favicon
+- Session labels for pinning and bookmarking sessions across projects
+- Fork command in the session modal details tab to resume a session as a new fork
+- Theme picker (light/dark/system) in the Settings Display tab
+- Dedup toggle in the Settings modal controlling event processing behavior
+- Task history view grouping events by `taskId` with pending/completed status and per-step descriptions
+- Double-click a session name in the sidebar to inline-rename it; click the name in the breadcrumb to copy the transcript path
+- Browser back and forward buttons now navigate between sessions, with forward history preserved
+- Bash tool call summaries show the parsed binary name as a distinct prefix
+- GPU-animated spinner on the Live/Rewind button during mode transitions
+- Projects are now resolved by `cwd`, with Codex date paths collapsed to `YYYY-MM-DD`
+
+### Fixes
+
+- Reliable auto-scroll to bottom and virtualizer reset when switching sessions
+- Rewind mode now uses a frozen event snapshot, preventing memory leaks from the live stream
+- Read events show file content and Edit events show the `structuredPatch` from the paired `PostToolUse`
+- Agent tool results now render from the paired `PostToolUse` payload
+- Icon and color customizations propagate immediately without triggering a re-render storm
+- Bash binary parser handles subshells, shell keywords, and validates output
+- Timeline dots no longer fail to appear mid-animation cycle, and re-scroll to bottom on tab visibility change when follow is on
+- Filter, search, and event detail rendering restored under the new agent class registry
+- Status icons now display correctly across all pending/running/completed/failed events, including task history
+- Dedup toggle persists to `localStorage` and reloads to avoid OOM
+
+### Other
+
+- Client rewired end-to-end through the agent class registry (event stream, framework components, event rendering) with a default `claude-code` agent module
+- Performance: incremental event processing, memoized rewind timeline, shared `EventStore` via React context, and icon resolution moved to render time
+- Styling and tooling cleanup: tool names inherit icon color, swapped Live/Rewind button colors, improved `check-hooks` script with blacklist/flagged output, and minor client formatting passes
+
 ## v0.8.6 — Session stats and UI polish
 
 This release introduces a new session stats tab showing sub-agent token usage and session metrics at a glance. It also adds convenient copy buttons for event details and improves overall UI responsiveness with smoother scrolling and better click interactions.
