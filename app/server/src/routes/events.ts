@@ -1,7 +1,7 @@
 // app/server/src/routes/events.ts
 import { Hono } from 'hono'
 import type { EventStore } from '../storage/types'
-import type { ParsedEvent } from '../types'
+import type { EventEnvelope, EventEnvelopeMeta, ParsedEvent } from '../types'
 import { parseRawEvent } from '../parser'
 import { resolveProject } from '../services/project-resolver'
 import { config } from '../config'
@@ -72,15 +72,14 @@ router.post('/events', async (c) => {
   const broadcastToAll = c.get('broadcastToAll')
 
   try {
-    const body = await c.req.json()
+    const body = (await c.req.json()) as Partial<EventEnvelope>
 
     if (!body.hook_payload) {
       return apiError(c, 400, 'Missing hook_payload in request body')
     }
 
     const hookPayload = body.hook_payload as Record<string, unknown>
-    const meta: { env?: Record<string, string>; agentClass?: string } =
-      (body.meta as { env?: Record<string, string>; agentClass?: string }) || {}
+    const meta: EventEnvelopeMeta = body.meta || {}
     const agentClass = meta.agentClass || 'claude-code'
 
     if (LOG_LEVEL === 'debug' || LOG_LEVEL === 'trace') {
@@ -299,7 +298,7 @@ router.post('/events', async (c) => {
     }
 
     const now = Date.now()
-    const eventId = await store.insertEvent({
+    const { eventId, notificationTransition } = await store.insertEvent({
       agentId,
       sessionId: parsed.sessionId,
       type: parsed.type,
@@ -308,6 +307,8 @@ router.post('/events', async (c) => {
       timestamp: parsed.timestamp,
       payload: parsed.raw,
       toolUseId: parsed.toolUseId,
+      isNotification: meta.isNotification,
+      clearsNotification: meta.clearsNotification,
     })
 
     const event: ParsedEvent = {
@@ -326,11 +327,11 @@ router.post('/events', async (c) => {
 
     broadcastToSession(parsed.sessionId, { type: 'event', data: event })
 
-    // Fan out sidebar notification signals to every connected client so
-    // bells can light up regardless of which session the viewer is on.
-    // Any non-Notification event also bubbles as a clear signal so the
-    // UI can auto-dismiss bells once the agent resumes working.
-    if (parsed.subtype === 'Notification') {
+    // Notification fan-out is driven by the storage-layer transition
+    // signal, not by subtype. The CLI is responsible for stamping
+    // meta.isNotification / meta.clearsNotification on the envelope;
+    // the server just broadcasts on actual state changes.
+    if (notificationTransition === 'set') {
       broadcastToAll({
         type: 'notification',
         data: {
@@ -339,7 +340,7 @@ router.post('/events', async (c) => {
           ts: parsed.timestamp,
         },
       })
-    } else {
+    } else if (notificationTransition === 'cleared') {
       broadcastToAll({
         type: 'notification_clear',
         data: {

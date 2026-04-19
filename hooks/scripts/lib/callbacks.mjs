@@ -1,12 +1,5 @@
 import { postJson } from './http.mjs'
-import * as claudeCode from './agents/claude-code.mjs'
-import * as codex from './agents/codex.mjs'
-
-/** Agent-specific callback modules keyed by agentClass. */
-const AGENT_LIBS = {
-  'claude-code': claudeCode,
-  codex: codex,
-}
+import { AGENT_LIBS } from './agents/index.mjs'
 
 /* Array of all available callbacks */
 export const ALL_CALLBACK_HANDLERS = ['getSessionInfo']

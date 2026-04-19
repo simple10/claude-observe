@@ -3,7 +3,10 @@ import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import { getSessionInfo } from '../../../../../hooks/scripts/lib/agents/claude-code.mjs'
+import {
+  buildHookEvent,
+  getSessionInfo,
+} from '../../../../../hooks/scripts/lib/agents/claude-code.mjs'
 
 function makeLog() {
   return {
@@ -88,5 +91,54 @@ describe('claude-code.getSessionInfo', () => {
     expect(result.slug).toBe('ok')
     expect(result.git.branch).toBeNull()
     rmSync(dir, { recursive: true, force: true })
+  })
+})
+
+describe('claude-code.buildHookEvent', () => {
+  const config = { agentClass: 'claude-code', projectSlug: 'my-proj' }
+
+  it('stamps agentClass and env on every envelope', () => {
+    const { envelope } = buildHookEvent(config, makeLog(), {
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+    })
+    expect(envelope.meta.agentClass).toBe('claude-code')
+    expect(envelope.meta.env.AGENTS_OBSERVE_PROJECT_SLUG).toBe('my-proj')
+    expect(envelope.hook_payload.hook_event_name).toBe('PreToolUse')
+  })
+
+  it('flags Notification events with isNotification:true', () => {
+    const { envelope } = buildHookEvent(config, makeLog(), { hook_event_name: 'Notification' })
+    expect(envelope.meta.isNotification).toBe(true)
+    expect(envelope.meta.clearsNotification).toBeUndefined()
+  })
+
+  it('flags SubagentStop events with clearsNotification:false', () => {
+    const { envelope } = buildHookEvent(config, makeLog(), { hook_event_name: 'SubagentStop' })
+    expect(envelope.meta.clearsNotification).toBe(false)
+    expect(envelope.meta.isNotification).toBeUndefined()
+  })
+
+  it('flags Stop events with clearsNotification:false', () => {
+    const { envelope } = buildHookEvent(config, makeLog(), { hook_event_name: 'Stop' })
+    expect(envelope.meta.clearsNotification).toBe(false)
+  })
+
+  it('leaves ordinary events unflagged (default-clears)', () => {
+    const cases = ['UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'SessionEnd']
+    for (const hook_event_name of cases) {
+      const { envelope } = buildHookEvent(config, makeLog(), { hook_event_name })
+      expect(envelope.meta.isNotification).toBeUndefined()
+      expect(envelope.meta.clearsNotification).toBeUndefined()
+    }
+  })
+
+  it('returns hookEvent and toolName for logging', () => {
+    const { hookEvent, toolName } = buildHookEvent(config, makeLog(), {
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+    })
+    expect(hookEvent).toBe('PreToolUse')
+    expect(toolName).toBe('Bash')
   })
 })

@@ -1,5 +1,39 @@
 import { readFileSync } from 'node:fs'
 
+function buildEnv(config) {
+  const env = {}
+  if (config?.projectSlug) {
+    env.AGENTS_OBSERVE_PROJECT_SLUG = config.projectSlug
+  }
+  return env
+}
+
+/**
+ * Build the event envelope for a Codex hook payload. Stubbed passthrough
+ * for v1 — Codex notification semantics need real-world testing before we
+ * map hook events to notification flags. For now, no flags means every
+ * Codex event defaults to "clears notification" (same as a Claude Code
+ * event without a specific flag), which is a safe no-op since Codex
+ * sessions never produce `isNotification: true` events today.
+ *
+ * @param {object} config
+ * @param {object} _log
+ * @param {object} hookPayload
+ * @returns {{ envelope: object, hookEvent: string, toolName: string }}
+ */
+export function buildHookEvent(config, _log, hookPayload) {
+  const hookEvent = hookPayload?.hook_event_name || 'unknown'
+  const toolName = hookPayload?.tool_name || hookPayload?.tool?.name || ''
+  const envelope = {
+    hook_payload: hookPayload,
+    meta: {
+      agentClass: 'codex',
+      env: buildEnv(config),
+    },
+  }
+  return { envelope, hookEvent, toolName }
+}
+
 /**
  * Scan a Codex transcript jsonl for session_meta git info. Example:
  *

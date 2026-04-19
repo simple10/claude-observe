@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-import { getSessionInfo } from '../../../../../hooks/scripts/lib/agents/codex.mjs'
+import { buildHookEvent, getSessionInfo } from '../../../../../hooks/scripts/lib/agents/codex.mjs'
 
 function makeLog() {
   return {
@@ -95,5 +95,22 @@ describe('codex.getSessionInfo', () => {
     const result = getSessionInfo({ transcript_path: path }, { log: makeLog() })
     expect(result.git.branch).toBe('ok')
     rmSync(dir, { recursive: true, force: true })
+  })
+})
+
+describe('codex.buildHookEvent', () => {
+  const config = { agentClass: 'codex', projectSlug: 'cdx-proj' }
+
+  it('builds a basic envelope with no notification flags', () => {
+    const { envelope, hookEvent, toolName } = buildHookEvent(config, makeLog(), {
+      hook_event_name: 'some-codex-event',
+      tool_name: 'shell',
+    })
+    expect(envelope.meta.agentClass).toBe('codex')
+    expect(envelope.meta.env.AGENTS_OBSERVE_PROJECT_SLUG).toBe('cdx-proj')
+    expect(envelope.meta.isNotification).toBeUndefined()
+    expect(envelope.meta.clearsNotification).toBeUndefined()
+    expect(hookEvent).toBe('some-codex-event')
+    expect(toolName).toBe('shell')
   })
 })

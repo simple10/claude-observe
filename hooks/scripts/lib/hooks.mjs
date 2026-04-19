@@ -5,27 +5,19 @@
 import { postJson, getJson } from './http.mjs'
 import { handleCallbackRequests } from './callbacks.mjs'
 import { startServer } from './docker.mjs'
+import { getAgentClass, getAgentLib } from './agents/index.mjs'
 
 // -- Helpers ----------------------------------------------------------
 
-function getHookEventName(hookPayload) {
-  return hookPayload.hook_event_name || 'unknown'
-}
-
-function buildEnvelope(config, hookPayload) {
-  const envelope = {
-    hook_payload: hookPayload,
-    meta: {
-      env: {},
-      agentClass: config.agentClass,
-    },
-  }
-
-  if (config.projectSlug) {
-    envelope.meta.env.AGENTS_OBSERVE_PROJECT_SLUG = config.projectSlug
-  }
-
-  return envelope
+/**
+ * Dispatch to the agent-class-specific `buildHookEvent` to produce the
+ * POST envelope. Returns { envelope, hookEvent, toolName } — the latter
+ * two are used only for local logging.
+ */
+function dispatchHookEvent(config, log, hookPayload) {
+  const agentClass = getAgentClass(config, log, hookPayload)
+  const lib = getAgentLib(agentClass)
+  return lib.buildHookEvent(config, log, hookPayload)
 }
 
 /**
@@ -78,11 +70,9 @@ async function sendHookSync(config, log) {
     return { result: null, envelope: null }
   }
 
-  const hookEvent = getHookEventName(hookPayload)
-  const toolName = hookPayload.tool_name || hookPayload.tool?.name || ''
+  const { envelope, hookEvent, toolName } = dispatchHookEvent(config, log, hookPayload)
   log.debug(`Hook event: ${hookEvent}${toolName ? ` tool=${toolName}` : ''}`)
 
-  const envelope = buildEnvelope(config, hookPayload)
   const result = await postJson(`${config.apiBaseUrl}/events`, envelope, { log })
   return { result, envelope }
 }
@@ -129,12 +119,10 @@ export function hookCommand(config, log) {
       return
     }
 
-    const hookEvent = getHookEventName(hookPayload)
-    const toolName = hookPayload.tool_name || hookPayload.tool?.name || ''
+    const { envelope, hookEvent, toolName } = dispatchHookEvent(config, log, hookPayload)
     log.debug(`Hook event: ${hookEvent}${toolName ? ` tool=${toolName}` : ''}`)
     log.trace(`Hook payload: ${input.trim().slice(0, 500)}`)
 
-    const envelope = buildEnvelope(config, hookPayload)
     postJson(`${config.apiBaseUrl}/events`, envelope, {
       fireAndForget: config.allowedCallbacks.size === 0,
       log,

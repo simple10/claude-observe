@@ -129,6 +129,69 @@ describe('observe_cli', () => {
       }
     })
 
+    it('stamps meta.isNotification on Notification events', async () => {
+      const mock = mockApiHandler({
+        'POST /api/events': { status: 201, body: { ok: true } },
+      })
+      const { server, url } = await startMockServer(mock.handler)
+
+      try {
+        await runCli(['hook'], {
+          stdin: JSON.stringify({ hook_event_name: 'Notification', session_id: 'test-n' }),
+          env: { AGENTS_OBSERVE_API_BASE_URL: `${url}/api` },
+        })
+        await new Promise((r) => setTimeout(r, 200))
+        const eventReq = mock.received.find((r) => r.url === '/api/events')
+        const parsed = JSON.parse(eventReq.body)
+        expect(parsed.meta.isNotification).toBe(true)
+        expect(parsed.meta.clearsNotification).toBeUndefined()
+      } finally {
+        server.close()
+      }
+    })
+
+    it('stamps meta.clearsNotification:false on SubagentStop events', async () => {
+      const mock = mockApiHandler({
+        'POST /api/events': { status: 201, body: { ok: true } },
+      })
+      const { server, url } = await startMockServer(mock.handler)
+
+      try {
+        await runCli(['hook'], {
+          stdin: JSON.stringify({ hook_event_name: 'SubagentStop', session_id: 'test-s' }),
+          env: { AGENTS_OBSERVE_API_BASE_URL: `${url}/api` },
+        })
+        await new Promise((r) => setTimeout(r, 200))
+        const eventReq = mock.received.find((r) => r.url === '/api/events')
+        const parsed = JSON.parse(eventReq.body)
+        expect(parsed.meta.clearsNotification).toBe(false)
+        expect(parsed.meta.isNotification).toBeUndefined()
+      } finally {
+        server.close()
+      }
+    })
+
+    it('leaves ordinary events unflagged', async () => {
+      const mock = mockApiHandler({
+        'POST /api/events': { status: 201, body: { ok: true } },
+      })
+      const { server, url } = await startMockServer(mock.handler)
+
+      try {
+        await runCli(['hook'], {
+          stdin: JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Bash' }),
+          env: { AGENTS_OBSERVE_API_BASE_URL: `${url}/api` },
+        })
+        await new Promise((r) => setTimeout(r, 200))
+        const eventReq = mock.received.find((r) => r.url === '/api/events')
+        const parsed = JSON.parse(eventReq.body)
+        expect(parsed.meta.isNotification).toBeUndefined()
+        expect(parsed.meta.clearsNotification).toBeUndefined()
+      } finally {
+        server.close()
+      }
+    })
+
     it('skips on empty stdin', async () => {
       const { code } = await runCli(['hook'], { stdin: '' })
       expect(code).toBe(0)

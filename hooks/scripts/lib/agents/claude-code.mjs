@@ -1,6 +1,59 @@
 import { readFileSync } from 'node:fs'
 
 /**
+ * Mapping from Claude Code hook event names to notification flags on the
+ * outgoing envelope. Only events that opt out of the default "clear"
+ * behavior or opt in to setting pending state appear here.
+ *
+ * - `Notification`: canonical "awaiting user" signal → `isNotification: true`.
+ * - `SubagentStop` / `Stop`: terminal lifecycle from the agent itself;
+ *   these must not clear a pending notification that was raised earlier.
+ *   Flagged `clearsNotification: false` so the server leaves state alone.
+ * - Everything else (UserPromptSubmit, PreToolUse, PostToolUse, ...)
+ *   uses default clearing behavior — the user or agent resumed activity,
+ *   so any pending bell should drop.
+ */
+const NOTIFICATION_FLAGS = {
+  Notification: { isNotification: true },
+  SubagentStop: { clearsNotification: false },
+  Stop: { clearsNotification: false },
+}
+
+function buildEnv(config) {
+  const env = {}
+  if (config?.projectSlug) {
+    env.AGENTS_OBSERVE_PROJECT_SLUG = config.projectSlug
+  }
+  return env
+}
+
+/**
+ * Build the event envelope for a Claude Code hook payload. Stamps the
+ * appropriate notification flags based on the hook event name so the
+ * server can apply them mechanically without knowing Claude-Code-specific
+ * semantics.
+ *
+ * @param {object} config
+ * @param {object} _log
+ * @param {object} hookPayload Raw hook payload from Claude Code.
+ * @returns {{ envelope: object, hookEvent: string, toolName: string }}
+ */
+export function buildHookEvent(config, _log, hookPayload) {
+  const hookEvent = hookPayload?.hook_event_name || 'unknown'
+  const toolName = hookPayload?.tool_name || hookPayload?.tool?.name || ''
+  const flags = NOTIFICATION_FLAGS[hookEvent] || {}
+  const envelope = {
+    hook_payload: hookPayload,
+    meta: {
+      agentClass: 'claude-code',
+      env: buildEnv(config),
+      ...flags,
+    },
+  }
+  return { envelope, hookEvent, toolName }
+}
+
+/**
  * Scan a Claude Code transcript jsonl for the session slug and the
  * git branch. Both fields are top-level on hook entries (e.g.
  * `{ "slug": "...", "gitBranch": "...", ... }`), so we read line-by-line

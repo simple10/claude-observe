@@ -4,7 +4,9 @@ import Database from 'better-sqlite3'
 import type {
   EventStore,
   InsertEventParams,
+  InsertEventResult,
   EventFilters,
+  NotificationTransition,
   StoredEvent,
   OrphanRepairResult,
 } from './types'
@@ -59,7 +61,7 @@ export class SqliteAdapter implements EventStore {
         event_count INTEGER NOT NULL DEFAULT 0,
         agent_count INTEGER NOT NULL DEFAULT 0,
         last_activity INTEGER,
-        last_notification_ts INTEGER,
+        pending_notification_ts INTEGER,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       )
@@ -82,23 +84,47 @@ export class SqliteAdapter implements EventStore {
           last_activity = (SELECT MAX(timestamp) FROM events WHERE session_id = sessions.id)
       `)
     }
-    // Notification tracking — `last_notification_ts` alongside the
-    // existing `last_activity` column is enough to test "pending":
-    // a session has a pending notification iff
-    //   last_notification_ts IS NOT NULL AND last_activity = last_notification_ts
-    // (the most recent event IS the notification). Any subsequent
-    // activity auto-clears by bumping `last_activity`.
-    if (!sessionCols.some((c) => c.name === 'last_notification_ts')) {
-      this.db.exec('ALTER TABLE sessions ADD COLUMN last_notification_ts INTEGER')
-      // Backfill from existing events
+    // Notification tracking — `pending_notification_ts` holds the ts of
+    // the event that put the session into "awaiting user" state. NULL
+    // means no pending notification. Flags on the incoming event envelope
+    // (meta.isNotification / meta.clearsNotification) decide transitions;
+    // the server never inspects the raw subtype for notification purposes.
+    const hasPending = sessionCols.some((c) => c.name === 'pending_notification_ts')
+    const hasLegacy = sessionCols.some((c) => c.name === 'last_notification_ts')
+    if (!hasPending && hasLegacy) {
+      // Rename the legacy column. Available in SQLite ≥3.25 (bundled with
+      // modern better-sqlite3). Defensive fallback: add/copy/drop.
+      try {
+        this.db.exec(
+          'ALTER TABLE sessions RENAME COLUMN last_notification_ts TO pending_notification_ts',
+        )
+      } catch {
+        this.db.exec('ALTER TABLE sessions ADD COLUMN pending_notification_ts INTEGER')
+        this.db.exec('UPDATE sessions SET pending_notification_ts = last_notification_ts')
+        this.db.exec('ALTER TABLE sessions DROP COLUMN last_notification_ts')
+      }
+    } else if (!hasPending) {
+      this.db.exec('ALTER TABLE sessions ADD COLUMN pending_notification_ts INTEGER')
+      // Fresh column → backfill from events (matches the legacy migration).
       this.db.exec(`
         UPDATE sessions SET
-          last_notification_ts = (
+          pending_notification_ts = (
             SELECT MAX(timestamp) FROM events
             WHERE session_id = sessions.id AND subtype = 'Notification'
           )
       `)
     }
+    // Sweep "already cleared" rows: pre-rename semantics said a row was
+    // pending only when the notification WAS the most recent event. Under
+    // the new semantics, any non-NULL value is pending, so we need to
+    // NULL-out rows where activity has moved past the notification.
+    this.db.exec(`
+      UPDATE sessions
+      SET pending_notification_ts = NULL
+      WHERE pending_notification_ts IS NOT NULL
+        AND last_activity IS NOT NULL
+        AND pending_notification_ts < last_activity
+    `)
 
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS agents (
@@ -363,7 +389,7 @@ export class SqliteAdapter implements EventStore {
       .run(name, Date.now(), agentId)
   }
 
-  async insertEvent(params: InsertEventParams): Promise<number> {
+  async insertEvent(params: InsertEventParams): Promise<InsertEventResult> {
     const now = Date.now()
     const result = this.db
       .prepare(
@@ -384,41 +410,69 @@ export class SqliteAdapter implements EventStore {
         params.toolUseId || null,
       )
 
-    // Update cached counters on session. `last_activity` is the
-    // max across all events; `last_notification_ts` only advances for
-    // Notification-subtype events. "Pending" is inferred from those
-    // two columns (see getSessionsWithPendingNotifications).
-    const isNotification = params.subtype === 'Notification'
-    this.db
-      .prepare(
-        `UPDATE sessions SET
-          event_count = event_count + 1,
-          last_activity = MAX(COALESCE(last_activity, 0), ?),
-          last_notification_ts = CASE
-            WHEN ? = 1 THEN MAX(COALESCE(last_notification_ts, 0), ?)
-            ELSE last_notification_ts
-          END
-        WHERE id = ?`,
-      )
-      .run(params.timestamp, isNotification ? 1 : 0, params.timestamp, params.sessionId)
+    // Read pending state BEFORE the session update so we can report the
+    // transition the caller needs to broadcast.
+    const before = this.db
+      .prepare('SELECT pending_notification_ts FROM sessions WHERE id = ?')
+      .get(params.sessionId) as { pending_notification_ts: number | null } | undefined
 
-    return Number(result.lastInsertRowid)
+    // Flag-driven state update. The server never inspects subtype for
+    // notification purposes — agent-class-specific semantics live in the
+    // CLI, which stamps meta.isNotification / meta.clearsNotification on
+    // the envelope.
+    let nextPendingTs: number | null | undefined
+    if (params.isNotification === true) {
+      nextPendingTs = params.timestamp
+    } else if (params.clearsNotification !== false) {
+      nextPendingTs = null
+    } else {
+      nextPendingTs = undefined // leave column alone
+    }
+
+    if (nextPendingTs === undefined) {
+      this.db
+        .prepare(
+          `UPDATE sessions SET
+            event_count = event_count + 1,
+            last_activity = MAX(COALESCE(last_activity, 0), ?)
+          WHERE id = ?`,
+        )
+        .run(params.timestamp, params.sessionId)
+    } else {
+      this.db
+        .prepare(
+          `UPDATE sessions SET
+            event_count = event_count + 1,
+            last_activity = MAX(COALESCE(last_activity, 0), ?),
+            pending_notification_ts = ?
+          WHERE id = ?`,
+        )
+        .run(params.timestamp, nextPendingTs, params.sessionId)
+    }
+
+    const beforeTs = before?.pending_notification_ts ?? null
+    const afterTs = nextPendingTs === undefined ? beforeTs : nextPendingTs
+    let notificationTransition: NotificationTransition
+    if (beforeTs === null && afterTs !== null) notificationTransition = 'set'
+    else if (beforeTs !== null && afterTs === null) notificationTransition = 'cleared'
+    else notificationTransition = 'none'
+
+    return { eventId: Number(result.lastInsertRowid), notificationTransition }
   }
 
   async getSessionsWithPendingNotifications(sinceTs: number): Promise<any[]> {
-    // A session is "pending" when its most recent event is a
-    // Notification — i.e. last_activity equals last_notification_ts.
-    // `sinceTs` lets clients cheaply resume from their last-seen
-    // cursor on page load. The count subquery is O(k) where k is the
-    // number of events on the pending sessions (small N), and hits the
-    // existing (session_id, timestamp) index.
+    // A session is "pending" when `pending_notification_ts` is set. The
+    // column is driven by envelope flags (meta.isNotification /
+    // meta.clearsNotification) at event-insert time. `sinceTs` lets
+    // clients resume from their last-seen cursor on page load. The count
+    // subquery is O(k) on events for pending sessions (small N).
     return this.db
       .prepare(
         `
       SELECT
         s.id as session_id,
         s.project_id,
-        s.last_notification_ts,
+        s.pending_notification_ts,
         (
           SELECT COUNT(*) FROM events e
           WHERE e.session_id = s.id
@@ -431,10 +485,9 @@ export class SqliteAdapter implements EventStore {
             )
         ) AS count
       FROM sessions s
-      WHERE s.last_notification_ts IS NOT NULL
-        AND s.last_activity = s.last_notification_ts
-        AND s.last_notification_ts > ?
-      ORDER BY s.last_notification_ts DESC
+      WHERE s.pending_notification_ts IS NOT NULL
+        AND s.pending_notification_ts > ?
+      ORDER BY s.pending_notification_ts DESC
     `,
       )
       .all(sinceTs)

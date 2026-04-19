@@ -26,7 +26,7 @@ describe('GET /api/notifications', () => {
       {
         session_id: 'sess-a',
         project_id: 42,
-        last_notification_ts: 1700000000000,
+        pending_notification_ts: 1700000000000,
         count: 2,
       },
     ])

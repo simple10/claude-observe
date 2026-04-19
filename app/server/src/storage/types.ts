@@ -9,6 +9,25 @@ export interface InsertEventParams {
   timestamp: number
   payload: Record<string, unknown>
   toolUseId?: string | null
+  /**
+   * When true, set `pending_notification_ts = timestamp`. When explicitly
+   * false (default for untagged events), clear it. When undefined AND the
+   * caller sets `notificationClears === false`, leave state alone.
+   */
+  isNotification?: boolean
+  /**
+   * When explicitly `false`, this event is neutral — it leaves
+   * `pending_notification_ts` untouched. Any other value applies the
+   * default "clear" behavior unless `isNotification` is true.
+   */
+  clearsNotification?: boolean
+}
+
+export type NotificationTransition = 'set' | 'cleared' | 'none'
+
+export interface InsertEventResult {
+  eventId: number
+  notificationTransition: NotificationTransition
 }
 
 export interface EventFilters {
@@ -74,7 +93,7 @@ export interface EventStore {
   updateSessionSlug(sessionId: string, slug: string): Promise<void>
   updateSessionProject(sessionId: string, projectId: number): Promise<void>
   updateAgentName(agentId: string, name: string): Promise<void>
-  insertEvent(params: InsertEventParams): Promise<number>
+  insertEvent(params: InsertEventParams): Promise<InsertEventResult>
   getProjects(): Promise<any[]>
   getSessionsForProject(projectId: number): Promise<any[]>
   getSessionById(sessionId: string): Promise<any | null>

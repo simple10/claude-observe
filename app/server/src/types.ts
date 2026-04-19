@@ -93,6 +93,30 @@ export interface ParsedEvent {
   payload: Record<string, unknown>
 }
 
+// === Event Envelope (CLI → server) ===
+
+export interface EventEnvelopeMeta {
+  agentClass?: string
+  env?: Record<string, string>
+  /**
+   * When true, this event marks the session as having a pending
+   * notification. The server sets `pending_notification_ts` to the event
+   * timestamp and broadcasts `notification` if the transition is new.
+   */
+  isNotification?: boolean
+  /**
+   * When explicitly `false`, this event does NOT clear a pending
+   * notification. Any other value (including undefined) lets the server
+   * apply the default clearing behavior.
+   */
+  clearsNotification?: boolean
+}
+
+export interface EventEnvelope {
+  hook_payload: Record<string, unknown>
+  meta?: EventEnvelopeMeta
+}
+
 // === WebSocket Message Types ===
 
 export type WSMessage =
