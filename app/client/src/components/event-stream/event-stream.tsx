@@ -114,8 +114,37 @@ export function EventStream() {
   ])
 
   const expandedEventIds = useUIStore((s) => s.expandedEventIds)
+  const lastExpandedEventId = useUIStore((s) => s.lastExpandedEventId)
   const scrollToEventId = useUIStore((s) => s.scrollToEventId)
   const setScrollToEventId = useUIStore((s) => s.setScrollToEventId)
+
+  // Keep the user's focused (last-expanded) row in view when they change
+  // search / filters. The `scrollToEventId` pipeline below resolves the
+  // target and no-ops if the row is filtered out, so edge cases (stale
+  // id, deleted event) fall through gracefully.
+  //
+  // We watch the DEFERRED filter values (not the raw ones) because
+  // `filteredEvents` is computed from deferred values. Firing on the
+  // raw filters would queue a scroll before React has had a chance to
+  // regenerate the filtered list, leading to positions that are off by
+  // multiple pages.
+  //
+  // lastExpandedEventId is read via a ref so expanding/collapsing a row
+  // doesn't re-fire this effect — only filter/search changes do.
+  const lastExpandedRef = useRef(lastExpandedEventId)
+  useEffect(() => {
+    lastExpandedRef.current = lastExpandedEventId
+  }, [lastExpandedEventId])
+  const firstFilterChangeRef = useRef(true)
+  useEffect(() => {
+    if (firstFilterChangeRef.current) {
+      firstFilterChangeRef.current = false
+      return
+    }
+    const id = lastExpandedRef.current
+    if (id == null) return
+    setScrollToEventId(id)
+  }, [deferredStaticFilters, deferredToolFilters, deferredSearchQuery, setScrollToEventId])
 
   const showAgentLabel = agents.length > 1
   const scrollRef = useRef<HTMLDivElement>(null)

@@ -88,6 +88,11 @@ interface UIState {
   // virtualizer scrolling — common when scrolling long distances in rewind.
   flashingEventId: number | null
   expandAllCounter: number // incremented to signal "expand all" to event stream
+  // The most recently expanded event id — the "row the user is focused
+  // on." Used to keep that row in view when filters/search change. Reset
+  // on explicit re-collapse of the same row, expand/collapse all, auto-
+  // follow re-enable, and session/project switches.
+  lastExpandedEventId: number | null
   toggleExpandedEvent: (id: number) => void
   collapseAllEvents: () => void
   requestExpandAll: () => void
@@ -266,6 +271,7 @@ export const useUIStore = create<UIState>((set, get) => ({
       selectedSessionId: null,
       selectedAgentIds: [],
       expandedEventIds: new Set(),
+      lastExpandedEventId: null,
       selectedEventId: null,
       scrollToEventId: null,
       sessionFilterStates: nextFilterStates,
@@ -298,6 +304,7 @@ export const useUIStore = create<UIState>((set, get) => ({
       selectedSessionId: id,
       selectedAgentIds: [],
       expandedEventIds: new Set(),
+      lastExpandedEventId: null,
       selectedEventId: null,
       scrollToEventId: null,
       sessionFilterStates: nextFilterStates,
@@ -354,20 +361,32 @@ export const useUIStore = create<UIState>((set, get) => ({
   expandedEventIds: new Set(),
   scrollToEventId: null,
   flashingEventId: null,
+  lastExpandedEventId: null,
   toggleExpandedEvent: (id) =>
     set((s) => {
       const next = new Set(s.expandedEventIds)
       const isExpanding = !next.has(id)
       if (isExpanding) next.add(id)
       else next.delete(id)
-      // Disable auto-follow when expanding a row
-      return { expandedEventIds: next, ...(isExpanding ? { autoFollow: false } : {}) }
+      // Expanding marks this row as the user's focus. Any collapse
+      // (even of a non-focused row) clears focus — the user is
+      // signaling "I'm done inspecting." Next expand sets a new focus.
+      return {
+        expandedEventIds: next,
+        lastExpandedEventId: isExpanding ? id : null,
+        ...(isExpanding ? { autoFollow: false } : {}),
+      }
     }),
   expandAllCounter: 0,
-  collapseAllEvents: () => set({ expandedEventIds: new Set() }),
+  collapseAllEvents: () => set({ expandedEventIds: new Set(), lastExpandedEventId: null }),
   requestExpandAll: () =>
-    set((s) => ({ expandAllCounter: s.expandAllCounter + 1, autoFollow: false })),
-  expandAllEvents: (ids: number[]) => set({ expandedEventIds: new Set(ids), autoFollow: false }),
+    set((s) => ({
+      expandAllCounter: s.expandAllCounter + 1,
+      autoFollow: false,
+      lastExpandedEventId: null,
+    })),
+  expandAllEvents: (ids: number[]) =>
+    set({ expandedEventIds: new Set(ids), autoFollow: false, lastExpandedEventId: null }),
   setScrollToEventId: (id) => set({ scrollToEventId: id }),
   setFlashingEventId: (id) => set({ flashingEventId: id }),
 
@@ -385,7 +404,13 @@ export const useUIStore = create<UIState>((set, get) => ({
   closeSettings: () => set({ settingsOpen: false }),
 
   autoFollow: true,
-  setAutoFollow: (enabled) => set({ autoFollow: enabled }),
+  setAutoFollow: (enabled) =>
+    set((s) => ({
+      autoFollow: enabled,
+      // Turning auto-follow back on is an explicit opt-out of the
+      // "stay on the row I was inspecting" behavior.
+      lastExpandedEventId: enabled ? null : s.lastExpandedEventId,
+    })),
 
   dedupEnabled: localStorage.getItem('agents-observe-dedup') !== 'off',
   setDedupEnabled: (enabled) => {

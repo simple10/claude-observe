@@ -39,6 +39,7 @@ beforeEach(() => {
     scrollToEventId: null,
     flashingEventId: null,
     expandAllCounter: 0,
+    lastExpandedEventId: null,
     selectedEventId: null,
     editingSessionId: null,
     editingSessionTab: 'details',
