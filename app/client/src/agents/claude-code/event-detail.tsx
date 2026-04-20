@@ -656,17 +656,27 @@ function ToolDetail({
   }
 
   if (event.subtype === 'PreCompact' || event.subtype === 'PostCompact') {
+    // After pairing, a PreCompact row's payload is merged with PostCompact's,
+    // so the fields below coexist and we render them together. When dedup is
+    // disabled, each event renders only its own fields. The row's spinner /
+    // checkmark conveys status, so there's no explicit Status line here.
+    const customInstructions = payload.custom_instructions
     return (
-      <div className="space-y-1">
-        <DetailRow
-          label="Status"
-          value={event.subtype === 'PreCompact' ? 'Compacting...' : 'Compacted'}
-        />
+      <div className="space-y-1.5">
+        {payload.trigger && <DetailRow label="Trigger" value={String(payload.trigger)} />}
+        {customInstructions ? (
+          <DetailCode label="Custom instructions" value={String(customInstructions)} />
+        ) : (
+          <DetailRow label="Custom instructions" value="—" />
+        )}
         {payload.tokens_before && (
           <DetailRow label="Tokens before" value={String(payload.tokens_before)} />
         )}
         {payload.tokens_after && (
           <DetailRow label="Tokens after" value={String(payload.tokens_after)} />
+        )}
+        {payload.compact_summary && (
+          <DetailCode label="Summary" value={String(payload.compact_summary)} />
         )}
       </div>
     )

@@ -99,6 +99,8 @@ function deriveStatus(subtype: string | null): EnrichedEvent['status'] {
   if (subtype === 'PreToolUse') return 'running'
   if (subtype === 'PostToolUse') return 'completed'
   if (subtype === 'PostToolUseFailure') return 'failed'
+  if (subtype === 'PreCompact') return 'running'
+  if (subtype === 'PostCompact') return 'completed'
   return 'completed'
 }
 
@@ -208,6 +210,40 @@ export function processEvent(raw: RawEvent, ctx: ProcessingContext): ProcessEven
           status: newStatus,
           searchText: preEvent.searchText + ' ' + (resultText?.toLowerCase() ?? ''),
         })
+      }
+    }
+
+    // Compact pairing — PreCompact / PostCompact have no linking id on
+    // their payload, so we stash a synthetic groupId under a per-agent
+    // pending key. Compaction is serial per agent, so one slot is enough.
+    // When PostCompact arrives we read the slot back, merge Post's payload
+    // into the Pre row (so the detail pane can show trigger +
+    // custom_instructions + compact_summary together), and hide the Post
+    // event from both streams.
+    if (subtype === 'PreCompact') {
+      groupId = `compact-${raw.id}`
+      ctx.setPendingGroup(`compact:${raw.agentId}`, groupId)
+    } else if (subtype === 'PostCompact') {
+      const pending = ctx.getPendingGroup(`compact:${raw.agentId}`)
+      if (pending) {
+        groupId = pending
+        ctx.clearPendingGroup(`compact:${raw.agentId}`)
+
+        const grouped = ctx.getGroupedEvents(groupId)
+        const preEvent = grouped.find((e) => e.subtype === 'PreCompact')
+        if (preEvent) {
+          displayEventStream = false
+          displayTimeline = false
+
+          const summaryText =
+            typeof p.compact_summary === 'string' ? p.compact_summary.toLowerCase() : ''
+          ctx.updateEvent(preEvent.id, {
+            status: 'completed',
+            payload: { ...preEvent.payload, ...p },
+            summary: 'Compacted context',
+            searchText: preEvent.searchText + (summaryText ? ' ' + summaryText : ''),
+          })
+        }
       }
     }
   }

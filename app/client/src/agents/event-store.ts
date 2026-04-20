@@ -13,6 +13,7 @@ export class EventStore {
   private turnIndex = new Map<string, EnrichedEvent[]>()
   private agentIndex = new Map<string, EnrichedEvent[]>()
   private currentTurns = new Map<string, string>()
+  private pendingGroups = new Map<string, string>()
   private pendingUpdates: Array<{ eventId: number; changes: Partial<EnrichedEvent> }> = []
   private dedupEnabled = true
 
@@ -141,6 +142,9 @@ export class EventStore {
       getCurrentTurn: (agentId) => this.currentTurns.get(agentId) ?? null,
       setCurrentTurn: (agentId, turnId) => this.currentTurns.set(agentId, turnId),
       clearCurrentTurn: (agentId) => this.currentTurns.delete(agentId),
+      getPendingGroup: (key) => this.pendingGroups.get(key) ?? null,
+      setPendingGroup: (key, groupId) => this.pendingGroups.set(key, groupId),
+      clearPendingGroup: (key) => this.pendingGroups.delete(key),
       updateEvent: (eventId, changes) => {
         this.pendingUpdates.push({ eventId, changes })
       },
@@ -189,6 +193,7 @@ export class EventStore {
     this.turnIndex.clear()
     this.agentIndex.clear()
     this.currentTurns.clear()
+    this.pendingGroups.clear()
     this.pendingUpdates = []
     this.lastProcessedCount = 0
   }

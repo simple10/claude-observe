@@ -60,11 +60,22 @@ export interface ProcessingContext {
   getGroupedEvents(groupId: string): EnrichedEvent[]
   getAgentEvents(agentId: string): EnrichedEvent[]
   getCurrentTurn(agentId: string): string | null
+  /**
+   * Look up a pending groupId stashed under an arbitrary key. Used for
+   * pairing two events that don't share a linking id on their payload
+   * (e.g. PreCompact / PostCompact). The caller chooses the key
+   * convention — typically `"<feature>:<agentId>"`.
+   */
+  getPendingGroup(key: string): string | null
 
   // Write
   updateEvent(eventId: number, changes: Partial<EnrichedEvent>): void
   setCurrentTurn(agentId: string, turnId: string): void
   clearCurrentTurn(agentId: string): void
+  /** Stash a groupId under an arbitrary key for later lookup via getPendingGroup. */
+  setPendingGroup(key: string, groupId: string): void
+  /** Forget a pending groupId. Called after the matching second event arrives. */
+  clearPendingGroup(key: string): void
 }
 
 // ---------------------------------------------------------------------------
