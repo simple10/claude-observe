@@ -9,12 +9,12 @@ function buildEnv(config) {
 }
 
 /**
- * Build the event envelope for a Codex hook payload. Stubbed passthrough
- * for v1 — Codex notification semantics need real-world testing before we
- * map hook events to notification flags. For now, no flags means every
- * Codex event defaults to "clears notification" (same as a Claude Code
- * event without a specific flag), which is a safe no-op since Codex
- * sessions never produce `isNotification: true` events today.
+ * Build the event envelope for a Codex hook payload. Currently a
+ * pass-through: no notification flags are stamped. This means every
+ * Codex event falls through to the server's default "clears
+ * notification" behavior — a safe no-op for sessions that never produce
+ * `isNotification: true` events. Mapping Codex hook events to flags is
+ * a future change that belongs here when its semantics are confirmed.
  *
  * @param {object} config
  * @param {object} _log

@@ -92,10 +92,10 @@ This matters because:
 
 ```
 Claude Code Hooks  →  observe_cli.mjs  →  API Server (SQLite)  →  React Dashboard
-    (dumb pipe)         (HTTP POST)        (parse + store)        (WebSocket live)
+  (agent-lib build)     (HTTP POST)        (parse + store)        (WebSocket live)
 ```
 
-The hook script is a dumb pipe — it reads the raw event from stdin, adds the project name, and POSTs it to the server. The server parses events, stores agent metadata (name, type, parentage), and forwards events to subscribed WebSocket clients. The React dashboard derives all agent state (status, event counts, timing) from the event stream — the server is a dumb store.
+`observe_cli.mjs` reads the raw event from stdin and dispatches to an agent-class-specific lib (`hooks/scripts/lib/agents/<class>.mjs`) whose `buildHookEvent()` constructs the envelope — including agent-class-aware flags like `meta.isNotification` / `meta.clearsNotification` — then POSTs it to the server. The server applies those flags mechanically to its stored state (e.g. `pending_notification_ts`) and forwards events to subscribed WebSocket clients; it stays agent-class-neutral. The React dashboard derives all agent state (status, event counts, timing) from the event stream.
 
 ## Standalone Installation
 
@@ -202,7 +202,7 @@ package.json                 # Version metadata and workspace scripts
 
 ## How it works
 
-**Hooks** fire on every Claude Code event (tool calls, prompts, stops, subagent lifecycle). The hook script reads the raw event from stdin, adds the project name, and POSTs it to the server. If the server needs additional data (like the session's human-readable slug), it responds with a request — the hook reads it from the local transcript file and sends it back.
+**Hooks** fire on every Claude Code event (tool calls, prompts, stops, subagent lifecycle). `observe_cli.mjs` reads the raw event from stdin and dispatches through `hooks/scripts/lib/agents/<class>.mjs` — each agent class's `buildHookEvent()` builds the envelope (project metadata plus agent-class-aware flags like `meta.isNotification` / `meta.clearsNotification`) and the CLI POSTs it to the server. If the server needs additional data (like the session's human-readable slug), it responds with a request — the hook reads it from the local transcript file and sends it back.
 
 **Server** receives raw events, extracts structural fields (type, tool name, agent ID), stores agent metadata (name, description, type, parentage), and saves everything in SQLite. Events are forwarded to WebSocket clients subscribed to the relevant session — each browser tab only receives events for the session it's viewing. The server tracks session status (active/stopped) but does not track agent status.
 

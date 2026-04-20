@@ -27,10 +27,13 @@ export interface DedupedEventsResult {
 
 /**
  * Dedupe tool events by merging PostToolUse into the corresponding PreToolUse row.
- * Also extracts subagent spawn info (parent tool use IDs + description/prompt).
  *
- * Used by both the event stream and the rewind timeline so they render the same
- * set of rows/dots.
+ * Currently only consumed by the rewind timeline (`timeline-rewind.tsx`) — the
+ * main event stream does its own dedup via the claude-code agent lib's
+ * `processEvent` (see `agents/claude-code/process-event.ts`). Only the
+ * `deduped` field is read by the caller; the other exports (`spawnToolUseIds`,
+ * `spawnInfo`, `mergedIdMap`, `pairedPayloads`) are currently unused and kept
+ * here pending a decision on whether to delete them.
  */
 export function useDedupedEvents(events: ParsedEvent[] | undefined): DedupedEventsResult {
   return useMemo(() => {

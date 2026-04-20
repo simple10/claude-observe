@@ -44,6 +44,7 @@ app/server/        # Hono server, SQLite, WebSocket
 app/client/        # React 19 + shadcn dashboard
 hooks/scripts/     # Hook script, CLI, MCP server
   lib/             # Shared libs: config, docker, fs, http, hooks, callbacks, logger
+    agents/        # Agent-class-specific libs (claude-code, codex, unknown)
 hooks/hooks.json   # Plugin hook definitions
 skills/            # /observe skill
 scripts/           # Release and test harness scripts

@@ -105,7 +105,11 @@ export class SqliteAdapter implements EventStore {
       }
     } else if (!hasPending) {
       this.db.exec('ALTER TABLE sessions ADD COLUMN pending_notification_ts INTEGER')
-      // Fresh column → backfill from events (matches the legacy migration).
+      // Fresh column on a pre-envelope-flags install → backfill from the
+      // events table as a one-time bootstrap. This is the ONLY place the
+      // server reads `subtype` to infer notification state; the sweep
+      // below corrects for the old pending-rule. After migration, state
+      // is driven entirely by envelope flags at event-insert time.
       this.db.exec(`
         UPDATE sessions SET
           pending_notification_ts = (
@@ -114,10 +118,11 @@ export class SqliteAdapter implements EventStore {
           )
       `)
     }
-    // Sweep "already cleared" rows: pre-rename semantics said a row was
-    // pending only when the notification WAS the most recent event. Under
-    // the new semantics, any non-NULL value is pending, so we need to
-    // NULL-out rows where activity has moved past the notification.
+    // One-time sweep of rows that looked "pending" under the pre-rename
+    // semantics (`last_activity == last_notification_ts` required). Under
+    // the new model, any non-NULL `pending_notification_ts` means pending,
+    // so rows where activity has moved past the notification get NULLed
+    // out here to preserve the "already cleared" state those rows had.
     this.db.exec(`
       UPDATE sessions
       SET pending_notification_ts = NULL
@@ -462,10 +467,18 @@ export class SqliteAdapter implements EventStore {
 
   async getSessionsWithPendingNotifications(sinceTs: number): Promise<any[]> {
     // A session is "pending" when `pending_notification_ts` is set. The
-    // column is driven by envelope flags (meta.isNotification /
-    // meta.clearsNotification) at event-insert time. `sinceTs` lets
-    // clients resume from their last-seen cursor on page load. The count
-    // subquery is O(k) on events for pending sessions (small N).
+    // column is driven entirely by envelope flags (meta.isNotification /
+    // meta.clearsNotification) at event-insert time — the WHERE clause
+    // below does not look at `subtype`.
+    //
+    // The `count` subquery is a pragmatic approximation of "how many
+    // Notifications piled up since the last clearing event." It still
+    // filters on subtype = 'Notification' because Claude Code emits both
+    // the subtype AND `isNotification:true` on the same event — so for
+    // Claude Code this count is accurate. Agent classes that produce
+    // "awaiting user" states without a 'Notification' subtype will get
+    // a count of 0 here; acceptable for v1. `sinceTs` is the client's
+    // last-seen cursor for resume on page load.
     return this.db
       .prepare(
         `
