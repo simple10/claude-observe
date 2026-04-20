@@ -141,4 +141,41 @@ describe('claude-code.buildHookEvent', () => {
     expect(hookEvent).toBe('PreToolUse')
     expect(toolName).toBe('Bash')
   })
+
+  describe('notificationOnEvents opt-in/opt-out', () => {
+    it('opting Stop into the list flags it as isNotification (overrides non-clearing default)', () => {
+      const optIn = { ...config, notificationOnEvents: ['Notification', 'Stop'] }
+      const { envelope } = buildHookEvent(optIn, makeLog(), { hook_event_name: 'Stop' })
+      expect(envelope.meta.isNotification).toBe(true)
+      expect(envelope.meta.clearsNotification).toBeUndefined()
+    })
+
+    it('opt-in list still leaves SubagentStop as non-clearing (not configurable)', () => {
+      const optIn = { ...config, notificationOnEvents: ['Notification', 'Stop'] }
+      const { envelope } = buildHookEvent(optIn, makeLog(), { hook_event_name: 'SubagentStop' })
+      expect(envelope.meta.isNotification).toBeUndefined()
+      expect(envelope.meta.clearsNotification).toBe(false)
+    })
+
+    it('empty list suppresses isNotification on every event', () => {
+      const optOut = { ...config, notificationOnEvents: [] }
+      const { envelope } = buildHookEvent(optOut, makeLog(), { hook_event_name: 'Notification' })
+      expect(envelope.meta.isNotification).toBeUndefined()
+    })
+
+    it('empty list still flags Stop / SubagentStop as non-clearing', () => {
+      const optOut = { ...config, notificationOnEvents: [] }
+      const stop = buildHookEvent(optOut, makeLog(), { hook_event_name: 'Stop' })
+      expect(stop.envelope.meta.clearsNotification).toBe(false)
+      const subStop = buildHookEvent(optOut, makeLog(), { hook_event_name: 'SubagentStop' })
+      expect(subStop.envelope.meta.clearsNotification).toBe(false)
+    })
+
+    it('empty list leaves ordinary events unflagged (defaults still clear)', () => {
+      const optOut = { ...config, notificationOnEvents: [] }
+      const { envelope } = buildHookEvent(optOut, makeLog(), { hook_event_name: 'PreToolUse' })
+      expect(envelope.meta.isNotification).toBeUndefined()
+      expect(envelope.meta.clearsNotification).toBeUndefined()
+    })
+  })
 })

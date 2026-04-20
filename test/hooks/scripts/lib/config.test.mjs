@@ -18,6 +18,7 @@ const envKeys = [
   'AGENTS_OBSERVE_DEV_CLIENT_PORT',
   'AGENTS_OBSERVE_ALLOW_LOCAL_CALLBACKS',
   'AGENTS_OBSERVE_HOOK_STARTUP_TIMEOUT',
+  'AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS',
 ]
 
 let savedEnv
@@ -366,6 +367,37 @@ describe('config', () => {
   it('accepts projectSlug via overrides', async () => {
     const cfg = await loadConfig({ projectSlug: 'override-slug' })
     expect(cfg.projectSlug).toBe('override-slug')
+  })
+
+  describe('notificationOnEvents', () => {
+    it('returns undefined when env var is unset', async () => {
+      const cfg = await loadConfig()
+      expect(cfg.notificationOnEvents).toBeUndefined()
+    })
+
+    it('returns an empty array when env var is set to empty string', async () => {
+      process.env.AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS = ''
+      const cfg = await loadConfig()
+      expect(cfg.notificationOnEvents).toEqual([])
+    })
+
+    it('parses a single name', async () => {
+      process.env.AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS = 'Notification'
+      const cfg = await loadConfig()
+      expect(cfg.notificationOnEvents).toEqual(['Notification'])
+    })
+
+    it('parses a comma-separated list and trims whitespace', async () => {
+      process.env.AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS = 'Notification, Stop ,  SubagentStop'
+      const cfg = await loadConfig()
+      expect(cfg.notificationOnEvents).toEqual(['Notification', 'Stop', 'SubagentStop'])
+    })
+
+    it('filters out blanks from separator-only input', async () => {
+      process.env.AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS = ' , ,  '
+      const cfg = await loadConfig()
+      expect(cfg.notificationOnEvents).toEqual([])
+    })
   })
 })
 

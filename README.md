@@ -131,10 +131,16 @@ Update the `$CLAUDE_PROJECT_DIR` paths to point to your agents-observe install l
 
 **Environment variables set in the config:**
 
+A few commonly used ones:
+
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `AGENTS_OBSERVE_SERVER_PORT` | `4981` | Server port. |
+| `AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS` | `Notification` | Comma-separated hook events that trigger the bell. Empty string disables bells. |
 | `AGENTS_OBSERVE_PROJECT_SLUG` | (auto-detected) | Project slug shown in the dashboard URL. If not set, derived from the session transcript path. |
-| `AGENTS_OBSERVE_API_BASE_URL` | `http://127.0.0.1:4981/api` | Full URL for the events endpoint |
+| `AGENTS_OBSERVE_API_BASE_URL` | `http://127.0.0.1:4981/api` | Full URL for the events endpoint. |
+
+See [`docs/ENVIRONMENT.md`](./docs/ENVIRONMENT.md) for the full list.
 
 ### 3. Verify it works
 
