@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { isNotificationEvent } from './index.mjs'
 
 function buildEnv(config) {
   const env = {}
@@ -9,12 +10,15 @@ function buildEnv(config) {
 }
 
 /**
- * Build the event envelope for a Codex hook payload. Currently a
- * pass-through: no notification flags are stamped. This means every
- * Codex event falls through to the server's default "clears
- * notification" behavior — a safe no-op for sessions that never produce
- * `isNotification: true` events. Mapping Codex hook events to flags is
- * a future change that belongs here when its semantics are confirmed.
+ * Build the event envelope for a Codex hook payload.
+ *
+ * Notification semantics: Codex has no native "awaiting user"
+ * equivalent of Claude Code's `Notification` hook, so by default every
+ * event clears any pending notification. Users can opt specific Codex
+ * hook events into triggering the bell via
+ * `AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS` — e.g. setting it to `Stop`
+ * will fire the bell when Codex finishes a turn. No NON_CLEARING set
+ * is maintained here; revisit when real-world Codex usage shows a need.
  *
  * @param {object} config
  * @param {object} _log
@@ -26,6 +30,12 @@ export function buildHookEvent(config, _log, hookPayload) {
   const toolName = hookPayload?.tool_name || hookPayload?.tool?.name || null
   const sessionId = hookPayload?.session_id || undefined
   const agentId = hookPayload?.agent_id || null
+
+  const flags = {}
+  if (isNotificationEvent(config, hookName, hookPayload)) {
+    flags.isNotification = true
+  }
+
   const envelope = {
     hook_payload: hookPayload,
     meta: {
@@ -37,6 +47,7 @@ export function buildHookEvent(config, _log, hookPayload) {
       toolName,
       sessionId,
       agentId,
+      ...flags,
     },
   }
   return { envelope, hookEvent: hookName, toolName: toolName || '' }
