@@ -183,7 +183,27 @@ export function parseRawEvent(
   }
 }
 
+// Guard against bogus future timestamps. A sentinel like `9999999999999`
+// (year 2286) injected by a test fixture — or a misconfigured CLI — will
+// poison downstream views that compute session spans (rewind timeline
+// blows the pixel budget; session sort orders get thrown off). We allow
+// up to 24h in the future to tolerate clock skew / timezone drift, then
+// clamp anything further to the ingest time.
+const FUTURE_TS_CAP_MS = 24 * 60 * 60 * 1000
+
 function parseTimestamp(ts: unknown): number {
+  const parsed = coerceTimestamp(ts)
+  const now = Date.now()
+  if (parsed > now + FUTURE_TS_CAP_MS) {
+    console.warn(
+      `[parser] Clamping future timestamp ${parsed} (>${FUTURE_TS_CAP_MS / 3600000}h ahead) to now=${now}`,
+    )
+    return now
+  }
+  return parsed
+}
+
+function coerceTimestamp(ts: unknown): number {
   if (typeof ts === 'number') return ts
   if (typeof ts === 'string') {
     const parsed = new Date(ts).getTime()

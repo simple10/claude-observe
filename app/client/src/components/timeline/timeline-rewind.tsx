@@ -15,6 +15,14 @@ const LABEL_WIDTH = 160 // px — matches the w-40 sticky label
 const LANE_HEIGHT = 32 // px — matches h-8
 const LEFT_PADDING = 20 // px — gap between sticky label and first dot
 
+// Upper bound on the horizontal scroll container. Rewind lays events
+// out at `pixelsPerMs` per millisecond of session span; a session with
+// a poisoned (far-future) timestamp produces widths of 10^10+ pixels
+// which OOMs the browser. A session spanning an entire year at a 10m
+// view range is still well under 100M px, so the cap is both defensive
+// and generous for legitimate workloads.
+const MAX_TOTAL_WIDTH_PX = 10_000_000
+
 /**
  * Find the index of the first event whose timestamp is >= targetTs.
  * Events must be sorted ascending by timestamp. Returns -1 if none found.
@@ -112,9 +120,13 @@ export const TimelineRewind = memo(function TimelineRewind({
     [eventsByAgent, setScrollToEventId],
   )
 
-  // Tick marks: one per "time range" unit along the timeline
+  // Tick marks: one per "time range" unit along the timeline. Short-
+  // circuits when `totalWidth` exceeds the cap — with a poisoned future
+  // timestamp, `tickCount` would be in the tens of millions and the
+  // loop below OOMs. The render-time guard below can't save us here
+  // because React evaluates every useMemo before reaching the return.
   const ticks = useMemo(() => {
-    if (totalWidth === 0) return []
+    if (totalWidth === 0 || totalWidth > MAX_TOTAL_WIDTH_PX) return []
     const result: { left: number; label: string }[] = []
     const tickIntervalMs = getRangeMs(timeRange) / 6 // 6 ticks per viewport width
     const span = (deduped[deduped.length - 1]?.timestamp ?? 0) - sessionStart
@@ -192,6 +204,23 @@ export const TimelineRewind = memo(function TimelineRewind({
     return (
       <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
         No events in this session
+      </div>
+    )
+  }
+
+  // Guard against sessions with a poisoned timestamp (e.g. a manually
+  // injected debug event at 9999999999999). Rendering a DOM element
+  // billions of pixels wide OOMs the browser. Server-side
+  // `parseTimestamp` clamps new events, but existing bad data in the DB
+  // still needs this fallback.
+  if (totalWidth > MAX_TOTAL_WIDTH_PX) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-1 p-4 text-center text-xs text-muted-foreground">
+        <div className="font-medium text-foreground">Can't render rewind for this session</div>
+        <div>
+          Session span is too large — likely one or more events have an invalid timestamp far in the
+          future.
+        </div>
       </div>
     )
   }
