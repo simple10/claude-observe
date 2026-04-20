@@ -60,23 +60,9 @@ start.mjs          # Local server entrypoint (non-Docker)
 
 ## Environment Variables
 
-All env vars are read in `hooks/scripts/lib/config.mjs` (centralized — never read `process.env` elsewhere).
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AGENTS_OBSERVE_SERVER_PORT` | `4981` | Server port (dev + Docker) |
-| `AGENTS_OBSERVE_DEV_CLIENT_PORT` | `5174` | Vite dev client port |
-| `AGENTS_OBSERVE_RUNTIME` | `docker` | Runtime mode: `docker` or `local` |
-| `AGENTS_OBSERVE_SHUTDOWN_DELAY_MS` | `30000` | Auto-shutdown delay after last consumer disconnects. `0` disables |
-| `AGENTS_OBSERVE_PROJECT_SLUG` | (auto-detected) | Project slug in dashboard URL |
-| `AGENTS_OBSERVE_API_BASE_URL` | `http://127.0.0.1:4981/api` | API endpoint (set for remote servers) |
-| `AGENTS_OBSERVE_LOG_LEVEL` | `warn` | Log level: `warn`, `debug`, or `trace` |
-| `AGENTS_OBSERVE_DATA_DIR` | `<data-root>/data` | SQLite database directory |
-| `AGENTS_OBSERVE_LOCAL_DATA_ROOT` | (auto-detected) | Root for data, logs, and port file |
-| `AGENTS_OBSERVE_HOOK_STARTUP_TIMEOUT` | `30000` | Max ms for hook-autostart to wait for server |
-| `AGENTS_OBSERVE_DOCKER_IMAGE` | `ghcr.io/simple10/agents-observe:v<version>` | Docker image override |
-| `AGENTS_OBSERVE_DOCKER_CONTAINER_NAME` | `agents-observe` | Container name override |
-| `AGENTS_OBSERVE_TEST_SKIP_PULL` | (unset) | Set to `1` to skip docker pull (test harness only) |
+All CLI env vars are read in `hooks/scripts/lib/config.mjs`; server env
+vars in `app/server/src/config.ts`. For the authoritative list of every
+env var the project reads, see [`ENVIRONMENT.md`](./ENVIRONMENT.md).
 
 ## Worktrees
 

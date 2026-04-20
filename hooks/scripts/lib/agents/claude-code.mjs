@@ -1,23 +1,17 @@
 import { readFileSync } from 'node:fs'
+import { isNotificationEvent } from './index.mjs'
 
 /**
- * Mapping from Claude Code hook event names to notification flags on the
- * outgoing envelope. Only events that opt out of the default "clear"
- * behavior or opt in to setting pending state appear here.
+ * Hook events that must not clear a pending notification. Terminal
+ * lifecycle events from the agent itself — e.g. a subagent's
+ * `SubagentStop` firing after the main agent's `Notification` — should
+ * leave bell state alone rather than wiping the pending flag.
  *
- * - `Notification`: canonical "awaiting user" signal → `isNotification: true`.
- * - `SubagentStop` / `Stop`: terminal lifecycle from the agent itself;
- *   these must not clear a pending notification that was raised earlier.
- *   Flagged `clearsNotification: false` so the server leaves state alone.
- * - Everything else (UserPromptSubmit, PreToolUse, PostToolUse, ...)
- *   uses default clearing behavior — the user or agent resumed activity,
- *   so any pending bell should drop.
+ * `isNotificationEvent` wins over this set: if a user opts `Stop` into
+ * `AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS`, Stop stamps `isNotification`
+ * instead of being treated as non-clearing. SubagentStop stays fixed.
  */
-const NOTIFICATION_FLAGS = {
-  Notification: { isNotification: true },
-  SubagentStop: { clearsNotification: false },
-  Stop: { clearsNotification: false },
-}
+const NON_CLEARING_EVENTS = new Set(['SubagentStop', 'Stop'])
 
 /**
  * Map a Claude Code hook event name to a normalized `{ type, subtype }`
@@ -78,7 +72,15 @@ export function buildHookEvent(config, _log, hookPayload) {
   const agentId = hookPayload?.agent_id || null
   const { type, subtype } = deriveTypeSubtype(hookName)
 
-  const flags = NOTIFICATION_FLAGS[hookName] || {}
+  // isNotificationEvent wins over NON_CLEARING_EVENTS: if a user opts
+  // `Stop` into AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS, Stop stamps
+  // isNotification instead of being treated as non-clearing.
+  const flags = {}
+  if (isNotificationEvent(config, hookName, hookPayload)) {
+    flags.isNotification = true
+  } else if (NON_CLEARING_EVENTS.has(hookName)) {
+    flags.clearsNotification = false
+  }
 
   const envelope = {
     hook_payload: hookPayload,

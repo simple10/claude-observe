@@ -13,6 +13,29 @@ export const AGENT_LIBS = {
 }
 
 /**
+ * Default list of hook events that mark the session as awaiting-user
+ * when AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS is unset.
+ */
+export const DEFAULT_NOTIFICATION_EVENTS = ['Notification']
+
+/**
+ * True if the given hook event should stamp `meta.isNotification: true`
+ * on the outgoing envelope. Agent libs call this from `buildHookEvent`.
+ *
+ * Consults `config.notificationOnEvents`:
+ *   - undefined  → fall back to DEFAULT_NOTIFICATION_EVENTS
+ *   - []         → no events ever set pending (explicit opt-out)
+ *   - [names...] → any matching name triggers pending
+ *
+ * The `_hookPayload` argument is currently unused but included so future
+ * payload-sniffing heuristics don't require a call-site migration.
+ */
+export function isNotificationEvent(config, hookEvent, _hookPayload) {
+  const events = config?.notificationOnEvents ?? DEFAULT_NOTIFICATION_EVENTS
+  return events.includes(hookEvent)
+}
+
+/**
  * Pick the agent class for an outgoing hook event. Today this simply
  * trusts `config.agentClass` (set via env var or project override) and
  * falls back to 'unknown' for anything we don't recognize. The signature

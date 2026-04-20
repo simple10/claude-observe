@@ -73,6 +73,19 @@ export function getConfig(overrides = {}) {
     process.env.AGENTS_OBSERVE_DOCKER_IMAGE ||
     `ghcr.io/simple10/agents-observe:${version ? `v${version}` : 'latest'}`
 
+  // Notification trigger list. Three states — preserve the distinction:
+  //   undefined  → agent-lib falls back to its default (['Notification'])
+  //   []         → user opted out of all bells (explicit empty env var)
+  //   [names...] → explicit list
+  const rawNotificationOnEvents = process.env.AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS
+  const notificationOnEvents =
+    rawNotificationOnEvents === undefined
+      ? undefined
+      : rawNotificationOnEvents
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+
   const allowedCallbacksRaw = (process.env.AGENTS_OBSERVE_ALLOW_LOCAL_CALLBACKS ?? 'all').trim()
   const allowedCallbacks = new Set(
     allowedCallbacksRaw.toLowerCase() === 'all'
@@ -106,6 +119,13 @@ export function getConfig(overrides = {}) {
       process.env.AGENTS_OBSERVE_DEV_CLIENT_PORT || (runtime === 'dev' ? '5174' : serverPort),
 
     agentClass: overrides.agentClass || process.env.AGENTS_OBSERVE_AGENT_CLASS || 'claude-code',
+
+    /**
+     * Hook events that should stamp `meta.isNotification: true` on the
+     * outgoing envelope. `undefined` = agent-lib default. Empty array =
+     * explicit opt-out (no bells). See docs/ENVIRONMENT.md.
+     */
+    notificationOnEvents,
 
     cliPath: resolve(installDir, './hooks/scripts/observe_cli.mjs'),
     logLevel: (overrides.logLevel || process.env.AGENTS_OBSERVE_LOG_LEVEL || 'warn').toLowerCase(),
