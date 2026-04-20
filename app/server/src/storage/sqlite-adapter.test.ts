@@ -544,7 +544,8 @@ describe('SqliteAdapter — events', () => {
     expect(id2).toBe(id1 + 1)
   })
 
-  test('insertEvent with toolUseId', async () => {
+  test('insertEvent preserves tool_use_id in the stored payload', async () => {
+    // tool_use_id is no longer its own column — it lives in payload.
     const { sessionId, rootAgentId } = await seedBasic()
     await store.insertEvent({
       agentId: rootAgentId,
@@ -553,13 +554,72 @@ describe('SqliteAdapter — events', () => {
       subtype: 'PreToolUse',
       toolName: 'Read',
       timestamp: 1000,
-      payload: {},
-      toolUseId: 'toolu_abc123',
+      payload: { tool_use_id: 'toolu_abc123' },
     })
 
     const events = await store.getEventsForSession(sessionId)
     expect(events).toHaveLength(1)
-    expect(events[0].tool_use_id).toBe('toolu_abc123')
+    const payload = JSON.parse(events[0].payload) as Record<string, unknown>
+    expect(payload.tool_use_id).toBe('toolu_abc123')
+  })
+
+  test('insertEvent stores hookName in the hook_name column', async () => {
+    const { sessionId, rootAgentId } = await seedBasic()
+    await store.insertEvent({
+      agentId: rootAgentId,
+      sessionId,
+      hookName: 'PreToolUse',
+      type: 'tool',
+      subtype: 'PreToolUse',
+      toolName: 'Bash',
+      timestamp: 1000,
+      payload: {},
+    })
+    const events = await store.getEventsForSession(sessionId)
+    expect(events[0].hook_name).toBe('PreToolUse')
+  })
+
+  test('insertEvent defaults hook_name to null when hookName omitted', async () => {
+    const { sessionId, rootAgentId } = await seedBasic()
+    await store.insertEvent({
+      agentId: rootAgentId,
+      sessionId,
+      type: 'user',
+      subtype: 'UserPromptSubmit',
+      toolName: null,
+      timestamp: 1000,
+      payload: {},
+    })
+    const events = await store.getEventsForSession(sessionId)
+    expect(events[0].hook_name).toBeNull()
+  })
+
+  test('getEventsForSession filters by hookName', async () => {
+    const { sessionId, rootAgentId } = await seedBasic()
+    await store.insertEvent({
+      agentId: rootAgentId,
+      sessionId,
+      hookName: 'PreToolUse',
+      type: 'tool',
+      subtype: 'PreToolUse',
+      toolName: 'Bash',
+      timestamp: 1000,
+      payload: {},
+    })
+    await store.insertEvent({
+      agentId: rootAgentId,
+      sessionId,
+      hookName: 'Stop',
+      type: 'system',
+      subtype: 'Stop',
+      toolName: null,
+      timestamp: 2000,
+      payload: {},
+    })
+
+    const onlyStop = await store.getEventsForSession(sessionId, { hookName: 'Stop' })
+    expect(onlyStop).toHaveLength(1)
+    expect(onlyStop[0].hook_name).toBe('Stop')
   })
 
   test('insertEvent sets created_at', async () => {

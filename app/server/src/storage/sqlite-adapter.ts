@@ -166,13 +166,13 @@ export class SqliteAdapter implements EventStore {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         agent_id TEXT NOT NULL,
         session_id TEXT NOT NULL,
+        hook_name TEXT,
         type TEXT NOT NULL,
         subtype TEXT,
         tool_name TEXT,
         timestamp INTEGER NOT NULL,
         created_at INTEGER NOT NULL,
         payload TEXT NOT NULL,
-        tool_use_id TEXT,
         FOREIGN KEY (agent_id) REFERENCES agents(id),
         FOREIGN KEY (session_id) REFERENCES sessions(id)
       )
@@ -191,6 +191,66 @@ export class SqliteAdapter implements EventStore {
       this.db.exec('ALTER TABLE events DROP COLUMN status')
     }
 
+    // Migration: add hook_name column, backfill from payload's
+    // `hook_event_name` for existing rows. After migration, value is
+    // stamped at insert time from the CLI-supplied envelope meta.
+    if (!eventCols.some((c) => c.name === 'hook_name')) {
+      this.db.exec('ALTER TABLE events ADD COLUMN hook_name TEXT')
+      // One-time bootstrap for existing rows: extract from JSON payload.
+      this.db.exec(`
+        UPDATE events
+        SET hook_name = json_extract(payload, '$.hook_event_name')
+        WHERE hook_name IS NULL
+      `)
+    }
+
+    // Migration: drop tool_use_id column. The server never queries on
+    // it (verified: zero WHERE clauses). The client reads the raw
+    // `tool_use_id` from `payload` directly for Pre/Post tool pairing
+    // (groupId in the agent-class processEvent). Server's subagent
+    // pairing in events.ts also reads from payload at ingest.
+    if (eventCols.some((c) => c.name === 'tool_use_id')) {
+      this.db.exec('DROP INDEX IF EXISTS idx_events_tool_use_id')
+      try {
+        this.db.exec('ALTER TABLE events DROP COLUMN tool_use_id')
+      } catch {
+        // Older SQLite without DROP COLUMN — recreate the table sans
+        // the column. Uses the new schema (no tool_use_id) declared
+        // above at CREATE TABLE IF NOT EXISTS. This only triggers on
+        // pre-3.35 SQLite which modern better-sqlite3 doesn't bundle,
+        // but we keep the fallback defensive.
+        this.db.exec('BEGIN')
+        try {
+          this.db.exec(`
+            CREATE TABLE events_new (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              agent_id TEXT NOT NULL,
+              session_id TEXT NOT NULL,
+              hook_name TEXT,
+              type TEXT NOT NULL,
+              subtype TEXT,
+              tool_name TEXT,
+              timestamp INTEGER NOT NULL,
+              created_at INTEGER NOT NULL,
+              payload TEXT NOT NULL,
+              FOREIGN KEY (agent_id) REFERENCES agents(id),
+              FOREIGN KEY (session_id) REFERENCES sessions(id)
+            )
+          `)
+          this.db.exec(`
+            INSERT INTO events_new (id, agent_id, session_id, hook_name, type, subtype, tool_name, timestamp, created_at, payload)
+            SELECT id, agent_id, session_id, hook_name, type, subtype, tool_name, timestamp, created_at, payload FROM events
+          `)
+          this.db.exec('DROP TABLE events')
+          this.db.exec('ALTER TABLE events_new RENAME TO events')
+          this.db.exec('COMMIT')
+        } catch (err) {
+          this.db.exec('ROLLBACK')
+          throw err
+        }
+      }
+    }
+
     // Create indexes
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug)')
     this.db.exec(
@@ -203,7 +263,7 @@ export class SqliteAdapter implements EventStore {
     this.db.exec(
       'CREATE INDEX IF NOT EXISTS idx_events_session_agent ON events(session_id, agent_id, timestamp)',
     )
-    this.db.exec('CREATE INDEX IF NOT EXISTS idx_events_tool_use_id ON events(tool_use_id)')
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_events_hook_name ON events(hook_name)')
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_agents_session ON agents(session_id)')
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_agents_parent ON agents(parent_agent_id)')
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id)')
@@ -399,20 +459,20 @@ export class SqliteAdapter implements EventStore {
     const result = this.db
       .prepare(
         `
-      INSERT INTO events (agent_id, session_id, type, subtype, tool_name, timestamp, created_at, payload, tool_use_id)
+      INSERT INTO events (agent_id, session_id, hook_name, type, subtype, tool_name, timestamp, created_at, payload)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
       )
       .run(
         params.agentId,
         params.sessionId,
+        params.hookName ?? null,
         params.type,
         params.subtype,
         params.toolName,
         params.timestamp,
         now,
         JSON.stringify(params.payload),
-        params.toolUseId || null,
       )
 
     // Read pending state BEFORE the session update so we can report the
@@ -570,6 +630,11 @@ export class SqliteAdapter implements EventStore {
     if (filters?.subtype) {
       sql += ' AND subtype = ?'
       params.push(filters.subtype)
+    }
+
+    if (filters?.hookName) {
+      sql += ' AND hook_name = ?'
+      params.push(filters.hookName)
     }
 
     if (filters?.search) {

@@ -117,7 +117,9 @@ export function processEvent(raw: RawEvent, ctx: ProcessingContext): ProcessEven
   const p = raw.payload as Record<string, any>
   const subtype = raw.subtype
   const toolName = raw.toolName
-  const toolUseId = raw.toolUseId
+  // tool_use_id is Claude-Code-specific — read from payload directly
+  // rather than a top-level field. Used for Pre/Post pairing groupId.
+  const toolUseId: string | null = typeof p.tool_use_id === 'string' ? p.tool_use_id : null
 
   // Resolve icon and color
   const icon = getEventIcon(subtype, toolName)

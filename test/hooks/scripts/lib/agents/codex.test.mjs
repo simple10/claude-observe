@@ -113,4 +113,20 @@ describe('codex.buildHookEvent', () => {
     expect(hookEvent).toBe('some-codex-event')
     expect(toolName).toBe('shell')
   })
+
+  it('stamps hookName / toolName / sessionId / agentId from payload', () => {
+    const { envelope } = buildHookEvent(config, makeLog(), {
+      hook_event_name: 'codex-turn-end',
+      tool_name: 'shell',
+      session_id: 'cdx-sess-1',
+      agent_id: 'cdx-sub-1',
+    })
+    expect(envelope.meta.hookName).toBe('codex-turn-end')
+    expect(envelope.meta.toolName).toBe('shell')
+    expect(envelope.meta.sessionId).toBe('cdx-sess-1')
+    expect(envelope.meta.agentId).toBe('cdx-sub-1')
+    // Codex doesn't map type / subtype yet — both stay undefined.
+    expect(envelope.meta.type).toBeUndefined()
+    expect(envelope.meta.subtype).toBeUndefined()
+  })
 })

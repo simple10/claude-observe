@@ -111,7 +111,7 @@ router.post('/events', async (c) => {
       }
     }
 
-    const parsed = parseRawEvent(hookPayload)
+    const parsed = parseRawEvent(hookPayload, meta)
     const eventCwd = (parsed.metadata.cwd as string | undefined) ?? null
 
     // Resolve project - only on first event for this session
@@ -188,14 +188,21 @@ router.post('/events', async (c) => {
     // We store it both by toolUseId (for definitive lookup at PostToolUse) and
     // in a per-session FIFO queue (for early naming when subagent events arrive
     // before PostToolUse, since those events don't carry the parent tool_use_id).
+    //
+    // `tool_use_id` is no longer a column and no longer on ParsedEvent —
+    // we read it from the raw payload at ingest time for this in-memory
+    // pairing map. This logic is Claude-Code-specific and stays
+    // server-side until a larger route-layer refactor moves it into an
+    // agent-class registry.
+    const payloadToolUseId = (hookPayload.tool_use_id as string | undefined) || null
     if (parsed.subtype === 'PreToolUse' && parsed.toolName === 'Agent') {
       const meta: PendingAgentMeta = {
         name: parsed.subAgentName,
         description: parsed.subAgentDescription,
       }
       if (meta.name || meta.description) {
-        if (parsed.toolUseId) {
-          pendingAgentMeta.set(parsed.toolUseId, meta)
+        if (payloadToolUseId) {
+          pendingAgentMeta.set(payloadToolUseId, meta)
         }
         const queue = pendingAgentMetaQueue.get(parsed.sessionId) || []
         queue.push(meta)
@@ -203,8 +210,8 @@ router.post('/events', async (c) => {
       }
       // Stash agent type from tool_input.subagent_type
       const agentType = (hookPayload as any)?.tool_input?.subagent_type
-      if (agentType && parsed.toolUseId) {
-        pendingAgentTypes.set(parsed.toolUseId, agentType)
+      if (agentType && payloadToolUseId) {
+        pendingAgentTypes.set(payloadToolUseId, agentType)
       }
     }
 
@@ -255,22 +262,22 @@ router.post('/events', async (c) => {
       let subAgentName = parsed.subAgentName
       let subAgentDescription = parsed.subAgentDescription
       let subAgentType: string | null = (hookPayload as any)?.agent_type ?? null
-      if (parsed.subtype === 'PostToolUse' && parsed.toolName === 'Agent' && parsed.toolUseId) {
-        const metaFromPre = pendingAgentMeta.get(parsed.toolUseId)
+      if (parsed.subtype === 'PostToolUse' && parsed.toolName === 'Agent' && payloadToolUseId) {
+        const metaFromPre = pendingAgentMeta.get(payloadToolUseId)
         if (metaFromPre) {
           subAgentName = subAgentName || metaFromPre.name
           subAgentDescription = subAgentDescription || metaFromPre.description
-          pendingAgentMeta.delete(parsed.toolUseId)
+          pendingAgentMeta.delete(payloadToolUseId)
         }
         // Agent type: prefer stashed value from PreToolUse, then tool_input/tool_response
         const toolResponse = (hookPayload as any)?.tool_response
         subAgentType =
-          pendingAgentTypes.get(parsed.toolUseId) ??
+          pendingAgentTypes.get(payloadToolUseId) ??
           (hookPayload as any)?.tool_input?.subagent_type ??
           toolResponse?.agentType ??
           toolResponse?.subagent_type ??
           subAgentType
-        pendingAgentTypes.delete(parsed.toolUseId)
+        pendingAgentTypes.delete(payloadToolUseId)
       }
 
       await store.upsertAgent(
@@ -312,12 +319,12 @@ router.post('/events', async (c) => {
     const { eventId, notificationTransition } = await store.insertEvent({
       agentId,
       sessionId: parsed.sessionId,
+      hookName: parsed.hookName,
       type: parsed.type,
       subtype: parsed.subtype,
       toolName: parsed.toolName,
       timestamp: parsed.timestamp,
       payload: parsed.raw,
-      toolUseId: parsed.toolUseId,
       isNotification: meta.isNotification,
       clearsNotification: meta.clearsNotification,
     })
@@ -326,10 +333,10 @@ router.post('/events', async (c) => {
       id: eventId,
       agentId,
       sessionId: parsed.sessionId,
+      hookName: parsed.hookName,
       type: parsed.type,
       subtype: parsed.subtype,
       toolName: parsed.toolName,
-      toolUseId: parsed.toolUseId,
       status: deriveEventStatus(parsed.subtype),
       timestamp: parsed.timestamp,
       createdAt: now,
@@ -414,10 +421,10 @@ router.get('/events/:id/thread', async (c) => {
     id: r.id,
     agentId: r.agent_id,
     sessionId: r.session_id,
+    hookName: r.hook_name ?? null,
     type: r.type,
     subtype: r.subtype,
     toolName: r.tool_name,
-    toolUseId: r.tool_use_id || null,
     status: deriveEventStatus(r.subtype),
     timestamp: r.timestamp,
     createdAt: r.created_at || r.timestamp,

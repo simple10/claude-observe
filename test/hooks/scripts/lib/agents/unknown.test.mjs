@@ -30,6 +30,21 @@ describe('unknown.buildHookEvent', () => {
     const { envelope } = buildHookEvent(null, makeLog(), {})
     expect(envelope.meta.agentClass).toBe('unknown')
   })
+
+  it('stamps hookName / toolName / sessionId / agentId from standard payload keys', () => {
+    const { envelope } = buildHookEvent({ agentClass: 'unknown' }, makeLog(), {
+      hook_event_name: 'SomeHook',
+      tool_name: 'Bash',
+      session_id: 'sess-1',
+      agent_id: 'sub-1',
+    })
+    expect(envelope.meta.hookName).toBe('SomeHook')
+    expect(envelope.meta.toolName).toBe('Bash')
+    expect(envelope.meta.sessionId).toBe('sess-1')
+    expect(envelope.meta.agentId).toBe('sub-1')
+    expect(envelope.meta.type).toBeUndefined()
+    expect(envelope.meta.subtype).toBeUndefined()
+  })
 })
 
 describe('unknown.getSessionInfo', () => {

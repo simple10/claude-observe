@@ -1,5 +1,69 @@
 import { describe, test, expect } from 'vitest'
 import { parseRawEvent } from './parser'
+import type { EventEnvelopeMeta } from './types'
+
+/**
+ * Mimic the CLI's claude-code `buildHookEvent` for test inputs — keeps the
+ * tests terse while exercising the real meta-first parser contract. For
+ * non-hook (transcript-JSONL) payloads returns undefined so the parser
+ * falls back to raw-payload-only behavior.
+ */
+function stamp(raw: Record<string, unknown>): EventEnvelopeMeta | undefined {
+  const hookName = raw.hook_event_name as string | undefined
+  if (!hookName) return undefined
+  const toolName = (raw.tool_name as string | undefined) ?? null
+  const sessionId = raw.session_id as string | undefined
+  const agentId = (raw.agent_id as string | undefined) ?? null
+  let type: string
+  let subtype: string | null
+  switch (hookName) {
+    case 'SessionStart':
+      type = 'session'
+      subtype = 'SessionStart'
+      break
+    case 'UserPromptSubmit':
+      type = 'user'
+      subtype = 'UserPromptSubmit'
+      break
+    case 'PreToolUse':
+      type = 'tool'
+      subtype = 'PreToolUse'
+      break
+    case 'PostToolUse':
+      type = 'tool'
+      subtype = 'PostToolUse'
+      break
+    case 'PostToolUseFailure':
+      type = 'tool'
+      subtype = 'PostToolUseFailure'
+      break
+    case 'Stop':
+      type = 'system'
+      subtype = 'Stop'
+      break
+    case 'SubagentStop':
+      type = 'system'
+      subtype = 'SubagentStop'
+      break
+    case 'Notification':
+      type = 'system'
+      subtype = 'Notification'
+      break
+    default:
+      type = 'system'
+      subtype = hookName
+      break
+  }
+  return {
+    agentClass: 'claude-code',
+    hookName,
+    type,
+    subtype,
+    toolName,
+    sessionId,
+    agentId,
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Transcript JSONL format
@@ -22,7 +86,7 @@ describe('parseRawEvent — transcript JSONL format', () => {
       entrypoint: 'cli',
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.projectName).toBe('my-project')
     expect(result.sessionId).toBe('sess-123')
     expect(result.slug).toBe('twinkly-dragon')
@@ -53,7 +117,7 @@ describe('parseRawEvent — transcript JSONL format', () => {
       },
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.type).toBe('assistant')
     expect(result.toolName).toBe('Agent')
     expect(result.subAgentName).toBeNull()
@@ -78,7 +142,7 @@ describe('parseRawEvent — transcript JSONL format', () => {
       },
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.type).toBe('assistant')
     expect(result.toolName).toBe('Bash')
     expect(result.subAgentName).toBeNull()
@@ -97,7 +161,7 @@ describe('parseRawEvent — transcript JSONL format', () => {
       timestamp: '2026-03-25T22:24:25.482Z',
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.type).toBe('progress')
     expect(result.subtype).toBe('PreToolUse')
     expect(result.toolName).toBe('Agent')
@@ -116,7 +180,7 @@ describe('parseRawEvent — transcript JSONL format', () => {
       timestamp: '2026-03-25T22:24:39.271Z',
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.subtype).toBe('Stop')
     expect(result.toolName).toBeNull()
   })
@@ -136,7 +200,7 @@ describe('parseRawEvent — transcript JSONL format', () => {
       timestamp: '2026-03-25T22:24:25.614Z',
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.subAgentId).toBe('ad03a9f1e00dc2c79')
     expect(result.type).toBe('progress')
     expect(result.subtype).toBe('agent_progress')
@@ -162,7 +226,7 @@ describe('parseRawEvent — transcript JSONL format', () => {
       timestamp: 1711411200000,
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.subtype).toBe('agent_progress')
     expect(result.subAgentId).toBe('sub-agent-1')
     expect(result.toolName).toBe('Bash')
@@ -185,7 +249,7 @@ describe('parseRawEvent — transcript JSONL format', () => {
       timestamp: 1711411200000,
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.toolName).toBeNull()
   })
 
@@ -213,7 +277,7 @@ describe('parseRawEvent — transcript JSONL format', () => {
       timestamp: '2026-03-25T22:24:31.920Z',
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.subAgentId).toBe('ad03a9f1e00dc2c79')
   })
 
@@ -228,7 +292,7 @@ describe('parseRawEvent — transcript JSONL format', () => {
       timestamp: 1711411200000,
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.subAgentId).toBeNull()
   })
 
@@ -242,7 +306,7 @@ describe('parseRawEvent — transcript JSONL format', () => {
       hookCount: 2,
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.type).toBe('system')
     expect(result.subtype).toBe('stop_hook_summary')
   })
@@ -265,7 +329,7 @@ describe('parseRawEvent — hook format', () => {
       permissionMode: 'auto',
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.type).toBe('session')
     expect(result.subtype).toBe('SessionStart')
     expect(result.projectName).toBe('hook-proj')
@@ -290,7 +354,7 @@ describe('parseRawEvent — hook format', () => {
       timestamp: 1711411201000,
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.type).toBe('user')
     expect(result.subtype).toBe('UserPromptSubmit')
   })
@@ -305,7 +369,7 @@ describe('parseRawEvent — hook format', () => {
       timestamp: 1711411202000,
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.type).toBe('tool')
     expect(result.subtype).toBe('PreToolUse')
     expect(result.toolName).toBe('Bash')
@@ -322,7 +386,7 @@ describe('parseRawEvent — hook format', () => {
       timestamp: 1711411202000,
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.type).toBe('tool')
     expect(result.subtype).toBe('PreToolUse')
     expect(result.toolName).toBe('Agent')
@@ -342,7 +406,7 @@ describe('parseRawEvent — hook format', () => {
       timestamp: 1711411203000,
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.type).toBe('tool')
     expect(result.subtype).toBe('PostToolUse')
     expect(result.toolName).toBe('Read')
@@ -365,7 +429,7 @@ describe('parseRawEvent — hook format', () => {
       timestamp: 1711411203000,
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.type).toBe('tool')
     expect(result.subtype).toBe('PostToolUse')
     expect(result.toolName).toBe('Agent')
@@ -384,7 +448,7 @@ describe('parseRawEvent — hook format', () => {
       timestamp: 1711411203000,
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.toolName).toBe('Agent')
     expect(result.subAgentId).toBeNull()
     expect(result.subAgentName).toBeNull()
@@ -398,7 +462,7 @@ describe('parseRawEvent — hook format', () => {
       timestamp: 1711411204000,
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.type).toBe('system')
     expect(result.subtype).toBe('Stop')
   })
@@ -412,7 +476,7 @@ describe('parseRawEvent — hook format', () => {
       timestamp: 1711411205000,
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.type).toBe('system')
     expect(result.subtype).toBe('SubagentStop')
     expect(result.subAgentId).toBe('sub-agent-xyz')
@@ -429,7 +493,7 @@ describe('parseRawEvent — hook format', () => {
       timestamp: 1711411206000,
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.type).toBe('tool')
     expect(result.subtype).toBe('PostToolUseFailure')
     expect(result.toolName).toBe('Bash')
@@ -443,7 +507,7 @@ describe('parseRawEvent — hook format', () => {
       timestamp: 1711411207000,
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.type).toBe('system')
     expect(result.subtype).toBe('Notification')
   })
@@ -456,7 +520,7 @@ describe('parseRawEvent — hook format', () => {
       timestamp: 1711411208000,
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.type).toBe('system')
     expect(result.subtype).toBe('FutureEvent')
   })
@@ -471,13 +535,15 @@ describe('parseRawEvent — hook format', () => {
       timestamp: 1711411209000,
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.ownerAgentId).toBe('sub-agent-owner')
     expect(result.type).toBe('tool')
     expect(result.subtype).toBe('PreToolUse')
   })
 
-  test('hook event extracts tool_use_id', () => {
+  test('hook event preserves tool_use_id in the raw payload for downstream consumers', () => {
+    // tool_use_id is no longer extracted to a column or to ParsedEvent —
+    // it lives only in raw.payload. Verify it survives round-trip.
     const raw = {
       hook_event_name: 'PreToolUse',
       project_name: 'hook-proj',
@@ -487,8 +553,8 @@ describe('parseRawEvent — hook format', () => {
       timestamp: 1711411210000,
     }
 
-    const result = parseRawEvent(raw)
-    expect(result.toolUseId).toBe('toolu_12345')
+    const result = parseRawEvent(raw, stamp(raw))
+    expect((result.raw as Record<string, unknown>).tool_use_id).toBe('toolu_12345')
   })
 
   test('hook event — extracts transcript_path', () => {
@@ -511,6 +577,66 @@ describe('parseRawEvent — hook format', () => {
     })
     expect(parsed.transcriptPath).toBeNull()
   })
+
+  // --- Meta-first contract ---
+
+  test('reads hookName / type / subtype / toolName from envelope meta (meta wins)', () => {
+    // Payload says PreToolUse but meta says something else — meta wins.
+    const raw = {
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+      session_id: 'sess-1',
+      timestamp: 1000,
+    }
+    const meta: EventEnvelopeMeta = {
+      hookName: 'Override',
+      type: 'custom',
+      subtype: 'Override',
+      toolName: 'OverriddenTool',
+    }
+    const parsed = parseRawEvent(raw, meta)
+    expect(parsed.hookName).toBe('Override')
+    expect(parsed.type).toBe('custom')
+    expect(parsed.subtype).toBe('Override')
+    expect(parsed.toolName).toBe('OverriddenTool')
+  })
+
+  test('falls back to raw payload when meta is absent', () => {
+    const raw = {
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+      session_id: 'sess-1',
+      timestamp: 1000,
+    }
+    const parsed = parseRawEvent(raw) // no meta
+    expect(parsed.hookName).toBe('PreToolUse')
+    // type / subtype default when no meta — no server-side switch
+    expect(parsed.type).toBe('system')
+    expect(parsed.subtype).toBe('PreToolUse')
+    // toolName still comes from payload fallback
+    expect(parsed.toolName).toBe('Bash')
+    // sessionId still extracted from payload fallback
+    expect(parsed.sessionId).toBe('sess-1')
+  })
+
+  test('meta.agentId takes precedence over raw.agent_id', () => {
+    const raw = {
+      hook_event_name: 'SubagentStop',
+      session_id: 'sess-1',
+      agent_id: 'payload-agent',
+      timestamp: 1000,
+    }
+    const meta: EventEnvelopeMeta = {
+      hookName: 'SubagentStop',
+      type: 'system',
+      subtype: 'SubagentStop',
+      agentId: 'meta-agent',
+    }
+    const parsed = parseRawEvent(raw, meta)
+    expect(parsed.ownerAgentId).toBe('meta-agent')
+    // Subagent extraction still runs from raw payload for the pairing map.
+    expect(parsed.subAgentId).toBe('payload-agent')
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -532,7 +658,7 @@ describe('parseRawEvent — common behavior', () => {
       permission_mode: 'auto_accept',
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.metadata).toEqual({
       version: '2.2.0',
       gitBranch: 'main',
@@ -552,7 +678,7 @@ describe('parseRawEvent — common behavior', () => {
       timestamp: 1711411200000,
     }
 
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.metadata).toEqual({})
   })
 
@@ -563,13 +689,13 @@ describe('parseRawEvent — common behavior', () => {
 
   test('defaults sessionId to "unknown" when session_id is absent', () => {
     const raw = { project_name: 'p', type: 'user', timestamp: 1711411200000 }
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.sessionId).toBe('unknown')
   })
 
   test('slug is null when not provided', () => {
     const raw = { project_name: 'p', session_id: 's', type: 'user', timestamp: 1711411200000 }
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.slug).toBeNull()
   })
 
@@ -581,7 +707,7 @@ describe('parseRawEvent — common behavior', () => {
       timestamp: 1711411200000,
       custom_field: 'hello',
     }
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.raw).toBe(raw)
   })
 })
@@ -592,7 +718,7 @@ describe('parseRawEvent — common behavior', () => {
 describe('parseRawEvent — timestamp parsing', () => {
   test('numeric timestamp is used directly', () => {
     const raw = { project_name: 'p', session_id: 's', type: 'user', timestamp: 1711411200000 }
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.timestamp).toBe(1711411200000)
   })
 
@@ -603,14 +729,14 @@ describe('parseRawEvent — timestamp parsing', () => {
       type: 'user',
       timestamp: '2026-03-25T22:24:17.686Z',
     }
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.timestamp).toBe(new Date('2026-03-25T22:24:17.686Z').getTime())
   })
 
   test('invalid string timestamp falls back to Date.now()', () => {
     const now = Date.now()
     const raw = { project_name: 'p', session_id: 's', type: 'user', timestamp: 'not-a-date' }
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     // Should be close to now (within 1 second)
     expect(result.timestamp).toBeGreaterThanOrEqual(now - 1000)
     expect(result.timestamp).toBeLessThanOrEqual(now + 1000)
@@ -619,7 +745,7 @@ describe('parseRawEvent — timestamp parsing', () => {
   test('missing timestamp falls back to Date.now()', () => {
     const now = Date.now()
     const raw = { project_name: 'p', session_id: 's', type: 'user' }
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.timestamp).toBeGreaterThanOrEqual(now - 1000)
     expect(result.timestamp).toBeLessThanOrEqual(now + 1000)
   })
@@ -627,7 +753,7 @@ describe('parseRawEvent — timestamp parsing', () => {
   test('null timestamp falls back to Date.now()', () => {
     const now = Date.now()
     const raw = { project_name: 'p', session_id: 's', type: 'user', timestamp: null }
-    const result = parseRawEvent(raw)
+    const result = parseRawEvent(raw, stamp(raw))
     expect(result.timestamp).toBeGreaterThanOrEqual(now - 1000)
     expect(result.timestamp).toBeLessThanOrEqual(now + 1000)
   })

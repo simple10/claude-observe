@@ -13,6 +13,12 @@ import type {
 
 export function processEvent(raw: RawEvent, ctx: ProcessingContext): ProcessEventResult {
   const turnId = ctx.getCurrentTurn(raw.agentId)
+  // Some agent classes carry tool_use_id on the payload under that exact
+  // key; the default processor surfaces it as the groupId for Pre/Post
+  // pairing. Reads from payload rather than a top-level field because the
+  // server no longer promotes tool_use_id to a column.
+  const payloadToolUseId = (raw.payload as Record<string, unknown>).tool_use_id
+  const toolUseId = typeof payloadToolUseId === 'string' ? payloadToolUseId : null
 
   const enriched: EnrichedEvent = {
     id: raw.id,
@@ -22,13 +28,13 @@ export function processEvent(raw: RawEvent, ctx: ProcessingContext): ProcessEven
     createdAt: raw.createdAt,
     type: raw.type,
     subtype: raw.subtype,
-    groupId: raw.toolUseId,
+    groupId: toolUseId,
     turnId,
     displayEventStream: true,
     displayTimeline: true,
     label: raw.subtype || raw.type || 'Event',
     toolName: raw.toolName,
-    toolUseId: raw.toolUseId,
+    toolUseId,
     icon: null,
     iconColor: 'text-muted-foreground',
     dedupMode: ctx.dedupEnabled,

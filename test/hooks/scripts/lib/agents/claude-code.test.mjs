@@ -141,4 +141,82 @@ describe('claude-code.buildHookEvent', () => {
     expect(hookEvent).toBe('PreToolUse')
     expect(toolName).toBe('Bash')
   })
+
+  describe('event descriptors (hookName / type / subtype / toolName / sessionId / agentId)', () => {
+    it('stamps hookName, type, subtype for PreToolUse', () => {
+      const { envelope } = buildHookEvent(config, makeLog(), {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Bash',
+        session_id: 'sess-1',
+      })
+      expect(envelope.meta.hookName).toBe('PreToolUse')
+      expect(envelope.meta.type).toBe('tool')
+      expect(envelope.meta.subtype).toBe('PreToolUse')
+      expect(envelope.meta.toolName).toBe('Bash')
+      expect(envelope.meta.sessionId).toBe('sess-1')
+      expect(envelope.meta.agentId).toBeNull()
+    })
+
+    it('maps each hook event to the expected type/subtype pair', () => {
+      const cases = [
+        ['SessionStart', 'session', 'SessionStart'],
+        ['UserPromptSubmit', 'user', 'UserPromptSubmit'],
+        ['PreToolUse', 'tool', 'PreToolUse'],
+        ['PostToolUse', 'tool', 'PostToolUse'],
+        ['PostToolUseFailure', 'tool', 'PostToolUseFailure'],
+        ['Stop', 'system', 'Stop'],
+        ['SubagentStop', 'system', 'SubagentStop'],
+        ['Notification', 'system', 'Notification'],
+      ]
+      for (const [hook_event_name, expectedType, expectedSubtype] of cases) {
+        const { envelope } = buildHookEvent(config, makeLog(), { hook_event_name })
+        expect(envelope.meta.type).toBe(expectedType)
+        expect(envelope.meta.subtype).toBe(expectedSubtype)
+      }
+    })
+
+    it('falls through unknown hook events to system/<hookName>', () => {
+      const { envelope } = buildHookEvent(config, makeLog(), {
+        hook_event_name: 'SomeFutureHook',
+      })
+      expect(envelope.meta.type).toBe('system')
+      expect(envelope.meta.subtype).toBe('SomeFutureHook')
+    })
+
+    it('stamps agentId from payload for subagent events', () => {
+      const { envelope } = buildHookEvent(config, makeLog(), {
+        hook_event_name: 'SubagentStop',
+        session_id: 'sess-1',
+        agent_id: 'sub-uuid-42',
+      })
+      expect(envelope.meta.agentId).toBe('sub-uuid-42')
+    })
+
+    it('leaves agentId null for main-agent events (no agent_id in payload)', () => {
+      const { envelope } = buildHookEvent(config, makeLog(), {
+        hook_event_name: 'UserPromptSubmit',
+        session_id: 'sess-1',
+      })
+      expect(envelope.meta.agentId).toBeNull()
+    })
+
+    it('does NOT stamp toolUseId (client reads from payload)', () => {
+      const { envelope } = buildHookEvent(config, makeLog(), {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Bash',
+        tool_use_id: 'tool-123',
+        session_id: 'sess-1',
+      })
+      expect(envelope.meta).not.toHaveProperty('toolUseId')
+      // payload still carries it for the client to read
+      expect(envelope.hook_payload.tool_use_id).toBe('tool-123')
+    })
+
+    it('sets toolName to null for non-tool events', () => {
+      const { envelope } = buildHookEvent(config, makeLog(), {
+        hook_event_name: 'UserPromptSubmit',
+      })
+      expect(envelope.meta.toolName).toBeNull()
+    })
+  })
 })

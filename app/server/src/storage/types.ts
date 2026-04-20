@@ -3,12 +3,13 @@
 export interface InsertEventParams {
   agentId: string
   sessionId: string
+  /** Raw hook event name from the CLI-stamped envelope, or null. */
+  hookName?: string | null
   type: string
   subtype: string | null
   toolName: string | null
   timestamp: number
   payload: Record<string, unknown>
-  toolUseId?: string | null
   /**
    * When true, set `pending_notification_ts = timestamp`. When explicitly
    * false (default for untagged events), clear it. When undefined AND the
@@ -34,6 +35,7 @@ export interface EventFilters {
   agentIds?: string[]
   type?: string
   subtype?: string
+  hookName?: string
   search?: string
   limit?: number
   offset?: number
@@ -43,10 +45,10 @@ export interface StoredEvent {
   id: number
   agent_id: string
   session_id: string
+  hook_name: string | null
   type: string
   subtype: string | null
   tool_name: string | null
-  tool_use_id: string | null
   timestamp: number
   created_at: number
   payload: string // JSON string in DB

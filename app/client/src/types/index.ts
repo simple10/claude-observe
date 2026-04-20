@@ -55,10 +55,10 @@ export interface ParsedEvent {
   id: number
   agentId: string
   sessionId: string
+  hookName: string | null
   type: string
   subtype: string | null
   toolName: string | null
-  toolUseId: string | null
   status: string
   timestamp: number
   createdAt: number

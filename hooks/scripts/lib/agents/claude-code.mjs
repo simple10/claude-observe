@@ -19,6 +19,36 @@ const NOTIFICATION_FLAGS = {
   Stop: { clearsNotification: false },
 }
 
+/**
+ * Map a Claude Code hook event name to a normalized `{ type, subtype }`
+ * pair. Ported verbatim from the server's old parser switch — this
+ * replaces the server-side derivation so the server stays
+ * agent-class-neutral. Unknown hook events fall through to
+ * `{ type: 'system', subtype: <hookName> }`, same default the parser used.
+ */
+function deriveTypeSubtype(hookName) {
+  switch (hookName) {
+    case 'SessionStart':
+      return { type: 'session', subtype: 'SessionStart' }
+    case 'UserPromptSubmit':
+      return { type: 'user', subtype: 'UserPromptSubmit' }
+    case 'PreToolUse':
+      return { type: 'tool', subtype: 'PreToolUse' }
+    case 'PostToolUse':
+      return { type: 'tool', subtype: 'PostToolUse' }
+    case 'PostToolUseFailure':
+      return { type: 'tool', subtype: 'PostToolUseFailure' }
+    case 'Stop':
+      return { type: 'system', subtype: 'Stop' }
+    case 'SubagentStop':
+      return { type: 'system', subtype: 'SubagentStop' }
+    case 'Notification':
+      return { type: 'system', subtype: 'Notification' }
+    default:
+      return { type: 'system', subtype: hookName }
+  }
+}
+
 function buildEnv(config) {
   const env = {}
   if (config?.projectSlug) {
@@ -28,10 +58,11 @@ function buildEnv(config) {
 }
 
 /**
- * Build the event envelope for a Claude Code hook payload. Stamps the
- * appropriate notification flags based on the hook event name so the
- * server can apply them mechanically without knowing Claude-Code-specific
- * semantics.
+ * Build the event envelope for a Claude Code hook payload. Stamps every
+ * field the server stores as a column (hookName / type / subtype /
+ * toolName / sessionId / agentId) plus the notification flags. Server
+ * never inspects `hook_event_name` / payload shape for these fields
+ * after this.
  *
  * @param {object} config
  * @param {object} _log
@@ -39,18 +70,33 @@ function buildEnv(config) {
  * @returns {{ envelope: object, hookEvent: string, toolName: string }}
  */
 export function buildHookEvent(config, _log, hookPayload) {
-  const hookEvent = hookPayload?.hook_event_name || 'unknown'
-  const toolName = hookPayload?.tool_name || hookPayload?.tool?.name || ''
-  const flags = NOTIFICATION_FLAGS[hookEvent] || {}
+  const hookName = hookPayload?.hook_event_name || 'unknown'
+  const toolName = hookPayload?.tool_name || hookPayload?.tool?.name || null
+  const sessionId = hookPayload?.session_id || undefined
+  // agent_id is only present on subagent hook events; leave null for
+  // main-agent events — the server falls back to session id there.
+  const agentId = hookPayload?.agent_id || null
+  const { type, subtype } = deriveTypeSubtype(hookName)
+
+  const flags = NOTIFICATION_FLAGS[hookName] || {}
+
   const envelope = {
     hook_payload: hookPayload,
     meta: {
       agentClass: 'claude-code',
       env: buildEnv(config),
+      hookName,
+      type,
+      subtype,
+      toolName,
+      sessionId,
+      agentId,
       ...flags,
     },
   }
-  return { envelope, hookEvent, toolName }
+  // Return toolName as '' (empty string) for the caller's log string —
+  // matches the pre-refactor signature expectation of string, not null.
+  return { envelope, hookEvent: hookName, toolName: toolName || '' }
 }
 
 /**

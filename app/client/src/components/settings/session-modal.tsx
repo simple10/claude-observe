@@ -511,12 +511,15 @@ function computeStats(events: ParsedEvent[]): SessionStatsData {
       const tool = e.toolName || 'unknown'
       toolCounts.set(tool, (toolCounts.get(tool) || 0) + 1)
 
-      if (e.toolUseId) {
-        preToolTimestamps.set(e.toolUseId, { tool, timestamp: e.timestamp })
+      // tool_use_id lives in payload (Claude-Code-specific key) — used
+      // to pair Pre/PostToolUse for duration computation.
+      const input = e.payload as any
+      const toolUseId = typeof input?.tool_use_id === 'string' ? input.tool_use_id : null
+      if (toolUseId) {
+        preToolTimestamps.set(toolUseId, { tool, timestamp: e.timestamp })
       }
 
       // Track files from tool inputs
-      const input = e.payload as any
       if (input?.tool_input) {
         const ti = input.tool_input
         if (typeof ti.file_path === 'string') filesSet.add(ti.file_path)
@@ -528,8 +531,10 @@ function computeStats(events: ParsedEvent[]): SessionStatsData {
     // Tool completion tracking
     if (e.subtype === 'PostToolUse') {
       postToolUseCount++
-      if (e.toolUseId) {
-        const pre = preToolTimestamps.get(e.toolUseId)
+      const input = e.payload as any
+      const toolUseId = typeof input?.tool_use_id === 'string' ? input.tool_use_id : null
+      if (toolUseId) {
+        const pre = preToolTimestamps.get(toolUseId)
         if (pre) {
           const duration = e.timestamp - pre.timestamp
           if (!longestToolCall || duration > longestToolCall.durationMs) {

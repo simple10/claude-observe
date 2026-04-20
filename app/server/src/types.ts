@@ -39,13 +39,13 @@ export interface EventRow {
   id: number
   agent_id: string
   session_id: string
+  hook_name: string | null
   type: string
   subtype: string | null
   tool_name: string | null
   timestamp: number
   created_at: number
   payload: string
-  tool_use_id: string | null
 }
 
 // === API Response Types ===
@@ -83,10 +83,10 @@ export interface ParsedEvent {
   id: number
   agentId: string
   sessionId: string
+  hookName: string | null
   type: string
   subtype: string | null
   toolName: string | null
-  toolUseId: string | null
   status: string // derived from subtype, not stored
   timestamp: number
   createdAt: number
@@ -110,6 +110,20 @@ export interface EventEnvelopeMeta {
    * apply the default clearing behavior.
    */
   clearsNotification?: boolean
+
+  // ---- Event descriptors (stamped by the CLI, one per indexed column) ----
+  /** Raw hook event name as emitted by the agent (agent-class-native). */
+  hookName?: string
+  /** Normalized top-level category (e.g. 'tool', 'user', 'session'). */
+  type?: string
+  /** Normalized sub-category (e.g. 'PreToolUse'). */
+  subtype?: string | null
+  /** Tool name (Pre/PostToolUse events), null otherwise. */
+  toolName?: string | null
+  /** Session id extracted from the payload by the agent lib. */
+  sessionId?: string
+  /** Subagent id if the event came from a subagent; null for main agent. */
+  agentId?: string | null
 }
 
 export interface EventEnvelope {

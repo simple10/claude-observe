@@ -1,16 +1,27 @@
 // app/server/src/parser.ts
 // Extracts structural fields from raw JSONL events.
+//
+// For hook-format events, descriptor fields (hookName / type / subtype /
+// toolName / sessionId / agentId) are stamped by the CLI on `meta` —
+// this parser reads them meta-first and falls back to raw payload keys
+// that aren't agent-class-specific. Subagent-pairing extraction
+// (subAgentId / Name / Description) stays server-side because the route
+// layer uses it for Claude-Code-specific subagent record creation.
+//
 // NO formatting, NO truncation, NO summary generation — that's the client's job.
+
+import type { EventEnvelopeMeta } from './types'
 
 export interface ParsedRawEvent {
   projectName: string | null
   sessionId: string
   slug: string | null
   transcriptPath: string | null
+  /** Raw hook event name (`hook_event_name` from payload). Null for non-hook-format events. */
+  hookName: string | null
   type: string
   subtype: string | null
   toolName: string | null
-  toolUseId: string | null
   timestamp: number
   // The agent this event belongs to (from payload.agent_id — present on subagent hook events)
   ownerAgentId: string | null
@@ -22,16 +33,22 @@ export interface ParsedRawEvent {
   raw: Record<string, unknown>
 }
 
-export function parseRawEvent(raw: Record<string, unknown>): ParsedRawEvent {
+export function parseRawEvent(
+  raw: Record<string, unknown>,
+  envelopeMeta?: EventEnvelopeMeta,
+): ParsedRawEvent {
   const projectName = (raw.project_name as string) || null
-  const sessionId = (raw.session_id as string) || 'unknown'
+  // Prefer CLI-stamped sessionId; fall back to payload's standard key.
+  const sessionId = envelopeMeta?.sessionId || (raw.session_id as string) || 'unknown'
   const slug = (raw.slug as string) || null
   const transcriptPath = (raw.transcript_path as string) || null
-  const meta = raw.meta as Record<string, unknown> | undefined
-  const timestamp = parseTimestamp(meta?.timestamp ?? raw.timestamp)
-  const toolUseId = (raw.tool_use_id as string) || null
-  // agent_id is present on hook events fired from subagents
-  const ownerAgentId = (raw.agent_id as string) || null
+  // Legacy meta-timestamp support: some older transcript-format events
+  // put the timestamp under a meta.timestamp key on the raw payload.
+  const legacyRawMeta = raw.meta as Record<string, unknown> | undefined
+  const timestamp = parseTimestamp(legacyRawMeta?.timestamp ?? raw.timestamp)
+  // agent_id is present on hook events fired from subagents; CLI may stamp
+  // it on envelope meta too.
+  const ownerAgentId = envelopeMeta?.agentId ?? ((raw.agent_id as string) || null)
 
   let type: string
   let subtype: string | null = null
@@ -41,66 +58,34 @@ export function parseRawEvent(raw: Record<string, unknown>): ParsedRawEvent {
   let subAgentDescription: string | null = null
 
   const hookEventName = raw.hook_event_name as string | undefined
+  // Prefer CLI-stamped hookName; fall back to raw payload key.
+  const hookName = envelopeMeta?.hookName ?? hookEventName ?? null
 
   if (hookEventName) {
     // === HOOK FORMAT ===
-    const hookToolName = raw.tool_name as string | undefined
-    const toolInput = raw.tool_input as Record<string, unknown> | undefined
+    // Descriptor fields come from envelope meta; payload fallback for
+    // compatibility with CLIs that haven't been updated yet.
+    type = envelopeMeta?.type ?? 'system'
+    subtype = envelopeMeta?.subtype ?? hookEventName ?? null
+    toolName = envelopeMeta?.toolName ?? ((raw.tool_name as string | undefined) || null)
 
-    switch (hookEventName) {
-      case 'SessionStart':
-        type = 'session'
-        subtype = 'SessionStart'
-        break
-      case 'UserPromptSubmit':
-        type = 'user'
-        subtype = 'UserPromptSubmit'
-        break
-      case 'PreToolUse':
-        type = 'tool'
-        subtype = 'PreToolUse'
-        toolName = hookToolName || null
-        if (toolName === 'Agent') {
-          subAgentName = (toolInput?.name as string) || null
-          subAgentDescription = (toolInput?.description as string) || null
-        }
-        break
-      case 'PostToolUse':
-        type = 'tool'
-        subtype = 'PostToolUse'
-        toolName = hookToolName || null
-        // Extract subagent info from Agent tool response
-        if (toolName === 'Agent') {
-          const toolResponse = raw.tool_response as Record<string, unknown> | undefined
-          if (toolResponse) {
-            subAgentId = (toolResponse.agentId as string) || null
-            subAgentName = (toolInput?.name as string) || null
-            subAgentDescription = (toolInput?.description as string) || null
-          }
-        }
-        break
-      case 'Stop':
-        type = 'system'
-        subtype = 'Stop'
-        break
-      case 'SubagentStop':
-        type = 'system'
-        subtype = 'SubagentStop'
-        subAgentId = (raw.agent_id as string) || null
-        break
-      case 'PostToolUseFailure':
-        type = 'tool'
-        subtype = 'PostToolUseFailure'
-        toolName = hookToolName || null
-        break
-      case 'Notification':
-        type = 'system'
-        subtype = 'Notification'
-        break
-      default:
-        type = 'system'
-        subtype = hookEventName
-        break
+    // Subagent extraction stays server-side — used by the route layer's
+    // Claude-Code-specific subagent-pairing map in events.ts. This is
+    // the only remaining Claude-Code assumption in the parser and it's
+    // intentionally out-of-scope for this refactor.
+    const toolInput = raw.tool_input as Record<string, unknown> | undefined
+    if (hookEventName === 'PreToolUse' && toolName === 'Agent') {
+      subAgentName = (toolInput?.name as string) || null
+      subAgentDescription = (toolInput?.description as string) || null
+    } else if (hookEventName === 'PostToolUse' && toolName === 'Agent') {
+      const toolResponse = raw.tool_response as Record<string, unknown> | undefined
+      if (toolResponse) {
+        subAgentId = (toolResponse.agentId as string) || null
+        subAgentName = (toolInput?.name as string) || null
+        subAgentDescription = (toolInput?.description as string) || null
+      }
+    } else if (hookEventName === 'SubagentStop') {
+      subAgentId = (raw.agent_id as string) || null
     }
   } else {
     // === TRANSCRIPT JSONL FORMAT ===
@@ -184,10 +169,10 @@ export function parseRawEvent(raw: Record<string, unknown>): ParsedRawEvent {
     sessionId,
     slug,
     transcriptPath,
+    hookName,
     type,
     subtype,
     toolName,
-    toolUseId,
     timestamp,
     ownerAgentId,
     subAgentId,
