@@ -82,6 +82,17 @@ router.post('/events', async (c) => {
     const meta: EventEnvelopeMeta = body.meta || {}
     const agentClass = meta.agentClass || 'claude-code'
 
+    // Trace-only log when the CLI flagged this event as a notification
+    // trigger. Helpful for debugging AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS
+    // configurations without wading through full payload dumps.
+    if (LOG_LEVEL === 'trace' && meta.isNotification === true) {
+      const hookEvent = (hookPayload.hook_event_name as string | undefined) ?? 'unknown'
+      const sid = hookPayload.session_id ?? '?'
+      console.log(
+        `[NOTIFY] isNotification=true agentClass=${agentClass} hookEvent=${hookEvent} session=${sid}`,
+      )
+    }
+
     if (LOG_LEVEL === 'debug' || LOG_LEVEL === 'trace') {
       const logKeys = Object.keys(hookPayload).join(', ')
       const payload = JSON.stringify(hookPayload)
