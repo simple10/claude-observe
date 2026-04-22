@@ -158,6 +158,12 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
     }),
+  createProject: (data: { name: string; slug?: string }) =>
+    fetchJson<Project>(`/projects`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }),
   getChangelog: () => fetchJson<{ markdown: string }>('/changelog'),
   getDbStats: () =>
     fetchJson<{ dbPath: string; sizeBytes: number; sessionCount: number; eventCount: number }>(
