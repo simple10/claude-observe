@@ -47,6 +47,7 @@ export function PinnedSessions({ collapsed }: { collapsed: boolean }) {
           <Tooltip key={session.id}>
             <TooltipTrigger asChild>
               <button
+                data-sidebar-item=""
                 className={cn(
                   'flex h-8 w-8 mx-auto items-center justify-center rounded-md text-xs cursor-pointer',
                   selectedSessionId === session.id
