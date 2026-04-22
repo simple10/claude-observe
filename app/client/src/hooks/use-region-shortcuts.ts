@@ -34,6 +34,7 @@ function focusSidebar() {
 export function useRegionShortcuts() {
   useEffect(() => {
     function handler(e: KeyboardEvent) {
+      if (e.repeat) return
       if (e.metaKey || e.ctrlKey || e.altKey) return
       if (e.defaultPrevented) return
       if (isTextInputFocused()) return
