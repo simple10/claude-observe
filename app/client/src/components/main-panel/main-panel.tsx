@@ -10,6 +10,7 @@ import { ActivityTimeline } from '@/components/timeline/activity-timeline'
 import { EventStream } from '@/components/event-stream/event-stream'
 import { HomePage } from './home-page'
 import { ProjectPage } from './project-page'
+import { useRegionShortcuts } from '@/hooks/use-region-shortcuts'
 
 export function MainPanel() {
   const { selectedProjectId, selectedSessionId } = useUIStore()
@@ -26,6 +27,7 @@ export function MainPanel() {
 }
 
 function SessionView({ sessionId, projectId }: { sessionId: string; projectId: number }) {
+  useRegionShortcuts()
   const { data: sessions } = useSessions(projectId)
   const effectiveSessionId = sessionId || sessions?.[0]?.id || null
   const eventsQuery = useEffectiveEvents(effectiveSessionId)

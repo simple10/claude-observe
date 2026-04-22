@@ -155,6 +155,7 @@ export function EventFilterBar() {
             )}
           />
           <Input
+            data-region-target="search"
             placeholder="Search events..."
             value={localSearch}
             onChange={(e) => handleSearchChange(e.target.value)}
