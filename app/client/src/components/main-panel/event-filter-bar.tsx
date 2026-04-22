@@ -99,6 +99,7 @@ export function EventFilterBar() {
         <div className="flex items-center gap-1 flex-wrap">
           <span className="text-xs text-muted-foreground">Filters:</span>
           <button
+            data-filter-pill=""
             className={cn(
               'rounded-full px-2.5 py-0.5 text-xs transition-colors',
               !hasAnyFilter
@@ -115,6 +116,7 @@ export function EventFilterBar() {
             return (
               <button
                 key={category}
+                data-filter-pill=""
                 className={cn(
                   'rounded-full px-2.5 py-0.5 text-xs transition-colors border',
                   isActive
@@ -171,6 +173,7 @@ export function EventFilterBar() {
           {dynamicNames.map((name) => (
             <button
               key={name}
+              data-filter-pill=""
               className={cn(
                 'rounded-full px-2.5 py-0.5 text-xs transition-colors border',
                 activeToolFilters.includes(name)
