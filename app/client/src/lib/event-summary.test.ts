@@ -72,6 +72,44 @@ describe('getEventSummary', () => {
     })
   })
 
+  // ── UserPromptExpansion ───────────────────────────────────
+
+  describe('UserPromptExpansion', () => {
+    it('should format slash-command as /command', () => {
+      const event = makeEvent({
+        subtype: 'UserPromptExpansion',
+        payload: {
+          expansion_type: 'slash_command',
+          command_name: 'superpowers:writing-plans',
+          command_args: '',
+          prompt: '/superpowers:writing-plans',
+        },
+      })
+      expect(getEventSummary(event)).toBe('/superpowers:writing-plans')
+    })
+
+    it('should include args when present', () => {
+      const event = makeEvent({
+        subtype: 'UserPromptExpansion',
+        payload: { command_name: 'review', command_args: 'PR#42' },
+      })
+      expect(getEventSummary(event)).toBe('/review PR#42')
+    })
+
+    it('should fall back to prompt when command_name missing', () => {
+      const event = makeEvent({
+        subtype: 'UserPromptExpansion',
+        payload: { prompt: 'some raw expanded text' },
+      })
+      expect(getEventSummary(event)).toBe('some raw expanded text')
+    })
+
+    it('should return empty string when nothing is present', () => {
+      const event = makeEvent({ subtype: 'UserPromptExpansion', payload: {} })
+      expect(getEventSummary(event)).toBe('')
+    })
+  })
+
   // ── SessionStart / SessionEnd ─────────────────────────────
 
   describe('SessionStart', () => {

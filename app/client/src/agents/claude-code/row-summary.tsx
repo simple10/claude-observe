@@ -24,6 +24,10 @@ export function ClaudeCodeRowSummary({ event }: EventProps) {
     event.subtype === 'PostToolUse' ||
     event.subtype === 'PostToolUseFailure'
   const { binary, rest } = isTool ? parseBinaryPrefix(summary) : { binary: null, rest: summary }
+  const expansionType =
+    event.subtype === 'UserPromptExpansion'
+      ? (event.payload as Record<string, unknown>)?.expansion_type
+      : null
 
   return (
     <>
@@ -42,6 +46,11 @@ export function ClaudeCodeRowSummary({ event }: EventProps) {
         <span className="text-[10px] text-muted-foreground/50 shrink-0">{toolName}</span>
       )}
       {binary && <span className="text-[10px] text-muted-foreground/50 shrink-0">{binary}</span>}
+      {typeof expansionType === 'string' && expansionType && (
+        <span className="text-xs font-medium text-blue-700 dark:text-blue-400 shrink-0">
+          {expansionType}
+        </span>
+      )}
       {rest.includes('\n') ? (
         <div className="text-xs text-muted-foreground flex-1 min-w-0">
           {rest.split('\n').map((line, i) => (

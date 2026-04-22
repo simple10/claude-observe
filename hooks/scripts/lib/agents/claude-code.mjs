@@ -26,6 +26,8 @@ function deriveTypeSubtype(hookName) {
       return { type: 'session', subtype: 'SessionStart' }
     case 'UserPromptSubmit':
       return { type: 'user', subtype: 'UserPromptSubmit' }
+    case 'UserPromptExpansion':
+      return { type: 'user', subtype: 'UserPromptExpansion' }
     case 'PreToolUse':
       return { type: 'tool', subtype: 'PreToolUse' }
     case 'PostToolUse':

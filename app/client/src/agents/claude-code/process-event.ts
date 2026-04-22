@@ -8,6 +8,7 @@ const LABELS: Record<string, string> = {
   PostToolUse: 'Tool',
   PostToolUseFailure: 'Tool',
   UserPromptSubmit: 'Prompt',
+  UserPromptExpansion: 'PromptExp',
   Stop: 'Stop',
   StopFailure: 'Stop',
   SessionStart: 'Session',
@@ -64,7 +65,8 @@ function getFilterTags(
     return { static: 'Tools', dynamic }
   }
 
-  if (subtype === 'UserPromptSubmit') return { static: 'Prompts', dynamic: [] }
+  if (subtype === 'UserPromptSubmit' || subtype === 'UserPromptExpansion')
+    return { static: 'Prompts', dynamic: [] }
   if (subtype === 'SubagentStart' || subtype === 'TeammateIdle')
     return { static: 'Agents', dynamic: [] }
   if (subtype === 'TaskCreated' || subtype === 'TaskCompleted')

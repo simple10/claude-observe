@@ -204,10 +204,7 @@ export function ProjectList({ collapsed }: ProjectListProps) {
           }
 
           const toggleProject = () =>
-            setSelectedProject(
-              isSelected ? null : project.id,
-              isSelected ? null : project.slug,
-            )
+            setSelectedProject(isSelected ? null : project.id, isSelected ? null : project.slug)
 
           return (
             <div key={project.id}>

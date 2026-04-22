@@ -11,7 +11,7 @@ export interface StaticFilter {
 // Row 1: Static filters that group related hook subtypes.
 // A filter can use subtypes, a match function, or both (OR'd).
 export const STATIC_FILTERS: StaticFilter[] = [
-  { label: 'Prompts', subtypes: ['UserPromptSubmit'] },
+  { label: 'Prompts', subtypes: ['UserPromptSubmit', 'UserPromptExpansion'] },
   {
     label: 'Tools',
     subtypes: ['PreToolUse', 'PostToolUse', 'PostToolUseFailure'],

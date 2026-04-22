@@ -161,6 +161,7 @@ describe('claude-code.buildHookEvent', () => {
       const cases = [
         ['SessionStart', 'session', 'SessionStart'],
         ['UserPromptSubmit', 'user', 'UserPromptSubmit'],
+        ['UserPromptExpansion', 'user', 'UserPromptExpansion'],
         ['PreToolUse', 'tool', 'PreToolUse'],
         ['PostToolUse', 'tool', 'PostToolUse'],
         ['PostToolUseFailure', 'tool', 'PostToolUseFailure'],

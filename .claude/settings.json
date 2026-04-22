@@ -40,7 +40,7 @@
         ]
       }
     ],
-    "UserPromptSubmit": [
+    "UserPromptExpansion": [
       {
         "matcher": "",
         "hooks": [
@@ -51,7 +51,17 @@
         ]
       }
     ],
-    "SessionStart": [
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PROJECT_DIR/hooks/scripts/hook.sh"
+          }
+        ]
+      }
+    ],    "SessionStart": [
       {
         "matcher": "",
         "hooks": [

@@ -71,6 +71,12 @@ export function getEventSummary(event: RawEvent): string {
   switch (event.subtype) {
     case 'UserPromptSubmit':
       return oneLine(p.prompt || p.message?.content || '')
+    case 'UserPromptExpansion': {
+      const name = p.command_name as string | undefined
+      const args = p.command_args as string | undefined
+      if (name) return args ? `/${name} ${oneLine(args)}` : `/${name}`
+      return oneLine(p.prompt || '')
+    }
     case 'SessionStart':
       return p.source ? `Session ${p.source}` : 'New session'
     case 'SessionEnd':

@@ -655,6 +655,23 @@ function ToolDetail({
     )
   }
 
+  if (event.subtype === 'UserPromptExpansion') {
+    const expansionType = payload.expansion_type as string | undefined
+    const commandName = payload.command_name as string | undefined
+    const commandArgs = payload.command_args as string | undefined
+    const commandSource = payload.command_source as string | undefined
+    const prompt = payload.prompt as string | undefined
+    return (
+      <div className="space-y-1.5">
+        {expansionType && <DetailRow label="Expansion" value={expansionType} />}
+        {commandName && <DetailRow label="Command" value={commandName} />}
+        {commandArgs && <DetailRow label="Args" value={commandArgs} />}
+        {commandSource && <DetailRow label="Source" value={commandSource} />}
+        {prompt && <DetailCode label="Prompt" value={prompt} />}
+      </div>
+    )
+  }
+
   if (event.subtype === 'PreCompact' || event.subtype === 'PostCompact') {
     // After pairing, a PreCompact row's payload is merged with PostCompact's,
     // so the fields below coexist and we render them together. When dedup is
