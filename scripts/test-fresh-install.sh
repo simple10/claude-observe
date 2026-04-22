@@ -98,7 +98,14 @@ echo "Tarball: $TARBALL ($(du -h "$TARBALL" | cut -f1))"
 # --- Build test container image ----------------------------------------
 echo ""
 echo "=== [3/4] Building test container image (agents-observe-test:local) ==="
-docker build -t agents-observe-test:local -f test/fresh-install/Dockerfile .
+# Pass a fresh cache-bust token so the claude-code npm-install layer is
+# never cached — we want the harness to test against the latest claude
+# (claude auto-updates for real users; a stale cached version gives
+# false confidence).
+docker build \
+  -t agents-observe-test:local \
+  --build-arg "CLAUDE_CODE_CACHE_BUST=$(date +%s)" \
+  -f test/fresh-install/Dockerfile .
 
 # --- Run test container ------------------------------------------------
 echo ""
@@ -150,32 +157,54 @@ else
   AUTO_EXIT=1
 fi
 
-# --- Manual UI check (if automated checks passed) --------------------
-if [ $AUTO_EXIT -eq 0 ] && ! $SKIP_UI_CHECK; then
-  echo ""
-  echo "=============================================="
-  echo "=== Manual UI Check                        ==="
-  echo "=============================================="
-  echo ""
-  echo "Dashboard is running at: http://localhost:${UI_PORT}"
-  echo ""
+# --- Manual UI check (on PASS) or investigation pause (on FAIL) ------
+# On both paths we leave the container running until the user presses
+# Enter, so failures can be inspected with `docker exec`. The EXIT trap
+# still cleans up afterwards.
+if ! $SKIP_UI_CHECK; then
+  if [ $AUTO_EXIT -eq 0 ]; then
+    echo ""
+    echo "=============================================="
+    echo "=== Manual UI Check                        ==="
+    echo "=============================================="
+    echo ""
+    echo "Dashboard is running at: http://localhost:${UI_PORT}"
+    echo ""
 
-  # Open browser (macOS)
-  if command -v open >/dev/null 2>&1; then
-    open "http://localhost:${UI_PORT}"
-  fi
+    # Open browser (macOS)
+    if command -v open >/dev/null 2>&1; then
+      open "http://localhost:${UI_PORT}"
+    fi
 
-  echo "Please verify:"
-  echo "  1. Dashboard loads without errors"
-  echo "  2. Session appears in the sidebar"
-  echo "  3. Events are visible in the stream"
-  echo ""
-  read -r -p "Does the UI look correct? [Y/n] " UI_CONFIRM
-  if [ "$(echo "$UI_CONFIRM" | tr '[:upper:]' '[:lower:]')" = "n" ]; then
-    echo "UI check failed by user."
-    AUTO_EXIT=1
+    echo "Please verify:"
+    echo "  1. Dashboard loads without errors"
+    echo "  2. Session appears in the sidebar"
+    echo "  3. Events are visible in the stream"
+    echo ""
+    read -r -p "Does the UI look correct? [Y/n] " UI_CONFIRM
+    if [ "$(echo "$UI_CONFIRM" | tr '[:upper:]' '[:lower:]')" = "n" ]; then
+      echo "UI check failed by user."
+      AUTO_EXIT=1
+    else
+      echo "UI check passed."
+    fi
   else
-    echo "UI check passed."
+    echo ""
+    echo "=============================================="
+    echo "=== Test FAILED — container kept alive     ==="
+    echo "=============================================="
+    echo ""
+    echo "Investigate with:"
+    echo "  docker exec -it $CONTAINER_NAME bash"
+    echo "  docker logs $CONTAINER_NAME"
+    echo ""
+    echo "Once inside the container, useful things to try:"
+    echo "  claude --version"
+    echo "  ls -la /home/testuser/.claude"
+    echo "  find /home/testuser/.claude -type f | head"
+    echo "  su testuser -c 'claude --plugin-dir /plugin --mcp-config /plugin/.mcp.json -p \"/hooks\"'"
+    echo ""
+    read -r -p "Press Enter to clean up and exit... " _
   fi
 fi
 

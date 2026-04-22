@@ -58,11 +58,12 @@ echo "AGENTS_OBSERVE_DOCKER_IMAGE=$AGENTS_OBSERVE_DOCKER_IMAGE"
 echo "AGENTS_OBSERVE_TEST_SKIP_PULL=$AGENTS_OBSERVE_TEST_SKIP_PULL"
 echo ""
 
-# --- Set CLAUDE_PLUGIN_ROOT for MCP config resolution --------------------
-# --plugin-dir loads hooks but NOT .mcp.json. We use --mcp-config to
-# load the plugin's REAL .mcp.json. That file uses ${CLAUDE_PLUGIN_ROOT}
-# which Claude normally sets for installed plugins but not for --mcp-config.
-# Setting it here lets the .mcp.json resolve paths correctly.
+# --- Set CLAUDE_PLUGIN_ROOT ---------------------------------------------
+# --plugin-dir loads the plugin's hooks.json AND its .mcp.json. The hook
+# commands reference ${CLAUDE_PLUGIN_ROOT} (bash expands it at exec
+# time), so the var must be in the environment when claude launches the
+# hook. Claude sets this automatically for installed plugins; for
+# --plugin-dir we set it ourselves so the commands resolve correctly.
 export CLAUDE_PLUGIN_ROOT=/plugin
 echo "CLAUDE_PLUGIN_ROOT=$CLAUDE_PLUGIN_ROOT"
 echo ""
@@ -73,6 +74,7 @@ echo ""
 echo "=== Running claude -p ... (as testuser) ==="
 CLAUDE_STDOUT=/tmp/claude.stdout
 CLAUDE_STDERR=/tmp/claude.stderr
+CLAUDE_DEBUG_LOG=/tmp/claude-debug.log
 set +e
 su -s /bin/bash testuser -c "
   export CLAUDE_CODE_OAUTH_TOKEN='$CLAUDE_CODE_OAUTH_TOKEN'
@@ -83,8 +85,9 @@ su -s /bin/bash testuser -c "
   export CLAUDE_PLUGIN_ROOT='$CLAUDE_PLUGIN_ROOT'
   claude \
     --plugin-dir /plugin \
-    --mcp-config /plugin/.mcp.json \
     --permission-mode bypassPermissions \
+    --debug hooks \
+    --debug-file '$CLAUDE_DEBUG_LOG' \
     -p '/observe status' \
     >'$CLAUDE_STDOUT' 2>'$CLAUDE_STDERR'
 "
@@ -136,8 +139,11 @@ else
 fi
 
 # Check 4 (soft): grep ERROR lines in mcp.log and cli.log
-MCP_LOG_FILES="$(find / -type f -name 'mcp.log' 2>/dev/null)"
-CLI_LOG_FILES="$(find / -type f -name 'cli.log' 2>/dev/null)"
+# Scope to /plugin/data — the only place the current run writes logs.
+# A blanket `find /` also picks up stale logs baked into the image from
+# host-side worktrees, which pollutes counts and the diagnostic dump.
+MCP_LOG_FILES="$(find /plugin/data -type f -name 'mcp.log' 2>/dev/null)"
+CLI_LOG_FILES="$(find /plugin/data -type f -name 'cli.log' 2>/dev/null)"
 if [ -n "$MCP_LOG_FILES" ]; then
   CHECK_4_MCP_COUNT="$(grep -c 'ERROR' $MCP_LOG_FILES 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')"
 fi
@@ -151,6 +157,10 @@ echo "=============================================="
 echo "=== DIAGNOSTIC BUNDLE (always printed)     ==="
 echo "=============================================="
 echo ""
+echo "=== claude version ==="
+claude --version 2>&1 || echo "(claude --version failed)"
+echo ""
+
 echo "=== claude invocation ==="
 echo "exit code: $CLAUDE_EXIT"
 echo ""
@@ -159,6 +169,18 @@ cat "$CLAUDE_STDOUT" 2>/dev/null || echo "(file not found)"
 echo ""
 echo "--- claude stderr ---"
 cat "$CLAUDE_STDERR" 2>/dev/null || echo "(file not found)"
+echo ""
+echo "--- claude debug log (plugin + hook loading) ---"
+# Filter to lines that matter for plugin/hook diagnosis. If the full log
+# is needed, docker exec into the kept-alive container and cat
+# $CLAUDE_DEBUG_LOG directly.
+if [ -f "$CLAUDE_DEBUG_LOG" ]; then
+  grep -E '\[ERROR\]|\[WARN\]|Registered .* hooks|Loaded .* plugin|Loaded hooks|Hooks: Found|Invalid key|Invalid option|SyntaxError|Hook [A-Z]' "$CLAUDE_DEBUG_LOG" 2>/dev/null | head -60 || true
+  DBG_SIZE="$(wc -l < "$CLAUDE_DEBUG_LOG" 2>/dev/null || echo 0)"
+  echo "(filtered view; full log is $DBG_SIZE lines at $CLAUDE_DEBUG_LOG inside the container)"
+else
+  echo "(no debug log at $CLAUDE_DEBUG_LOG)"
+fi
 echo ""
 
 echo "=== docker state (inside test container) ==="
@@ -197,6 +219,29 @@ if [ -n "$CLI_LOG_FILES" ]; then
 else
   echo "(no cli.log files found)"
 fi
+echo ""
+
+# claude writes its own internal state (transcripts, plugin cache, and
+# sometimes debug logs) under ~/.claude. Dump any log files it left plus
+# a listing so plugin/hook loading errors aren't silent.
+echo "=== claude internal state (~/.claude) ==="
+for home in /home/testuser /root; do
+  if [ -d "$home/.claude" ]; then
+    echo "--- $home/.claude (top-level listing) ---"
+    find "$home/.claude" -maxdepth 3 -type f 2>/dev/null | head -40 || true
+    echo ""
+    CLAUDE_LOGS="$(find "$home/.claude" -type f -name '*.log' 2>/dev/null)"
+    if [ -n "$CLAUDE_LOGS" ]; then
+      for f in $CLAUDE_LOGS; do
+        echo "--- $f ---"
+        head -n 200 "$f" 2>/dev/null || true
+        echo ""
+      done
+    else
+      echo "(no *.log files under $home/.claude)"
+    fi
+  fi
+done
 echo ""
 
 echo "=== verification results ==="
@@ -248,12 +293,21 @@ fi
 echo "=== final status: $FINAL_STATUS ==="
 echo "[CHECKS_DONE]"
 
-# Keep alive if requested (for manual UI verification from host)
-if [ "${AGENTS_OBSERVE_TEST_KEEP_ALIVE:-}" = "1" ] && [ "$FINAL_STATUS" = "PASS" ]; then
-  echo "Container staying alive for manual UI check. Kill to exit."
+# Keep alive if requested — works on PASS (for manual UI verification)
+# AND on FAIL (so the operator can `docker exec -it` in and poke around,
+# look at ~/.claude, run `claude --version`, etc.)
+if [ "${AGENTS_OBSERVE_TEST_KEEP_ALIVE:-}" = "1" ]; then
+  if [ "$FINAL_STATUS" = "PASS" ]; then
+    echo "Container staying alive for manual UI check. Kill to exit."
+  else
+    echo "Test FAILED — container staying alive for investigation."
+    echo "  docker exec -it \$(hostname) bash"
+  fi
   echo ""
-  echo "=== Following inner server logs ==="
-  docker logs -f agents-observe 2>&1 &
+  if docker ps -a --format '{{.Names}}' | grep -q '^agents-observe$'; then
+    echo "=== Following inner server logs ==="
+    docker logs -f agents-observe 2>&1 &
+  fi
   sleep infinity
 fi
 

@@ -10,8 +10,14 @@ app/client/dist
 app/server/dist
 
 # Runtime state
+# Top-level and nested — worktrees have their own data/logs dirs that
+# must not be baked into the image (otherwise stale host logs show up
+# in the test container's `find` sweeps).
 data
 logs
+**/data
+**/logs
+.claude/worktrees
 *.db
 *.db-journal
 

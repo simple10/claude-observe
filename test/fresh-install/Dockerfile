@@ -11,9 +11,14 @@ FROM docker:27-dind
 # - shadow: provides useradd/groupadd for creating non-root user
 RUN apk add --no-cache bash curl jq nodejs npm shadow
 
-# Install the Claude Code CLI globally. Pinned to whatever's latest at
-# image build time — rebuilds pick up new versions.
-RUN npm install -g @anthropic-ai/claude-code
+# Install the latest Claude Code CLI globally. The CLAUDE_CODE_CACHE_BUST
+# build arg is passed a fresh value on every test run so this layer is
+# never cached — we want the harness to track what real users run
+# (claude auto-updates for them, so tests pinned to an old cached
+# version give false confidence).
+ARG CLAUDE_CODE_CACHE_BUST=1
+RUN echo "cache bust token: ${CLAUDE_CODE_CACHE_BUST}" && \
+    npm install -g @anthropic-ai/claude-code@latest
 
 # Create a non-root user for running claude (claude CLI refuses
 # --permission-mode bypassPermissions as root).
