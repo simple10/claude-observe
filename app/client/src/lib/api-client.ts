@@ -159,4 +159,19 @@ export const api = {
       body: JSON.stringify({ name }),
     }),
   getChangelog: () => fetchJson<{ markdown: string }>('/changelog'),
+  getDbStats: () =>
+    fetchJson<{ dbPath: string; sizeBytes: number; sessionCount: number; eventCount: number }>(
+      '/db/stats',
+    ),
+  bulkDeleteSessions: (sessionIds: string[]) =>
+    fetchJson<{
+      ok: true
+      deleted: { events: number; agents: number; sessions: number }
+      sizeBefore: number
+      sizeAfter: number
+    }>('/sessions/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionIds }),
+    }),
 }

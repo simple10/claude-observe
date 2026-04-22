@@ -1,0 +1,476 @@
+import { useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useRecentSessions } from '@/hooks/use-recent-sessions'
+import { useDbStats } from '@/hooks/use-db-stats'
+import { api, ApiError } from '@/lib/api-client'
+import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Trash2, ExternalLink, ChevronUp, ChevronDown } from 'lucide-react'
+import { useUIStore } from '@/stores/ui-store'
+import type { RecentSession } from '@/types'
+
+type AgeFilter = 'all' | '3d' | '7d' | '14d' | '30d'
+// Event-count buckets. >= for the "big" buckets matches the user's
+// expectation that >100 includes 100 itself; < is strict for the "small"
+// buckets. The buckets overlap (e.g. <100 includes <10) — they're not
+// nested ranges, just quick "match anything in this range" picks.
+type EventFilter = 'all' | 'lt10' | 'lt100' | 'gte100' | 'gte1k'
+type SortBy = 'activity' | 'created' | 'events'
+type SortDir = 'asc' | 'desc'
+
+// Per-column default direction — picked to surface the "prunable" rows
+// first on the first click: oldest dates at top, biggest event counts
+// at top. Clicking an already-active column just flips the direction.
+const DEFAULT_SORT_DIR: Record<SortBy, SortDir> = {
+  activity: 'asc',
+  created: 'asc',
+  events: 'desc',
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+// We ask the server for "recent" sessions with a big limit — this is the
+// same endpoint the sidebar uses, which already returns every column we
+// need (eventCount, lastActivity, projectName). A dedicated
+// /sessions/all endpoint would be cleaner but adds maintenance; revisit
+// if users start hitting the limit.
+const SESSION_FETCH_LIMIT = 10000
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)))
+  const value = bytes / Math.pow(1024, i)
+  return `${value < 10 && i > 0 ? value.toFixed(1) : Math.round(value)} ${units[i]}`
+}
+
+function formatDate(ts: number | null | undefined): string {
+  if (!ts) return '—'
+  const d = new Date(ts)
+  const now = Date.now()
+  const diff = now - ts
+  if (diff < DAY_MS) {
+    return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+  }
+  const days = Math.floor(diff / DAY_MS)
+  if (days < 7) return `${days}d ago`
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+function ageFilterMatches(filter: AgeFilter, lastActivity: number): boolean {
+  if (filter === 'all') return true
+  const ageDays = (Date.now() - lastActivity) / DAY_MS
+  if (filter === '3d') return ageDays > 3
+  if (filter === '7d') return ageDays > 7
+  if (filter === '14d') return ageDays > 14
+  if (filter === '30d') return ageDays > 30
+  return true
+}
+
+function eventFilterMatches(filter: EventFilter, count: number): boolean {
+  if (filter === 'all') return true
+  if (filter === 'lt10') return count < 10
+  if (filter === 'lt100') return count < 100
+  if (filter === 'gte100') return count >= 100
+  if (filter === 'gte1k') return count >= 1000
+  return true
+}
+
+export function SessionsTab() {
+  const queryClient = useQueryClient()
+  const { data: stats, refetch: refetchStats } = useDbStats(true)
+  const { data: sessions, isLoading } = useRecentSessions(SESSION_FETCH_LIMIT)
+  const setSelectedProject = useUIStore((s) => s.setSelectedProject)
+  const setSelectedSessionId = useUIStore((s) => s.setSelectedSessionId)
+  const closeSettings = useUIStore((s) => s.closeSettings)
+
+  function openSession(session: RecentSession) {
+    // Same sequence session-list.tsx uses: select project first, then
+    // select session on the next tick so the project's session list has
+    // time to mount before we point at a row inside it.
+    setSelectedProject(session.projectId, session.projectSlug)
+    setTimeout(() => setSelectedSessionId(session.id), 0)
+    closeSettings()
+  }
+
+  const [ageFilter, setAgeFilter] = useState<AgeFilter>('all')
+  const [eventFilter, setEventFilter] = useState<EventFilter>('all')
+  const [sortBy, setSortBy] = useState<SortBy>('activity')
+  const [sortDir, setSortDir] = useState<SortDir>(DEFAULT_SORT_DIR.activity)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const filteredSessions = useMemo(() => {
+    if (!sessions) return []
+    const filtered = sessions.filter(
+      (s) =>
+        ageFilterMatches(ageFilter, s.lastActivity || s.startedAt) &&
+        eventFilterMatches(eventFilter, s.eventCount ?? 0),
+    )
+    // Sort copy so we don't mutate react-query's cached array.
+    const dirMul = sortDir === 'asc' ? 1 : -1
+    const sorted = [...filtered].sort((a, b) => {
+      let diff = 0
+      if (sortBy === 'activity') {
+        diff = (a.lastActivity || a.startedAt) - (b.lastActivity || b.startedAt)
+      } else if (sortBy === 'events') {
+        diff = (a.eventCount ?? 0) - (b.eventCount ?? 0)
+      } else {
+        diff = a.startedAt - b.startedAt
+      }
+      return diff * dirMul
+    })
+    return sorted
+  }, [sessions, ageFilter, eventFilter, sortBy, sortDir])
+
+  function toggleSort(col: SortBy) {
+    if (col === sortBy) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortBy(col)
+      setSortDir(DEFAULT_SORT_DIR[col])
+    }
+  }
+
+  const allVisibleSelected =
+    filteredSessions.length > 0 && filteredSessions.every((s) => selected.has(s.id))
+  const someVisibleSelected = filteredSessions.some((s) => selected.has(s.id))
+
+  const selectedList = useMemo(
+    () => (sessions ? sessions.filter((s) => selected.has(s.id)) : []),
+    [sessions, selected],
+  )
+  const selectedEventCount = selectedList.reduce((sum, s) => sum + (s.eventCount ?? 0), 0)
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (allVisibleSelected) {
+        for (const s of filteredSessions) next.delete(s.id)
+      } else {
+        for (const s of filteredSessions) next.add(s.id)
+      }
+      return next
+    })
+  }
+
+  async function handleDelete() {
+    setDeleting(true)
+    setError(null)
+    try {
+      const ids = Array.from(selected)
+      await api.bulkDeleteSessions(ids)
+      setSelected(new Set())
+      setConfirmOpen(false)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['recent-sessions'] }),
+        refetchStats(),
+      ])
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Delete failed')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Stats header */}
+      <div className="grid grid-cols-3 gap-3 rounded-md border p-3 bg-muted/30">
+        <Stat label="Database size" value={stats ? formatBytes(stats.sizeBytes) : '…'} />
+        <Stat label="Events" value={stats ? stats.eventCount.toLocaleString() : '…'} />
+        <Stat label="Sessions" value={stats ? stats.sessionCount.toLocaleString() : '…'} />
+      </div>
+
+      {/* Toolbar: age filter on the left, event-count filter on the
+          right. Sort lives on the column headers. */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1 text-xs">
+          <span className="text-muted-foreground mr-1">Age:</span>
+          <FilterPill active={ageFilter === 'all'} onClick={() => setAgeFilter('all')}>
+            All
+          </FilterPill>
+          <FilterPill active={ageFilter === '3d'} onClick={() => setAgeFilter('3d')}>
+            &gt;3d
+          </FilterPill>
+          <FilterPill active={ageFilter === '7d'} onClick={() => setAgeFilter('7d')}>
+            &gt;7d
+          </FilterPill>
+          <FilterPill active={ageFilter === '14d'} onClick={() => setAgeFilter('14d')}>
+            &gt;14d
+          </FilterPill>
+          <FilterPill active={ageFilter === '30d'} onClick={() => setAgeFilter('30d')}>
+            &gt;30d
+          </FilterPill>
+        </div>
+
+        <div className="flex items-center gap-1 text-xs ml-auto">
+          <span className="text-muted-foreground mr-1">Events:</span>
+          <FilterPill active={eventFilter === 'all'} onClick={() => setEventFilter('all')}>
+            All
+          </FilterPill>
+          <FilterPill active={eventFilter === 'lt10'} onClick={() => setEventFilter('lt10')}>
+            &lt;10
+          </FilterPill>
+          <FilterPill active={eventFilter === 'lt100'} onClick={() => setEventFilter('lt100')}>
+            &lt;100
+          </FilterPill>
+          <FilterPill active={eventFilter === 'gte100'} onClick={() => setEventFilter('gte100')}>
+            &gt;100
+          </FilterPill>
+          <FilterPill active={eventFilter === 'gte1k'} onClick={() => setEventFilter('gte1k')}>
+            &gt;1k
+          </FilterPill>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Button
+          variant="destructive"
+          size="sm"
+          className="gap-1.5"
+          disabled={selected.size === 0}
+          onClick={() => setConfirmOpen(true)}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Delete {selected.size > 0 ? `(${selected.size})` : ''}
+        </Button>
+        {selected.size > 0 && (
+          <span className="text-xs text-muted-foreground">
+            {selectedEventCount.toLocaleString()} event
+            {selectedEventCount !== 1 ? 's' : ''} will be removed
+          </span>
+        )}
+      </div>
+
+      {/* Session table */}
+      <div className="rounded-md border">
+        <div className="grid grid-cols-[auto_1fr_120px_120px_90px_28px] items-center gap-3 px-3 py-2 text-xs font-medium text-muted-foreground border-b bg-muted/30">
+          <Checkbox
+            checked={allVisibleSelected ? true : someVisibleSelected ? 'indeterminate' : false}
+            onCheckedChange={toggleSelectAll}
+            aria-label="Select all sessions"
+          />
+          <span>Session ({filteredSessions.length})</span>
+          <SortHeader
+            label="Created"
+            active={sortBy === 'created'}
+            dir={sortDir}
+            onClick={() => toggleSort('created')}
+          />
+          <SortHeader
+            label="Last activity"
+            active={sortBy === 'activity'}
+            dir={sortDir}
+            onClick={() => toggleSort('activity')}
+          />
+          <SortHeader
+            label="Events"
+            align="right"
+            active={sortBy === 'events'}
+            dir={sortDir}
+            onClick={() => toggleSort('events')}
+          />
+          <span />
+        </div>
+
+        <div className="max-h-[40vh] overflow-y-auto">
+          {isLoading && (
+            <div className="px-3 py-8 text-sm text-muted-foreground text-center">
+              Loading sessions...
+            </div>
+          )}
+          {!isLoading && filteredSessions.length === 0 && (
+            <div className="px-3 py-8 text-sm text-muted-foreground text-center">
+              No sessions match this filter.
+            </div>
+          )}
+          {filteredSessions.map((s) => (
+            <SessionRow
+              key={s.id}
+              session={s}
+              checked={selected.has(s.id)}
+              onToggle={() => toggleSelect(s.id)}
+              onOpen={() => openSession(s)}
+            />
+          ))}
+        </div>
+      </div>
+
+      {error && <div className="text-xs text-destructive">{error}</div>}
+
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {selected.size} session{selected.size !== 1 ? 's' : ''}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes {selected.size} session{selected.size !== 1 ? 's' : ''} and{' '}
+              {selectedEventCount.toLocaleString()} event{selectedEventCount !== 1 ? 's' : ''} from
+              the Observe database, then runs VACUUM to reclaim disk space. Your original Claude
+              session files are not modified.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deleting}
+              onClick={(e) => {
+                e.preventDefault()
+                handleDelete()
+              }}
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  )
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col">
+      <span className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</span>
+      <span className="text-sm font-semibold tabular-nums">{value}</span>
+    </div>
+  )
+}
+
+function SortHeader({
+  label,
+  active,
+  dir,
+  align = 'left',
+  onClick,
+}: {
+  label: string
+  active: boolean
+  dir: SortDir
+  align?: 'left' | 'right'
+  onClick: () => void
+}) {
+  const Chevron = dir === 'asc' ? ChevronUp : ChevronDown
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        'flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors ' +
+        (align === 'right' ? 'justify-end' : 'justify-start') +
+        (active ? ' text-foreground' : '')
+      }
+      title={`Sort by ${label.toLowerCase()}`}
+    >
+      <span>{label}</span>
+      {/* Keep the chevron slot reserved (invisible) on inactive columns so
+          column widths don't jump when the active sort changes. */}
+      <Chevron className={'h-3 w-3 ' + (active ? 'opacity-100' : 'opacity-0')} />
+    </button>
+  )
+}
+
+function FilterPill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={
+        'rounded-full px-2.5 py-0.5 border transition-colors cursor-pointer ' +
+        (active
+          ? 'bg-primary text-primary-foreground border-primary'
+          : 'bg-transparent text-muted-foreground border-border hover:bg-muted')
+      }
+    >
+      {children}
+    </button>
+  )
+}
+
+function SessionRow({
+  session,
+  checked,
+  onToggle,
+  onOpen,
+}: {
+  session: RecentSession
+  checked: boolean
+  onToggle: () => void
+  onOpen: () => void
+}) {
+  const label = session.slug || session.id.slice(0, 8)
+  return (
+    <label className="grid grid-cols-[auto_1fr_120px_120px_90px_28px] items-center gap-3 px-3 py-2 border-b last:border-b-0 text-sm hover:bg-muted/30 cursor-pointer">
+      <Checkbox checked={checked} onCheckedChange={onToggle} aria-label="Select session" />
+      <div className="min-w-0">
+        <div className="truncate font-medium">{label}</div>
+        <div className="truncate text-xs text-muted-foreground">{session.projectName}</div>
+      </div>
+      <span className="text-xs text-muted-foreground tabular-nums">
+        {formatDate(session.startedAt)}
+      </span>
+      <span className="text-xs text-muted-foreground tabular-nums">
+        {formatDate(session.lastActivity)}
+      </span>
+      <span className="text-xs text-right tabular-nums">
+        {(session.eventCount ?? 0).toLocaleString()}
+      </span>
+      {/* Real anchor so cmd/middle-click opens the session in a new tab
+          via the hash route. On a plain left-click we preventDefault and
+          handle navigation in-app (sets selection + closes the modal).
+          stopPropagation in both paths keeps the surrounding <label>
+          from toggling the checkbox. */}
+      <a
+        href={`#/${session.projectSlug}/${session.id}`}
+        onClick={(e) => {
+          const isModified = e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0
+          e.stopPropagation()
+          if (isModified) return
+          e.preventDefault()
+          onOpen()
+        }}
+        onAuxClick={(e) => {
+          // Middle-click: let the browser open a new tab, just keep the
+          // event from bubbling up to the <label>.
+          e.stopPropagation()
+        }}
+        className="flex h-6 w-6 items-center justify-center rounded hover:bg-muted text-muted-foreground cursor-pointer"
+        title="Open session (cmd/ctrl-click for new tab)"
+        aria-label="Open session"
+      >
+        <ExternalLink className="h-3.5 w-3.5" />
+      </a>
+    </label>
+  )
+}
