@@ -85,9 +85,8 @@ Each region exposes a target via a data attribute on the relevant DOM element:
 |-----------|-----|
 | `data-region-target="search"` | The search `<input>` in `event-filter-bar.tsx`. |
 | `data-region-target="agents"` | The `PopoverTrigger`'s underlying `<button>` in `agent-combobox.tsx`. |
-| `data-region-target="filters"` | The first filter pill (or a wrapper that the hook then queries inside). |
-| `data-sidebar-item` | Every navigable sidebar item (pinned sessions, project rows, session items, "show more" buttons). |
-| `data-filter-pill` | Every filter pill in both rows. |
+| `data-sidebar-item` | Every navigable sidebar item (pinned sessions, project rows, session items, "show more" buttons). The `s` shortcut resolves to the one with `aria-current="true"` if present, else the first. |
+| `data-filter-pill` | Every filter pill in both rows. The `t` shortcut resolves to the first one. |
 
 The hook resolves targets via `document.querySelector` / `querySelectorAll`. This avoids ref-passing through props and survives re-renders cleanly.
 
