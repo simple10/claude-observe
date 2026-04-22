@@ -149,6 +149,48 @@ export function EventStream() {
   const showAgentLabel = agents.length > 1
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  // Browser-level scroll shortcuts route to the event stream pane. The
+  // pane owns its own scrollbar (for virtualization), which means the
+  // document's Cmd+Up / Cmd+Down / Home / End / PageUp / PageDown
+  // shortcuts don't scroll it by default. We intercept those on window
+  // keydown and forward them here — unless focus is inside an input or
+  // a Radix dialog, so typing and modal dialogs keep working normally.
+  useEffect(() => {
+    function handleKeydown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null
+      if (target) {
+        const tag = target.tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) return
+        // Don't steal shortcuts from an open dialog — it should handle
+        // its own scrolling.
+        if (target.closest('[role="dialog"]')) return
+      }
+      const container = scrollRef.current
+      if (!container) return
+
+      const toTop = (e.metaKey && e.key === 'ArrowUp') || e.key === 'Home'
+      const toBottom = (e.metaKey && e.key === 'ArrowDown') || e.key === 'End'
+      const pageUp = e.key === 'PageUp' && !e.metaKey && !e.ctrlKey
+      const pageDown = e.key === 'PageDown' && !e.metaKey && !e.ctrlKey
+
+      if (toTop) {
+        e.preventDefault()
+        container.scrollTop = 0
+      } else if (toBottom) {
+        e.preventDefault()
+        container.scrollTop = container.scrollHeight
+      } else if (pageUp) {
+        e.preventDefault()
+        container.scrollBy({ top: -container.clientHeight * 0.9 })
+      } else if (pageDown) {
+        e.preventDefault()
+        container.scrollBy({ top: container.clientHeight * 0.9 })
+      }
+    }
+    window.addEventListener('keydown', handleKeydown)
+    return () => window.removeEventListener('keydown', handleKeydown)
+  }, [])
+
   const virtualizer = useVirtualizer({
     count: filteredEvents.length,
     getScrollElement: () => scrollRef.current,
