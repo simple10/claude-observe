@@ -18,9 +18,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Trash2, SquarePen, ChevronUp, ChevronDown } from 'lucide-react'
+import { Trash2, SquarePen, ChevronUp, ChevronDown, Tag, Plus, X } from 'lucide-react'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useUIStore } from '@/stores/ui-store'
-import type { Project, RecentSession } from '@/types'
+import type { Label, Project, RecentSession } from '@/types'
 
 type AgeFilter = 'all' | '3d' | '7d' | '14d' | '30d'
 // Event-count buckets. >= for the "big" buckets matches the user's
@@ -117,6 +118,28 @@ export function SessionsTab() {
   const { data: projects } = useProjects()
   const [modalProject, setModalProject] = useState<Project | null>(null)
   const setEditingSessionId = useUIStore((s) => s.setEditingSessionId)
+  // Labels data needed for both the inline pills on each row and the
+  // bulk "Add Label" dialog. Subscribing to labelMemberships keeps the
+  // pills in sync when labels are added/removed elsewhere.
+  const labels = useUIStore((s) => s.labels)
+  const labelMemberships = useUIStore((s) => s.labelMemberships)
+  const toggleSessionLabel = useUIStore((s) => s.toggleSessionLabel)
+  const [addLabelOpen, setAddLabelOpen] = useState(false)
+
+  // Per-session labels map: sessionId -> Label[]. Derived from the
+  // membership map so it updates reactively.
+  const labelsBySession = useMemo(() => {
+    const m = new Map<string, Label[]>()
+    for (const label of labels) {
+      const ids = labelMemberships.get(label.id) ?? new Set()
+      for (const id of ids) {
+        const arr = m.get(id) ?? []
+        arr.push(label)
+        m.set(id, arr)
+      }
+    }
+    return m
+  }, [labels, labelMemberships])
 
   function openSession(session: RecentSession) {
     // Open the Session edit modal on top of the Settings modal. Both
@@ -318,12 +341,16 @@ export function SessionsTab() {
           <Trash2 className="h-3.5 w-3.5" />
           Delete {selected.size > 0 ? `(${selected.size})` : ''}
         </Button>
-        {selected.size > 0 && (
-          <span className="text-xs text-muted-foreground">
-            {selectedEventCount.toLocaleString()} event
-            {selectedEventCount !== 1 ? 's' : ''} will be removed
-          </span>
-        )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          disabled={selected.size === 0}
+          onClick={() => setAddLabelOpen(true)}
+        >
+          <Tag className="h-3.5 w-3.5" />
+          Add Label {selected.size > 0 ? `(${selected.size})` : ''}
+        </Button>
         <Input
           type="search"
           placeholder="Search name or cwd..."
@@ -390,6 +417,7 @@ export function SessionsTab() {
             <SessionRow
               key={s.id}
               session={s}
+              labels={labelsBySession.get(s.id) ?? []}
               checked={selected.has(s.id)}
               onToggle={() => toggleSelect(s.id)}
               onOpen={() => openSession(s)}
@@ -410,6 +438,18 @@ export function SessionsTab() {
         onOpenChange={(o) => {
           if (!o) setModalProject(null)
         }}
+      />
+
+      {/* Bulk label editor — open from the Add Label button. Applies
+          across every selected session. */}
+      <AddLabelDialog
+        open={addLabelOpen}
+        onOpenChange={setAddLabelOpen}
+        selectedIds={selected}
+        labels={labels}
+        labelMemberships={labelMemberships}
+        onToggle={toggleSessionLabel}
+        onCreateLabel={(name) => useUIStore.getState().createLabel(name)}
       />
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -519,12 +559,14 @@ function FilterPill({
 
 function SessionRow({
   session,
+  labels,
   checked,
   onToggle,
   onOpen,
   onOpenProject,
 }: {
   session: RecentSession
+  labels: Label[]
   checked: boolean
   onToggle: () => void
   onOpen: () => void
@@ -617,6 +659,20 @@ function SessionRow({
         >
           {session.projectName}
         </button>
+        {labels.length > 0 && (
+          <span className="shrink-0 flex items-center gap-1 flex-wrap">
+            {labels.map((l) => (
+              <span
+                key={l.id}
+                className="inline-flex items-center gap-0.5 rounded bg-muted text-[10px] text-muted-foreground px-1 py-px"
+                title={`Label: ${l.name}`}
+              >
+                <Tag className="h-2.5 w-2.5" />
+                {l.name}
+              </span>
+            ))}
+          </span>
+        )}
         {cwd && (
           <>
             <span className="shrink-0 text-muted-foreground/60">·</span>
@@ -632,5 +688,196 @@ function SessionRow({
         )}
       </div>
     </label>
+  )
+}
+
+function AddLabelDialog({
+  open,
+  onOpenChange,
+  selectedIds,
+  labels,
+  labelMemberships,
+  onToggle,
+  onCreateLabel,
+}: {
+  open: boolean
+  onOpenChange: (o: boolean) => void
+  selectedIds: Set<string>
+  labels: Label[]
+  labelMemberships: Map<string, Set<string>>
+  onToggle: (labelId: string, sessionId: string) => void
+  onCreateLabel: (name: string) => Label | null
+}) {
+  // Inline "New label" input state. When created, the new label is
+  // auto-applied to every currently-selected session so the user gets
+  // the obvious outcome of "I pressed Add Label, named one, and all my
+  // selected sessions now wear it."
+  const [creating, setCreating] = useState(false)
+  const [newLabelName, setNewLabelName] = useState('')
+  const [newLabelError, setNewLabelError] = useState<string | null>(null)
+
+  function handleCreate() {
+    const trimmed = newLabelName.trim()
+    if (!trimmed) return
+    if (labels.some((l) => l.name.toLowerCase() === trimmed.toLowerCase())) {
+      setNewLabelError('A label with that name already exists')
+      return
+    }
+    const created = onCreateLabel(trimmed)
+    if (!created) {
+      setNewLabelError('Could not create label')
+      return
+    }
+    // Apply to every selected session so the new label lands where the
+    // user expected. toggleSessionLabel is idempotent-safe since the
+    // label was just created with no members.
+    for (const id of selectedIds) onToggle(created.id, id)
+    setNewLabelName('')
+    setNewLabelError(null)
+    setCreating(false)
+  }
+
+  function cancelCreate() {
+    setCreating(false)
+    setNewLabelName('')
+    setNewLabelError(null)
+  }
+  // Derive "on" (all selected have this label), "partial" (some do),
+  // or "off" (none do). Clicking an "on" pill removes the label from
+  // every selected session; clicking "partial" or "off" adds it to
+  // every selected session that doesn't already have it.
+  const ids = Array.from(selectedIds)
+  const pillState = (labelId: string): 'on' | 'partial' | 'off' => {
+    const members = labelMemberships.get(labelId)
+    if (!members || members.size === 0) return 'off'
+    let has = 0
+    for (const id of ids) if (members.has(id)) has++
+    if (has === 0) return 'off'
+    if (has === ids.length) return 'on'
+    return 'partial'
+  }
+
+  function handlePillClick(label: Label) {
+    const state = pillState(label.id)
+    const members = labelMemberships.get(label.id) ?? new Set<string>()
+    if (state === 'on') {
+      // Remove from all selected
+      for (const id of ids) if (members.has(id)) onToggle(label.id, id)
+    } else {
+      // Add to each selected session that doesn't already have it
+      for (const id of ids) if (!members.has(id)) onToggle(label.id, id)
+    }
+  }
+
+  const count = ids.length
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[460px] max-w-[90vw] p-6">
+        <DialogTitle>
+          Labels for {count} session{count === 1 ? '' : 's'}
+        </DialogTitle>
+        <div className="space-y-2 mt-2">
+          <p className="text-[11px] text-muted-foreground/70">
+            Click a label to toggle on or off for the selected sessions.
+          </p>
+          {labels.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              No labels yet. Create one from the Labels tab, then come back here to apply it.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {labels.map((l) => {
+                const state = pillState(l.id)
+                return (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => handlePillClick(l)}
+                    className={
+                      'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs border transition-colors cursor-pointer ' +
+                      (state === 'on'
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : state === 'partial'
+                          ? 'bg-primary/20 text-foreground border-primary/40'
+                          : 'bg-transparent text-muted-foreground border-border hover:bg-muted')
+                    }
+                    title={
+                      state === 'on'
+                        ? 'Remove from all selected'
+                        : state === 'partial'
+                          ? 'Applied to some — click to apply to all'
+                          : 'Apply to all selected'
+                    }
+                  >
+                    <Tag className="h-3 w-3" />
+                    {l.name}
+                    {state === 'partial' && <span className="ml-0.5 opacity-70">~</span>}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {/* New label creation — inline input that replaces the
+              "+ New Label" button while typing. Enter creates + auto-
+              applies to every selected session; Escape cancels. */}
+          {creating ? (
+            <div>
+              <div className="flex items-center gap-2">
+                <Input
+                  autoFocus
+                  placeholder="New label name"
+                  value={newLabelName}
+                  onChange={(e) => {
+                    setNewLabelName(e.target.value)
+                    if (newLabelError) setNewLabelError(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleCreate()
+                    }
+                    if (e.key === 'Escape') {
+                      e.preventDefault()
+                      cancelCreate()
+                    }
+                  }}
+                  className="h-8 text-xs"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!newLabelName.trim()}
+                  onClick={handleCreate}
+                >
+                  Add
+                </Button>
+                <Button size="sm" variant="ghost" onClick={cancelCreate}>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              {newLabelError && (
+                <p className="text-[11px] text-destructive mt-1">{newLabelError}</p>
+              )}
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => setCreating(true)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New Label
+            </Button>
+          )}
+        </div>
+        <div className="flex justify-end mt-2">
+          <Button size="sm" onClick={() => onOpenChange(false)}>
+            Done
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

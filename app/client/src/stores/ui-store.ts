@@ -117,7 +117,10 @@ interface UIState {
   deleteLabel: (id: string) => void
   toggleSessionLabel: (labelId: string, sessionId: string) => void
   getLabelsForSession: (sessionId: string) => Label[]
-  labelsModalOpen: boolean
+  // Labels live in a tab of the Settings modal now. openLabelsModal
+  // just routes to that tab with an optional scroll-to target; close
+  // drops you out of Settings entirely. labelsModalScrollToId is still
+  // read by the tab body on mount.
   labelsModalScrollToId: string | null
   openLabelsModal: (scrollToLabelId?: string) => void
   closeLabelsModal: () => void
@@ -518,11 +521,16 @@ export const useUIStore = create<UIState>((set, get) => ({
     const state = get()
     return state.labels.filter((l) => state.labelMemberships.get(l.id)?.has(sessionId))
   },
-  labelsModalOpen: false,
   labelsModalScrollToId: null,
-  openLabelsModal: (scrollToLabelId) =>
-    set({ labelsModalOpen: true, labelsModalScrollToId: scrollToLabelId ?? null }),
-  closeLabelsModal: () => set({ labelsModalOpen: false, labelsModalScrollToId: null }),
+  openLabelsModal: (scrollToLabelId) => {
+    localStorage.setItem('agents-observe-settings-tab', 'labels')
+    set({
+      settingsOpen: true,
+      settingsTab: 'labels',
+      labelsModalScrollToId: scrollToLabelId ?? null,
+    })
+  },
+  closeLabelsModal: () => set({ settingsOpen: false, labelsModalScrollToId: null }),
   clearLabelsModalScrollTarget: () => set({ labelsModalScrollToId: null }),
 
   iconCustomizationVersion: 0,
