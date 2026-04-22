@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { PanelLeftClose, PanelLeftOpen, Moon, Sun, Wifi, WifiOff, Settings } from 'lucide-react'
 import { cn, isNewerVersion } from '@/lib/utils'
+import { focusSiblingMatching } from '@/lib/keyboard-nav'
 import { useUIStore } from '@/stores/ui-store'
 import { useTheme } from '@/components/theme-provider'
 import { ProjectLabelTabs } from './project-label-tabs'
@@ -103,7 +104,18 @@ export function Sidebar({ connected }: SidebarProps) {
       <Separator />
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-2">
+      <div
+        className="flex-1 overflow-y-auto p-2"
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+          const direction = e.key === 'ArrowDown' ? 1 : -1
+          const target = e.target as HTMLElement
+          if (!target.matches('[data-sidebar-item]')) return
+          if (focusSiblingMatching(target, '[data-sidebar-item]', e.currentTarget, direction)) {
+            e.preventDefault()
+          }
+        }}
+      >
         <PinnedSessions collapsed={sidebarCollapsed} />
         <ProjectLabelTabs collapsed={sidebarCollapsed} />
       </div>
