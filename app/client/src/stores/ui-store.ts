@@ -126,6 +126,11 @@ interface UIState {
   closeLabelsModal: () => void
   clearLabelsModalScrollTarget: () => void
 
+  // Sidebar Projects/Labels tab selector — persisted so the sidebar
+  // re-opens on whichever view the user was last using.
+  sidebarTab: 'projects' | 'labels'
+  setSidebarTab: (tab: 'projects' | 'labels') => void
+
   // Settings modal
   settingsOpen: boolean
   settingsTab: string
@@ -401,6 +406,13 @@ export const useUIStore = create<UIState>((set, get) => ({
   editingSessionTab: 'details',
   setEditingSessionId: (id, tab) =>
     set({ editingSessionId: id, editingSessionTab: tab ?? 'details' }),
+
+  sidebarTab:
+    (localStorage.getItem('agents-observe-sidebar-tab') as 'projects' | 'labels') || 'projects',
+  setSidebarTab: (tab) => {
+    localStorage.setItem('agents-observe-sidebar-tab', tab)
+    set({ sidebarTab: tab })
+  },
 
   settingsOpen: false,
   // Remember the last tab the user viewed so the gear icon reopens

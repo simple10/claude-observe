@@ -360,6 +360,33 @@ describe('ui-store', () => {
     })
   })
 
+  // ── Sidebar Projects/Labels tab switcher ──────────────────
+
+  describe('sidebar Projects/Labels tab', () => {
+    beforeEach(() => {
+      localStorage.removeItem('agents-observe-sidebar-tab')
+      useUIStore.setState({ sidebarTab: 'projects' })
+    })
+
+    it('defaults to "projects"', () => {
+      expect(useUIStore.getState().sidebarTab).toBe('projects')
+    })
+
+    it('setSidebarTab updates state', () => {
+      useUIStore.getState().setSidebarTab('labels')
+      expect(useUIStore.getState().sidebarTab).toBe('labels')
+      useUIStore.getState().setSidebarTab('projects')
+      expect(useUIStore.getState().sidebarTab).toBe('projects')
+    })
+
+    it('setSidebarTab persists to localStorage', () => {
+      useUIStore.getState().setSidebarTab('labels')
+      expect(localStorage.getItem('agents-observe-sidebar-tab')).toBe('labels')
+      useUIStore.getState().setSidebarTab('projects')
+      expect(localStorage.getItem('agents-observe-sidebar-tab')).toBe('projects')
+    })
+  })
+
   // ── Selected event ────────────────────────────────────────
 
   describe('selected event', () => {

@@ -3,7 +3,7 @@ import { PanelLeftClose, PanelLeftOpen, Moon, Sun, Wifi, WifiOff, Settings } fro
 import { cn, isNewerVersion } from '@/lib/utils'
 import { useUIStore } from '@/stores/ui-store'
 import { useTheme } from '@/components/theme-provider'
-import { ProjectList } from './project-list'
+import { ProjectLabelTabs } from './project-label-tabs'
 import { PinnedSessions } from './pinned-sessions'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -105,7 +105,7 @@ export function Sidebar({ connected }: SidebarProps) {
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-2">
         <PinnedSessions collapsed={sidebarCollapsed} />
-        <ProjectList collapsed={sidebarCollapsed} />
+        <ProjectLabelTabs collapsed={sidebarCollapsed} />
       </div>
 
       <Separator />
