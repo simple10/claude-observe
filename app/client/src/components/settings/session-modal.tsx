@@ -700,10 +700,17 @@ function SessionStats({ sessionId }: { sessionId: string }) {
   const setEditingSessionId = useUIStore((s) => s.setEditingSessionId)
   const setScrollToEventId = useUIStore((s) => s.setScrollToEventId)
 
+  // Stats is a point-in-time snapshot — no benefit to refetching while
+  // the user looks at numbers that won't change on this view. gcTime:0
+  // mirrors useEvents' deliberate "drop large payloads as soon as
+  // nothing is observing" policy, so closing the Stats tab doesn't
+  // hold tens of MB of events in react-query's cache for 5 minutes.
   const { data: events, isLoading } = useQuery({
     queryKey: ['events', sessionId, 'stats'],
     queryFn: () => api.getEvents(sessionId),
-    staleTime: 0,
+    staleTime: Infinity,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
   })
 
   const agents = useAgents(sessionId, events)
