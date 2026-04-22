@@ -29,11 +29,11 @@ export function ProjectLabelTabs({ collapsed }: ProjectLabelTabsProps) {
       onValueChange={(v) => setSidebarTab(v as 'projects' | 'labels')}
       className="flex flex-col"
     >
-      <TabsList className="w-full mt-2">
-        <TabsTrigger value="projects" className="flex-1">
+      <TabsList className="w-full mt-2 h-7">
+        <TabsTrigger value="projects" className="flex-1 text-xs">
           Projects
         </TabsTrigger>
-        <TabsTrigger value="labels" className="flex-1">
+        <TabsTrigger value="labels" className="flex-1 text-xs">
           Labels
         </TabsTrigger>
       </TabsList>
