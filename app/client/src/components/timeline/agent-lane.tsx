@@ -1,4 +1,4 @@
-import { useRef, useMemo, useState, useEffect, useCallback } from 'react'
+import { memo, useRef, useMemo, useState, useEffect, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { getRangeMs, getRangeTicks } from '@/config/time-ranges'
 import { useUIStore } from '@/stores/ui-store'
@@ -8,8 +8,13 @@ import { AgentRegistry } from '@/agents/registry'
 import type { Agent } from '@/types'
 import type { EnrichedEvent, AgentClassRegistration } from '@/agents/types'
 
-// Renders event dots inside a single animated container.
-function DotContainer({
+// Renders event dots inside a single animated container. Wrapped in
+// React.memo with a content-aware equality below: on every WS flush
+// the parent rebuilds the per-agent events array, but if no new dots
+// actually appeared in THIS lane (same length, same trailing id) we
+// skip the whole re-render. For large sessions with mostly-idle lanes,
+// this short-circuits the dot reconciliation entirely.
+function DotContainerInner({
   events,
   rangeMs,
   generation,
@@ -89,6 +94,24 @@ function DotContainer({
     </div>
   )
 }
+
+const DotContainer = memo(DotContainerInner, (prev, next) => {
+  // Parent rebuilds `events` on every WS flush. If the new array has
+  // the same length and the same trailing event id, it's effectively
+  // the same set of dots — skip the re-render. Every other prop is a
+  // stable reference (store action, registration object, numeric
+  // rangeMs/generation), so strict equality is sufficient for them.
+  if (prev.rangeMs !== next.rangeMs) return false
+  if (prev.generation !== next.generation) return false
+  if (prev.registration !== next.registration) return false
+  if (prev.setScrollToEventId !== next.setScrollToEventId) return false
+  const pe = prev.events
+  const ne = next.events
+  if (pe === ne) return true
+  if (pe.length !== ne.length) return false
+  if (pe.length === 0) return true
+  return pe[pe.length - 1].id === ne[ne.length - 1].id
+})
 
 /** Renders the dot tooltip using the registered agent class's DotTooltip component. */
 function DotTooltipForEvent({
