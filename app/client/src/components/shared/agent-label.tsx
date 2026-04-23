@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { getAgentDisplayName } from '@/lib/agent-utils'
 import { AgentClassIcon, agentClassDisplayName } from '@/components/shared/agent-class-icon'
@@ -20,7 +21,7 @@ interface AgentLabelProps {
  * agent type, and parent relationship. Wrap any inline agent name
  * in this component to get consistent tooltips everywhere.
  */
-export function AgentLabel({
+function AgentLabelInner({
   agent,
   parentAgent,
   className,
@@ -70,3 +71,32 @@ export function AgentLabel({
     </Tooltip>
   )
 }
+
+// useAgents returns a new Agent[] on every WS flush even when the agents
+// themselves haven't changed — so the agent/parentAgent refs passed to
+// AgentLabel turn over constantly. Compare by display-relevant fields
+// instead, so the Tooltip tree only reconciles when something the user
+// could actually see has changed.
+function agentFieldsEqual(a: Agent | null | undefined, b: Agent | null | undefined): boolean {
+  if (a === b) return true
+  if (!a || !b) return false
+  return (
+    a.id === b.id &&
+    a.name === b.name &&
+    a.description === b.description &&
+    a.agentType === b.agentType &&
+    a.agentClass === b.agentClass &&
+    a.cwd === b.cwd &&
+    a.parentAgentId === b.parentAgentId
+  )
+}
+
+export const AgentLabel = memo(AgentLabelInner, (prev, next) => {
+  if (prev.className !== next.className) return false
+  if (prev.disableTooltip !== next.disableTooltip) return false
+  if (prev.tooltipSide !== next.tooltipSide) return false
+  if (prev.children !== next.children) return false
+  if (!agentFieldsEqual(prev.agent, next.agent)) return false
+  if (!agentFieldsEqual(prev.parentAgent, next.parentAgent)) return false
+  return true
+})

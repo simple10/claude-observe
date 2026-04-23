@@ -29,6 +29,10 @@ function DotContainerInner({
 }) {
   const [anchorTime, setAnchorTime] = useState(() => Date.now())
   const containerRef = useRef<HTMLDivElement>(null)
+  // Hover state for the shared per-lane tooltip (one Radix Tooltip
+  // instance driven by controlled open, rather than one Tooltip
+  // wrapping each dot).
+  const [hovered, setHovered] = useState<{ id: number; leftPct: number } | null>(null)
 
   useEffect(() => {
     setAnchorTime(Date.now())
@@ -46,18 +50,23 @@ function DotContainerInner({
     const el = containerRef.current
     if (!el) return
 
-    const anim = el.animate([{ transform: 'translateX(0%)' }, { transform: 'translateX(-100%)' }], {
-      duration: rangeMs,
-      easing: 'linear',
-      fill: 'forwards',
-    })
+    const anim = el.animate(
+      [{ transform: 'translate3d(0%, 0, 0)' }, { transform: 'translate3d(-100%, 0, 0)' }],
+      {
+        duration: rangeMs,
+        easing: 'linear',
+        fill: 'forwards',
+      },
+    )
 
     anim.onfinish = () => setAnchorTime(Date.now())
     return () => anim.cancel()
   }, [anchorTime, rangeMs])
 
+  const hoveredEvent = hovered ? events.find((e) => e.id === hovered.id) ?? null : null
+
   return (
-    <div ref={containerRef} className="absolute inset-0">
+    <div ref={containerRef} className="absolute inset-0" style={{ willChange: 'transform' }}>
       {events.map((event) => {
         const position = ((event.timestamp - anchorTime) / rangeMs) * 100 + 100
         if (position < -5 || position > 205) return null
@@ -67,30 +76,50 @@ function DotContainerInner({
         const { dotColor, customHex } = registration.getEventColor(event)
 
         return (
-          <Tooltip key={event.id}>
-            <TooltipTrigger asChild>
-              <button
-                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 cursor-pointer hover:scale-125"
-                style={{ left: `${position}%` }}
-                onClick={() => setScrollToEventId(event.id)}
-              >
-                <span
-                  className={cn(
-                    'flex items-center justify-center h-5 w-5 rounded-full',
-                    !customHex && dotColor,
-                  )}
-                  style={customHex ? { backgroundColor: customHex } : undefined}
-                >
-                  <Icon className="h-3 w-3 text-white" />
-                </span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs max-w-64">
-              <DotTooltipForEvent event={event} registration={registration} />
-            </TooltipContent>
-          </Tooltip>
+          <button
+            key={event.id}
+            className={cn(
+              'absolute h-5 w-5 cursor-pointer rounded-full flex items-center justify-center hover:ring-2 hover:ring-white/70',
+              !customHex && dotColor,
+            )}
+            style={{
+              left: `${position}%`,
+              top: '50%',
+              marginLeft: -10,
+              marginTop: -10,
+              backgroundColor: customHex,
+            }}
+            onClick={() => setScrollToEventId(event.id)}
+            onPointerEnter={() => setHovered({ id: event.id, leftPct: position })}
+            onPointerLeave={() =>
+              setHovered((cur) => (cur && cur.id === event.id ? null : cur))
+            }
+          >
+            <Icon className="h-3 w-3 text-white" />
+          </button>
         )
       })}
+
+      {/* One shared Tooltip for the whole lane. The trigger is an
+          invisible pointer-events-none anchor span that we move to
+          whichever dot is currently hovered. Radix handles side-flip
+          and collision detection against that moving anchor. */}
+      <Tooltip open={hovered !== null}>
+        <TooltipTrigger asChild>
+          <span
+            aria-hidden
+            className="absolute top-1/2 pointer-events-none block h-5 w-5"
+            style={{
+              left: hovered ? `${hovered.leftPct}%` : '0%',
+              marginLeft: -10,
+              marginTop: -10,
+            }}
+          />
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs max-w-64">
+          {hoveredEvent && <DotTooltipForEvent event={hoveredEvent} registration={registration} />}
+        </TooltipContent>
+      </Tooltip>
     </div>
   )
 }
@@ -203,10 +232,16 @@ export function AgentLane({
   }, [allEvents, agentId, setScrollToEventId])
 
   return (
-    <div className="flex items-center h-8 border-b border-border/30">
+    // Dots area is an absolutely-positioned sibling of the button
+    // (not a flex cell) so its animating container doesn't share a
+    // rendering context with the button's opacity. Leaving the two
+    // in the same flex row was causing the browser to compose the
+    // whole lane as a single CPU-painted layer, dropping the
+    // animation off the GPU.
+    <div className="relative h-8 border-b border-border/30">
       <button
         className={cn(
-          'w-40 shrink-0 text-[10px] truncate px-2 text-left cursor-pointer hover:underline flex items-center gap-1',
+          'absolute left-0 top-0 bottom-0 w-40 text-[10px] truncate px-2 text-left cursor-pointer hover:underline flex items-center gap-1',
           color,
           isSubagent ? 'opacity-80 dark:opacity-50' : 'opacity-100 dark:opacity-70',
         )}
@@ -217,7 +252,7 @@ export function AgentLane({
         <AgentLabel agent={agent} parentAgent={parentAgent} tooltipSide="top" />
       </button>
 
-      <div className="flex-1 relative h-full overflow-hidden">
+      <div className="absolute left-40 top-0 right-0 bottom-0 overflow-hidden">
         {visibleEvents.length > 0 && (
           <DotContainer
             events={visibleEvents}
