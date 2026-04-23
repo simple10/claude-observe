@@ -34,7 +34,7 @@ Tab is **not** modified — it must continue to behave as the browser default. T
 |-----|--------|
 | `/` | Focus the search input in `event-filter-bar.tsx`. |
 | `a` | Open the agent combo box (clicks the `PopoverTrigger`; cmdk auto-focuses its `CommandInput`). |
-| `t` | Focus the first filter pill (Prompts) in the static filter row. |
+| `f` | Focus the first filter pill (the "All" button) in the static filter row. |
 | `s` | Focus the currently-selected session in the sidebar; if none is visible, focus the first sidebar item. |
 
 All four are suppressed when:
@@ -63,9 +63,10 @@ All four are suppressed when:
 |-----|--------|
 | `←` | Focus the previous filter pill. No-op at the start. |
 | `→` | Focus the next filter pill. No-op at the end. |
+| `↑` / `↓` | Jump between the static row (`data-filter-row="0"`) and the dynamic tools row (`data-filter-row="1"`), preserving horizontal position (clamped to the target row's length). No-op when the target row is absent (e.g. ↓ when there are no dynamic tool filters). |
 | `Space` / `Enter` | Toggle the focused pill (already works — pills are real `<button>`s). |
 
-Both rows (static category filters + dynamic tool filters) participate in a single navigation order. Left at the start of the tool row goes back to the last static filter; Right at the end of the static row goes into the tool row.
+Both rows (static category filters + dynamic tool filters) participate in a single left/right navigation order. Left at the start of the tool row goes back to the last static filter; Right at the end of the static row goes into the tool row. Up/Down jumps between rows by the row attribute.
 
 ## Architecture
 
@@ -86,7 +87,8 @@ Each region exposes a target via a data attribute on the relevant DOM element:
 | `data-region-target="search"` | The search `<input>` in `event-filter-bar.tsx`. |
 | `data-region-target="agents"` | The `PopoverTrigger`'s underlying `<button>` in `agent-combobox.tsx`. |
 | `data-sidebar-item` | Every navigable sidebar item (pinned sessions, project rows, session items, "show more" buttons). The `s` shortcut resolves to the one with `aria-current="true"` if present, else the first. |
-| `data-filter-pill` | Every filter pill in both rows. The `t` shortcut resolves to the first one. |
+| `data-filter-pill` | Every filter pill in both rows. The `f` shortcut resolves to the first one. |
+| `data-filter-row="0"` / `="1"` | On every filter pill — `0` for the static row, `1` for the dynamic tools row. Used by Up/Down arrow nav to jump between rows while preserving horizontal position. |
 
 The hook resolves targets via `document.querySelector` / `querySelectorAll`. This avoids ref-passing through props and survives re-renders cleanly.
 

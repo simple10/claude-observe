@@ -48,7 +48,7 @@ export function useRegionShortcuts() {
           e.preventDefault()
           clickAgentsTrigger()
           return
-        case 't':
+        case 'f':
           e.preventDefault()
           focusFirstFilterPill()
           return

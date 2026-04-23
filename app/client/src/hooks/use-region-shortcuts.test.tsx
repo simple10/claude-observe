@@ -70,10 +70,10 @@ describe('useRegionShortcuts', () => {
     expect(agentsClick).toHaveBeenCalledTimes(1)
   })
 
-  it('focuses the first filter pill on "t"', () => {
+  it('focuses the first filter pill on "f"', () => {
     const { pill } = setupDOM()
     render(<HookHost />)
-    press('t')
+    press('f')
     expect(document.activeElement).toBe(pill)
   })
 
@@ -98,7 +98,7 @@ describe('useRegionShortcuts', () => {
     const { search, pill } = setupDOM()
     render(<HookHost />)
     search.focus()
-    press('t')
+    press('f')
     expect(document.activeElement).toBe(search)
     expect(document.activeElement).not.toBe(pill)
   })
