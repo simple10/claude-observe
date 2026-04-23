@@ -1,3 +1,46 @@
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  !!! PERFORMANCE-CRITICAL — PROFILE CPU AFTER ANY EDIT !!!       ║
+// ╠══════════════════════════════════════════════════════════════════╣
+// ║  This file and activity-timeline.tsx contain a Web Animation     ║
+// ║  that runs continuously in live mode. On large sessions (5k+     ║
+// ║  events) it is trivially easy to introduce changes that push     ║
+// ║  live-mode CPU from ~10% to 100%+. Before committing any edit    ║
+// ║  to either file, open DevTools Performance and verify steady-    ║
+// ║  state CPU hasn't regressed on a busy session.                   ║
+// ║                                                                  ║
+// ║  Known gotchas (hard-won, please read before touching):          ║
+// ║                                                                  ║
+// ║  1. ANY `opacity` <1 (or filter/backdrop-filter) on a sibling    ║
+// ║     of the animating DotContainer forces the browser to merge    ║
+// ║     their compositor layers, dropping the animation onto CPU     ║
+// ║     paint. The AgentLane row deliberately uses absolute-         ║
+// ║     positioned siblings (not a flex row) to keep the name        ║
+// ║     button's opacity isolated from the dots wrapper.             ║
+// ║                                                                  ║
+// ║  2. The dots wrapper has exactly ONE child (DotContainer). Tick  ║
+// ║     marks live in their own sibling wrapper so the compositor    ║
+// ║     can promote DotContainer cleanly without tick-mark layer     ║
+// ║     interference. Don't put anything else inside the dots        ║
+// ║     wrapper.                                                     ║
+// ║                                                                  ║
+// ║  3. `visibleEvents` is intentionally NOT memoized. Its cutoff    ║
+// ║     depends on Date.now(), and a memo that ignores time keeps    ║
+// ║     returning non-empty arrays after events age out — which      ║
+// ║     keeps DotContainer mounted and its Web Animation looping     ║
+// ║     forever. Leave this as a fresh compute each render.          ║
+// ║                                                                  ║
+// ║  4. DotContainer is wrapped in React.memo with length+trailing-  ║
+// ║     id equality because useEffectiveEvents returns a new array   ║
+// ║     on every WS flush even when this lane's events are           ║
+// ║     unchanged. Idle lanes short-circuit re-render entirely.      ║
+// ║                                                                  ║
+// ║  5. AgentLabel is also memoized (see agent-label.tsx) because    ║
+// ║     useAgents rebuilds Agent objects on every WS flush. Radix    ║
+// ║     Tooltips there are expensive to reconcile at scale.          ║
+// ║                                                                  ║
+// ║  See docs/DEVELOPMENT.md § "Timeline rendering perf" for more.   ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
 import { memo, useRef, useMemo, useState, useEffect, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { getRangeMs, getRangeTicks } from '@/config/time-ranges'
@@ -63,7 +106,7 @@ function DotContainerInner({
     return () => anim.cancel()
   }, [anchorTime, rangeMs])
 
-  const hoveredEvent = hovered ? events.find((e) => e.id === hovered.id) ?? null : null
+  const hoveredEvent = hovered ? (events.find((e) => e.id === hovered.id) ?? null) : null
 
   return (
     <div ref={containerRef} className="absolute inset-0" style={{ willChange: 'transform' }}>
@@ -91,9 +134,7 @@ function DotContainerInner({
             }}
             onClick={() => setScrollToEventId(event.id)}
             onPointerEnter={() => setHovered({ id: event.id, leftPct: position })}
-            onPointerLeave={() =>
-              setHovered((cur) => (cur && cur.id === event.id ? null : cur))
-            }
+            onPointerLeave={() => setHovered((cur) => (cur && cur.id === event.id ? null : cur))}
           >
             <Icon className="h-3 w-3 text-white" />
           </button>
@@ -192,18 +233,26 @@ export function AgentLane({
 
   const generation = generationRef.current
 
-  const visibleEvents = useMemo(() => {
-    const cutoff = Date.now() - rangeMs
-    let lo = 0
-    let hi = events.length
-    while (lo < hi) {
-      const mid = (lo + hi) >>> 1
-      if (events[mid].timestamp < cutoff) lo = mid + 1
-      else hi = mid
-    }
-    return lo >= events.length ? [] : events.slice(lo)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events, rangeMs])
+  // Intentionally NOT memoized on `[events, rangeMs]`: the cutoff
+  // depends on Date.now(), so a memo that ignores time returns stale
+  // results — specifically, once events age out of view the memo
+  // keeps returning a non-empty array, DotContainer stays mounted,
+  // and its Web Animation loops forever even though there's nothing
+  // on screen. Recomputing fresh each render lets the cleanup tick
+  // unmount DotContainer once all events have scrolled off. Binary
+  // search is O(log n), cheap to redo. DotContainer's React.memo
+  // (length + trailing id) still short-circuits downstream when the
+  // visible set is unchanged.
+  const cutoff = Date.now() - rangeMs
+  let lo = 0
+  const hi0 = events.length
+  let hi = hi0
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1
+    if (events[mid].timestamp < cutoff) lo = mid + 1
+    else hi = mid
+  }
+  const visibleEvents = lo >= hi0 ? [] : events.slice(lo)
 
   const ticks = useMemo(() => {
     const rangeSec = rangeMs / 1000
@@ -252,17 +301,12 @@ export function AgentLane({
         <AgentLabel agent={agent} parentAgent={parentAgent} tooltipSide="top" />
       </button>
 
-      <div className="absolute left-40 top-0 right-0 bottom-0 overflow-hidden">
-        {visibleEvents.length > 0 && (
-          <DotContainer
-            events={visibleEvents}
-            rangeMs={rangeMs}
-            generation={generation}
-            setScrollToEventId={setScrollToEventId}
-            registration={registration}
-          />
-        )}
-
+      {/* Tick marks live in their own absolute sibling so the dots
+          wrapper below has no siblings to composite against. Each
+          tick label still has a -translate-x-1/2 transform, which
+          would create a separate compositing layer if it shared a
+          parent with the animating DotContainer. */}
+      <div className="absolute left-40 top-0 right-0 bottom-0 overflow-hidden pointer-events-none">
         {ticks.map(({ pct, label }, i) => (
           <div
             key={i}
@@ -275,6 +319,21 @@ export function AgentLane({
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Dots get their own isolated wrapper — DotContainer is now the
+          only child, so the compositor can promote it to its own layer
+          without tick-mark siblings interfering. */}
+      <div className="absolute left-40 top-0 right-0 bottom-0 overflow-hidden">
+        {visibleEvents.length > 0 && (
+          <DotContainer
+            events={visibleEvents}
+            rangeMs={rangeMs}
+            generation={generation}
+            setScrollToEventId={setScrollToEventId}
+            registration={registration}
+          />
+        )}
       </div>
     </div>
   )

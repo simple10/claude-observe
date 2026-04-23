@@ -1,3 +1,37 @@
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  !!! PERFORMANCE-CRITICAL — PROFILE CPU AFTER ANY EDIT !!!       ║
+// ╠══════════════════════════════════════════════════════════════════╣
+// ║  This file feeds a continuously-animating DotContainer (see      ║
+// ║  agent-lane.tsx). On large sessions it's easy to regress live-   ║
+// ║  mode CPU from ~10% to 100%+. Profile with DevTools Performance  ║
+// ║  on a busy session before committing.                            ║
+// ║                                                                  ║
+// ║  Known gotchas:                                                  ║
+// ║                                                                  ║
+// ║  1. The Live/Rewind transition spinner uses display:none when    ║
+// ║     hidden (NOT visibility:hidden). visibility:hidden keeps the  ║
+// ║     CSS animation timeline running and any will-change layer     ║
+// ║     allocated forever. display:none removes the element from     ║
+// ║     the render tree entirely.                                    ║
+// ║                                                                  ║
+// ║  2. The cleanup tick (5s setInterval) is what lets AgentLane     ║
+// ║     re-evaluate stale visibleEvents and unmount DotContainer     ║
+// ║     once events age out. Don't disable it without replacing      ║
+// ║     with an equivalent time-forcing trigger.                     ║
+// ║                                                                  ║
+// ║  3. Agents data (useAgents) rebuilds Agent objects on every      ║
+// ║     WS flush. Anything that depends on `agents` references by    ║
+// ║     identity will re-render per flush. Use content comparison    ║
+// ║     (see AgentLabel's memo) or ref-stabilization if needed.      ║
+// ║                                                                  ║
+// ║  4. Events flowing to AgentLane should NOT be memoized on        ║
+// ║     `[events, rangeMs]` with a Date.now() cutoff — that's a      ║
+// ║     stale-state bug that keeps dots mounted forever. See         ║
+// ║     agent-lane.tsx visibleEvents comment for details.            ║
+// ║                                                                  ║
+// ║  See docs/DEVELOPMENT.md § "Timeline rendering perf" for more.   ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
 import { useCallback, useRef, useMemo, useState, useEffect } from 'react'
 import { getRangeMs, TIME_RANGE_KEYS } from '@/config/time-ranges'
 import { useUIStore } from '@/stores/ui-store'
@@ -145,25 +179,23 @@ export function ActivityTimeline() {
   const transitionSpinnerRef = useRef<HTMLDivElement>(null)
 
   const handleToggleRewind = () => {
-    // Show spinner via direct DOM manipulation (bypasses React scheduling)
+    // Show the spinner via direct DOM manipulation (skips the React
+    // scheduling path so it paints before the main thread blocks on
+    // enter/exitRewindMode, which can take 5-10s on large sessions).
+    // display:none vs display:block means no compositor layer is
+    // allocated while hidden — visibility:hidden was keeping the
+    // spin animation running and a willChange layer allocated forever.
     const spinner = transitionSpinnerRef.current
-    if (spinner) {
-      spinner.style.width = '12px'
-      spinner.style.marginRight = '4px'
-      spinner.style.visibility = 'visible'
-    }
-    // setTimeout lets the browser paint the spinner before the main thread locks
+    if (spinner) spinner.style.display = 'block'
+    // Yield one paint tick so the spinner actually renders before the
+    // heavy work monopolizes the main thread.
     setTimeout(() => {
       if (rewindMode) {
         exitRewindMode()
       } else {
         enterRewindMode(events || [])
       }
-      if (spinner) {
-        spinner.style.width = '0'
-        spinner.style.marginRight = '0'
-        spinner.style.visibility = 'hidden'
-      }
+      if (spinner) spinner.style.display = 'none'
     }, 50)
   }
 
@@ -184,19 +216,22 @@ export function ActivityTimeline() {
             )}
           </div>
           <div className="flex gap-1 items-center">
-            {/* GPU-animated spinner — always in DOM, shown/hidden via direct DOM manipulation */}
+            {/* Transition spinner — display:none while hidden so no
+                compositor layer or animation timeline is kept alive
+                between transitions. Shown imperatively in
+                handleToggleRewind so the spinner paints before the
+                heavy enter/exit rewind work blocks the main thread. */}
             <div
               ref={transitionSpinnerRef}
               style={{
-                width: 0,
+                display: 'none',
+                width: 12,
                 height: 12,
+                marginRight: 4,
                 border: '2px solid currentColor',
                 borderTopColor: 'transparent',
                 borderRadius: '50%',
-                willChange: 'transform',
                 animation: 'spin 1s linear infinite',
-                visibility: 'hidden',
-                overflow: 'hidden',
               }}
               className="text-muted-foreground"
             />
