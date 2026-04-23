@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.9.2 — Keyboard navigation, Settings overhaul, and timeline perf
+
+This release significantly enhances CPU usage, adds keyboard navigation, and adds a rebuilt Settings experience featuring Projects, Labels, and Sessions management tabs. Session view gains region-jump shortcuts, arrow-key navigation in the sidebar and filter pills, and a smoother rewind-mode transition experience.
+
+### Features
+
+- Full keyboard navigation across sidebar, filter pills, and session items, with arrow-key support and region-jump shortcuts for the session view
+- New Keyboard tab in Settings listing all available shortcuts
+- Settings modal gains Sessions, Projects, and Labels tabs with sortable tables, per-project create/delete, and cross-tab label management
+- Transition spinner now appears when changing rewind-mode ranges
+- base64 images in tool responses are rendered inline in event details & redacted when over the size limit
+
+### Fixes
+
+- CPU usage reduced from 98% to ~12% for activity timeline animations
+- Session Stats no longer retains the events array in memory after exit
+- `useAgents` side-effect fetch moved out of `useMemo`
+
+### Other
+
+- Timeline performance: React.memo on DotContainer with content-aware equality, agent lane split into absolute siblings with shared tooltips, plus cleanup and perf guardrails
+
 ## v0.9.1 — Configurable notifications and richer event handling
 
 **BREAKING CHANGE:** This release adds claude's new `UserPromptExpansion` hook. Be sure to update `claude code` to to the latest version before upgrading the plugin.
