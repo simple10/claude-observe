@@ -402,7 +402,12 @@ export function EventStream() {
                 </span>
               )}
             </div>
-            <div ref={scrollRef} className="flex-1 overflow-y-auto">
+            <div
+              ref={scrollRef}
+              data-region-target="events"
+              tabIndex={0}
+              className="flex-1 overflow-y-auto focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+            >
               {filteredEvents.length === 0 ? (
                 <EmptyState text="No events match the current filters" />
               ) : (

@@ -31,6 +31,11 @@ function focusSidebar() {
   target?.focus()
 }
 
+function focusEventStream() {
+  const target = document.querySelector<HTMLElement>('[data-region-target="events"]')
+  target?.focus()
+}
+
 export function useRegionShortcuts() {
   useEffect(() => {
     function handler(e: KeyboardEvent) {
@@ -41,6 +46,7 @@ export function useRegionShortcuts() {
 
       switch (e.key) {
         case '/':
+        case 's':
           e.preventDefault()
           focusSearch()
           return
@@ -52,9 +58,13 @@ export function useRegionShortcuts() {
           e.preventDefault()
           focusFirstFilterPill()
           return
-        case 's':
+        case 'b':
           e.preventDefault()
           focusSidebar()
+          return
+        case 'e':
+          e.preventDefault()
+          focusEventStream()
           return
       }
     }

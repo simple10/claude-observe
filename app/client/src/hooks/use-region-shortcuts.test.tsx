@@ -31,7 +31,12 @@ function setupDOM() {
   selectedSidebarItem.setAttribute('aria-current', 'true')
   document.body.appendChild(selectedSidebarItem)
 
-  return { search, agents, agentsClick, pill, sidebarItem, selectedSidebarItem }
+  const events = document.createElement('div')
+  events.setAttribute('data-region-target', 'events')
+  events.tabIndex = 0
+  document.body.appendChild(events)
+
+  return { search, agents, agentsClick, pill, sidebarItem, selectedSidebarItem, events }
 }
 
 function press(key: string, opts: { meta?: boolean; ctrl?: boolean; alt?: boolean } = {}) {
@@ -63,6 +68,13 @@ describe('useRegionShortcuts', () => {
     expect(document.activeElement).toBe(search)
   })
 
+  it('focuses the search input on "s" (alias of /)', () => {
+    const { search } = setupDOM()
+    render(<HookHost />)
+    press('s')
+    expect(document.activeElement).toBe(search)
+  })
+
   it('clicks the agents trigger on "a"', () => {
     const { agentsClick } = setupDOM()
     render(<HookHost />)
@@ -77,21 +89,28 @@ describe('useRegionShortcuts', () => {
     expect(document.activeElement).toBe(pill)
   })
 
-  it('focuses the selected sidebar item on "s" when one is marked aria-current', () => {
+  it('focuses the selected sidebar item on "b" when one is marked aria-current', () => {
     const { selectedSidebarItem } = setupDOM()
     render(<HookHost />)
-    press('s')
+    press('b')
     expect(document.activeElement).toBe(selectedSidebarItem)
   })
 
-  it('focuses the first sidebar item on "s" when nothing is selected', () => {
+  it('focuses the first sidebar item on "b" when nothing is selected', () => {
     document.body.innerHTML = ''
     const item = document.createElement('button')
     item.setAttribute('data-sidebar-item', '')
     document.body.appendChild(item)
     render(<HookHost />)
-    press('s')
+    press('b')
     expect(document.activeElement).toBe(item)
+  })
+
+  it('focuses the event stream container on "e"', () => {
+    const { events } = setupDOM()
+    render(<HookHost />)
+    press('e')
+    expect(document.activeElement).toBe(events)
   })
 
   it('does NOT fire when an INPUT is focused', () => {

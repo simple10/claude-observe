@@ -32,12 +32,13 @@ Tab is **not** modified — it must continue to behave as the browser default. T
 
 | Key | Action |
 |-----|--------|
-| `/` | Focus the search input in `event-filter-bar.tsx`. |
+| `/` or `s` | Focus the search input in `event-filter-bar.tsx`. (`s` is an alias for the slash, since some keyboards / users find slash awkward.) |
 | `a` | Open the agent combo box (clicks the `PopoverTrigger`; cmdk auto-focuses its `CommandInput`). |
 | `f` | Focus the first filter pill (the "All" button) in the static filter row. |
-| `s` | Focus the currently-selected session in the sidebar; if none is visible, focus the first sidebar item. |
+| `b` | Focus the sidebar — the currently-selected session if visible, else the first sidebar item. |
+| `e` | Focus the event stream's scrollable container. |
 
-All four are suppressed when:
+All shortcuts are suppressed when:
 - `document.activeElement` is `INPUT`, `TEXTAREA`, or has `contentEditable="true"`.
 - Any of `event.metaKey`, `event.ctrlKey`, `event.altKey` is true.
 - The event has already been `defaultPrevented` (e.g. by a Radix popover that's open and listening).
@@ -86,7 +87,8 @@ Each region exposes a target via a data attribute on the relevant DOM element:
 |-----------|-----|
 | `data-region-target="search"` | The search `<input>` in `event-filter-bar.tsx`. |
 | `data-region-target="agents"` | The `PopoverTrigger`'s underlying `<button>` in `agent-combobox.tsx`. |
-| `data-sidebar-item` | Every navigable sidebar item (pinned sessions, project rows, session items, "show more" buttons). The `s` shortcut resolves to the one with `aria-current="true"` if present, else the first. |
+| `data-region-target="events"` | The event stream's scrollable `<div>` in `event-stream.tsx` (made focusable via `tabIndex={0}`). |
+| `data-sidebar-item` | Every navigable sidebar item (pinned sessions, project rows, session items, "show more" buttons). The `b` shortcut resolves to the one with `aria-current="true"` if present, else the first. |
 | `data-filter-pill` | Every filter pill in both rows. The `f` shortcut resolves to the first one. |
 | `data-filter-row="0"` / `="1"` | On every filter pill — `0` for the static row, `1` for the dynamic tools row. Used by Up/Down arrow nav to jump between rows while preserving horizontal position. |
 
