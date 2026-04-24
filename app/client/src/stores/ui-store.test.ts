@@ -584,4 +584,36 @@ describe('ui-store', () => {
       expect(useUIStore.getState().labelsModalScrollToId).toBeNull()
     })
   })
+
+  describe('session activity pulses', () => {
+    beforeEach(() => {
+      useUIStore.setState({ sessionPulses: {} })
+    })
+
+    it('pulseSession bumps the counter for a new session from 0 to 1', () => {
+      useUIStore.getState().pulseSession('sess-1')
+      expect(useUIStore.getState().sessionPulses['sess-1']).toBe(1)
+    })
+
+    it('pulseSession is monotonic — repeated calls keep incrementing', () => {
+      useUIStore.getState().pulseSession('sess-1')
+      useUIStore.getState().pulseSession('sess-1')
+      useUIStore.getState().pulseSession('sess-1')
+      expect(useUIStore.getState().sessionPulses['sess-1']).toBe(3)
+    })
+
+    it('pulseSession tracks each session independently', () => {
+      useUIStore.getState().pulseSession('sess-1')
+      useUIStore.getState().pulseSession('sess-2')
+      useUIStore.getState().pulseSession('sess-1')
+      expect(useUIStore.getState().sessionPulses).toEqual({ 'sess-1': 2, 'sess-2': 1 })
+    })
+
+    it('pulseSession replaces the record (not in-place mutation) so shallow-compare triggers re-renders', () => {
+      const before = useUIStore.getState().sessionPulses
+      useUIStore.getState().pulseSession('sess-1')
+      const after = useUIStore.getState().sessionPulses
+      expect(after).not.toBe(before)
+    })
+  })
 })

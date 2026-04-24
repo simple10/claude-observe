@@ -791,15 +791,15 @@ function AddLabelDialog({
                       (state === 'on'
                         ? 'bg-primary text-primary-foreground border-primary'
                         : state === 'partial'
-                        ? 'bg-primary/20 text-foreground border-primary/40'
-                        : 'bg-transparent text-muted-foreground border-border hover:bg-muted')
+                          ? 'bg-primary/20 text-foreground border-primary/40'
+                          : 'bg-transparent text-muted-foreground border-border hover:bg-muted')
                     }
                     title={
                       state === 'on'
                         ? 'Remove from all selected'
                         : state === 'partial'
-                        ? 'Applied to some — click to apply to all'
-                        : 'Apply to all selected'
+                          ? 'Applied to some — click to apply to all'
+                          : 'Apply to all selected'
                     }
                   >
                     <Tag className="h-3 w-3" />

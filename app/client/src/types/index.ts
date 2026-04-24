@@ -94,5 +94,6 @@ export type WSMessage =
   | { type: 'project_update'; data: { id: number; name: string } }
   | { type: 'notification'; data: { sessionId: string; projectId: number; ts: number } }
   | { type: 'notification_clear'; data: { sessionId: string; ts: number } }
+  | { type: 'activity'; data: { sessionId: string; eventId: number; ts: number } }
 
 export type WSClientMessage = { type: 'subscribe'; sessionId: string } | { type: 'unsubscribe' }

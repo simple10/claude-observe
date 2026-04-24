@@ -1,8 +1,40 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { API_BASE } from '@/config/api'
-import type { WSMessage, WSClientMessage, ParsedEvent } from '@/types'
+import type { WSMessage, WSClientMessage, ParsedEvent, Session, RecentSession } from '@/types'
 import { pushNotification, clearNotification } from '@/components/sidebar/notification-indicator'
+import { useUIStore } from '@/stores/ui-store'
+
+/** Patch the ['sessions', *] and ['recent-sessions', *] query caches so
+ *  that any row matching sessionId with status='ended' flips to 'active'.
+ *  Called from the activity WS handler to close the gap between a ping
+ *  arriving and the next sessions refetch. */
+function markSessionActiveInCache(queryClient: QueryClient, sessionId: string): void {
+  queryClient.setQueriesData<Session[]>({ queryKey: ['sessions'] }, (old) => {
+    if (!old) return old
+    let changed = false
+    const next = old.map((s) => {
+      if (s.id === sessionId && s.status !== 'active') {
+        changed = true
+        return { ...s, status: 'active' }
+      }
+      return s
+    })
+    return changed ? next : old
+  })
+  queryClient.setQueriesData<RecentSession[]>({ queryKey: ['recent-sessions'] }, (old) => {
+    if (!old) return old
+    let changed = false
+    const next = old.map((s) => {
+      if (s.id === sessionId && s.status !== 'active') {
+        changed = true
+        return { ...s, status: 'active' }
+      }
+      return s
+    })
+    return changed ? next : old
+  })
+}
 
 const WS_URL = `ws://${window.location.host}/api/events/stream`
 
@@ -120,6 +152,15 @@ export function useWebSocket(sessionId: string | null) {
       } else if (msg.type === 'notification_clear') {
         const { sessionId, ts } = msg.data
         clearNotification(sessionId, ts)
+      } else if (msg.type === 'activity') {
+        const { sessionId } = msg.data
+        useUIStore.getState().pulseSession(sessionId)
+        // Flip any cached Session rows for this session to 'active'.
+        // Covers the gap where a ping arrives for a session that the
+        // most recent /sessions fetch still has marked 'ended'. Next
+        // refetch re-syncs from the server, so this is client-side
+        // only and non-destructive.
+        markSessionActiveInCache(queryClient, sessionId)
       }
     },
     [queryClient],

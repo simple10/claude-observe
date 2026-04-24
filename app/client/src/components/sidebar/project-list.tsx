@@ -8,8 +8,10 @@ import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api-client'
+import { cn } from '@/lib/utils'
 import { ProjectModal } from '@/components/settings/project-modal'
 import { SessionItem } from './session-item'
+import { useAggregatePulseActive } from '@/hooks/use-pulse-active'
 import {
   NotificationIndicator,
   dismissNotifications,
@@ -247,6 +249,7 @@ function ProjectFolderWithBell({ projectId }: { projectId: number }) {
   const { data: sessions } = useSessions(projectId)
   const sessionIds = sessions?.map((s) => s.id) ?? []
   const hasHiddenFlagged = useAnyHiddenFlaggedSession(sessionIds)
+  const pulseActive = useAggregatePulseActive(sessionIds)
   if (hasHiddenFlagged) {
     return (
       <NotificationIndicator
@@ -258,7 +261,25 @@ function ProjectFolderWithBell({ projectId }: { projectId: number }) {
       />
     )
   }
-  return <Folder className="h-3.5 w-3.5 shrink-0" />
+  // During a pulse we tint the folder green and show a faint ping
+  // behind it, mirroring the session dot pulse visual language. Off
+  // state is the plain folder in inherited color.
+  return (
+    <span className="relative h-3.5 w-3.5 shrink-0 inline-flex items-center justify-center">
+      {pulseActive && (
+        <span
+          aria-hidden
+          className="absolute h-3.5 w-3.5 rounded-sm bg-green-400/30 dark:bg-green-300/25 animate-ping"
+        />
+      )}
+      <Folder
+        className={cn(
+          'h-3.5 w-3.5 relative transition-colors',
+          pulseActive && 'text-green-500 dark:text-green-400',
+        )}
+      />
+    </span>
+  )
 }
 
 /**

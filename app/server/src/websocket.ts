@@ -71,6 +71,43 @@ export function broadcastToSession(sessionId: string, message: object): void {
   }
 }
 
+// Activity pings tell every connected client that a given session just
+// received an event, so the sidebar can animate a pulse. Throttle to
+// once per session per ACTIVITY_PING_THROTTLE_MS so a busy session
+// doesn't flood the wire with hundreds of pings/second × all clients.
+// The map is process-global (not per-connection): slightly less
+// responsive on cold-start but trivially small memory and simple to
+// reason about. See docs/superpowers/specs/2026-04-24-session-activity-pings-design.md.
+export const ACTIVITY_PING_THROTTLE_MS = 5_000
+const lastActivityBroadcast = new Map<string, number>()
+
+/** Pure throttle predicate — testable without any WS machinery.
+ *  Returns true if a ping should be sent now; caller must update the map. */
+export function shouldBroadcastActivity(
+  lastMap: Map<string, number>,
+  sessionId: string,
+  now: number,
+  thresholdMs: number = ACTIVITY_PING_THROTTLE_MS,
+): boolean {
+  const last = lastMap.get(sessionId)
+  if (last === undefined) return true
+  return now - last >= thresholdMs
+}
+
+/** Broadcast an activity ping for a session if we haven't sent one for
+ *  this session within the throttle window. Safe to call on every event. */
+export function broadcastActivity(sessionId: string, eventId: number): void {
+  const now = Date.now()
+  if (!shouldBroadcastActivity(lastActivityBroadcast, sessionId, now)) return
+  lastActivityBroadcast.set(sessionId, now)
+  broadcastToAll({ type: 'activity', data: { sessionId, eventId, ts: now } })
+}
+
+/** Clear the activity throttle state. Test-only. */
+export function resetActivityThrottleForTests(): void {
+  lastActivityBroadcast.clear()
+}
+
 /** Send a message to ALL connected clients (for global updates) */
 export function broadcastToAll(message: object): void {
   const json = JSON.stringify(message)

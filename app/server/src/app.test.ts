@@ -25,7 +25,7 @@ describe('dev mode redirect', () => {
     }))
 
     const { createApp } = await import('./app')
-    const app = createApp(stubStore, noop, noop)
+    const app = createApp(stubStore, noop, noop, noop)
 
     const res = await app.request('/', { method: 'GET' })
     expect(res.status).toBe(302)
@@ -42,7 +42,7 @@ describe('dev mode redirect', () => {
     }))
 
     const { createApp } = await import('./app')
-    const app = createApp(stubStore, noop, noop)
+    const app = createApp(stubStore, noop, noop, noop)
 
     const res = await app.request('/some/path', { method: 'GET' })
     expect(res.status).toBe(302)
@@ -59,7 +59,7 @@ describe('dev mode redirect', () => {
     }))
 
     const { createApp } = await import('./app')
-    const app = createApp(stubStore, noop, noop)
+    const app = createApp(stubStore, noop, noop, noop)
 
     const res = await app.request('/api/health', { method: 'GET' })
     expect(res.status).toBe(200)
@@ -75,7 +75,7 @@ describe('dev mode redirect', () => {
     }))
 
     const { createApp } = await import('./app')
-    const app = createApp(stubStore, noop, noop)
+    const app = createApp(stubStore, noop, noop, noop)
 
     const res = await app.request('/', { method: 'GET' })
     expect(res.status).toBe(404)
@@ -91,7 +91,7 @@ describe('dev mode redirect', () => {
     }))
 
     const { createApp } = await import('./app')
-    const app = createApp(stubStore, noop, noop)
+    const app = createApp(stubStore, noop, noop, noop)
 
     const res = await app.request('/', { method: 'GET' })
     expect(res.status).toBe(302)

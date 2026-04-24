@@ -171,6 +171,14 @@ interface UIState {
   iconCustomizationVersion: number
   bumpIconCustomizationVersion: () => void
 
+  // Session activity pulses — incremented each time the server
+  // broadcasts an `activity` WS message for a session. In-memory only;
+  // no persistence. Sidebar components subscribe to the specific
+  // session's count and play a one-shot pulse animation when it
+  // changes. See docs/superpowers/specs/2026-04-24-session-activity-pings-design.md.
+  sessionPulses: Record<string, number>
+  pulseSession: (sessionId: string) => void
+
   // Version tracking
   serverVersion: string | null
   setServerVersion: (version: string) => void
@@ -548,6 +556,15 @@ export const useUIStore = create<UIState>((set, get) => ({
   iconCustomizationVersion: 0,
   bumpIconCustomizationVersion: () =>
     set((s) => ({ iconCustomizationVersion: s.iconCustomizationVersion + 1 })),
+
+  sessionPulses: {},
+  pulseSession: (sessionId) =>
+    set((s) => ({
+      sessionPulses: {
+        ...s.sessionPulses,
+        [sessionId]: (s.sessionPulses[sessionId] ?? 0) + 1,
+      },
+    })),
 
   serverVersion: null,
   setServerVersion: (version) => set({ serverVersion: version }),

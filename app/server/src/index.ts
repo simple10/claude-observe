@@ -3,7 +3,7 @@ import type { Server } from 'http'
 import { serve } from '@hono/node-server'
 import { createApp } from './app'
 import { createStore } from './storage'
-import { attachWebSocket, broadcastToSession, broadcastToAll } from './websocket'
+import { attachWebSocket, broadcastToSession, broadcastToAll, broadcastActivity } from './websocket'
 import { config } from './config'
 import { startConsumerSweep } from './consumer-tracker'
 
@@ -29,7 +29,7 @@ store.repairOrphans().then((result) => {
   }
 })
 
-const app = createApp(store, broadcastToSession, broadcastToAll)
+const app = createApp(store, broadcastToSession, broadcastToAll, broadcastActivity)
 
 function start(retries = 3) {
   const server = serve({ fetch: app.fetch, port: PORT }, () => {
