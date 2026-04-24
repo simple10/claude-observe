@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback } from 'react'
 import { useRecentSessions } from '@/hooks/use-recent-sessions'
 import { useUIStore } from '@/stores/ui-store'
-import { ChevronDown, ChevronRight, Tag, Pencil, Clock, CalendarDays } from 'lucide-react'
+import { ChevronDown, ChevronRight, Tag, Pencil, Clock, CalendarDays, Plus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { SessionItem } from './session-item'
@@ -126,10 +126,37 @@ export function LabelList({ collapsed }: LabelListProps) {
   )
 
   if (sortedLabels.length === 0) {
+    if (collapsed) {
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                className="flex h-8 w-8 mx-auto items-center justify-center rounded-md text-muted-foreground hover:bg-accent cursor-pointer"
+                onClick={() => openLabelsModal()}
+                aria-label="Add label"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">Add label</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )
+    }
     return (
       <TooltipProvider>
-        <div className="text-xs text-muted-foreground p-2">
-          {collapsed ? '' : 'No labels yet. Create one from the Labels tab in Settings.'}
+        <div className="p-2 space-y-2">
+          <div className="text-xs text-muted-foreground">
+            No labels yet. Create one in Settings.
+          </div>
+          <button
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+            onClick={() => openLabelsModal()}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add label
+          </button>
         </div>
       </TooltipProvider>
     )

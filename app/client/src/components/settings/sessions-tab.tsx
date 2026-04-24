@@ -21,6 +21,7 @@ import {
 import { Trash2, SquarePen, ChevronUp, ChevronDown, Tag, Plus, X } from 'lucide-react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useUIStore } from '@/stores/ui-store'
+import { formatBytes } from '@/lib/format-bytes'
 import type { Label, Project, RecentSession } from '@/types'
 
 type AgeFilter = 'all' | '3d' | '7d' | '14d' | '30d'
@@ -54,14 +55,6 @@ const DAY_MS = 24 * 60 * 60 * 1000
 // /sessions/all endpoint would be cleaner but adds maintenance; revisit
 // if users start hitting the limit.
 const SESSION_FETCH_LIMIT = 10000
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)))
-  const value = bytes / Math.pow(1024, i)
-  return `${value < 10 && i > 0 ? value.toFixed(1) : Math.round(value)} ${units[i]}`
-}
 
 // Mirrors session-list.tsx's shortenCwd — duplicated here rather than
 // exported because it's a one-liner and the two rows have independent
@@ -778,11 +771,11 @@ function AddLabelDialog({
         </DialogTitle>
         <div className="space-y-2 mt-2">
           <p className="text-[11px] text-muted-foreground/70">
-            Click a label to toggle on or off for the selected sessions.
+            Toggle labels on or off for the selected sessions. Click Done to apply.
           </p>
           {labels.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              No labels yet. Create one from the Labels tab, then come back here to apply it.
+              No labels yet. Create a new one then apply it.
             </p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
@@ -798,15 +791,15 @@ function AddLabelDialog({
                       (state === 'on'
                         ? 'bg-primary text-primary-foreground border-primary'
                         : state === 'partial'
-                          ? 'bg-primary/20 text-foreground border-primary/40'
-                          : 'bg-transparent text-muted-foreground border-border hover:bg-muted')
+                        ? 'bg-primary/20 text-foreground border-primary/40'
+                        : 'bg-transparent text-muted-foreground border-border hover:bg-muted')
                     }
                     title={
                       state === 'on'
                         ? 'Remove from all selected'
                         : state === 'partial'
-                          ? 'Applied to some — click to apply to all'
-                          : 'Apply to all selected'
+                        ? 'Applied to some — click to apply to all'
+                        : 'Apply to all selected'
                     }
                   >
                     <Tag className="h-3 w-3" />
@@ -817,10 +810,13 @@ function AddLabelDialog({
               })}
             </div>
           )}
-
-          {/* New label creation — inline input that replaces the
-              "+ New Label" button while typing. Enter creates + auto-
-              applies to every selected session; Escape cancels. */}
+        </div>
+        {/* Footer — New Label on the left, Done on the right. The
+            inline input replaces the button row while creating;
+            Enter creates + auto-applies to every selected session,
+            Escape cancels. Moved out of the label list so the
+            button doesn't look like another label pill. */}
+        <div className="mt-4 pt-3 border-t">
           {creating ? (
             <div>
               <div className="flex items-center gap-2">
@@ -842,7 +838,7 @@ function AddLabelDialog({
                       cancelCreate()
                     }
                   }}
-                  className="h-8 text-xs"
+                  className="h-8 text-xs flex-1"
                 />
                 <Button
                   size="sm"
@@ -861,21 +857,23 @@ function AddLabelDialog({
               )}
             </div>
           ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5"
-              onClick={() => setCreating(true)}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              New Label
-            </Button>
+            <div className="flex items-center">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => setCreating(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New Label
+              </Button>
+              <div className="ml-auto">
+                <Button size="sm" onClick={() => onOpenChange(false)}>
+                  Done
+                </Button>
+              </div>
+            </div>
           )}
-        </div>
-        <div className="flex justify-end mt-2">
-          <Button size="sm" onClick={() => onOpenChange(false)}>
-            Done
-          </Button>
         </div>
       </DialogContent>
     </Dialog>

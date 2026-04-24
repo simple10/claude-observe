@@ -10,6 +10,8 @@ import { KeyboardSettings } from './keyboard-settings'
 import { useUIStore } from '@/stores/ui-store'
 import { Button } from '@/components/ui/button'
 import { API_BASE } from '@/config/api'
+import { useDbStats } from '@/hooks/use-db-stats'
+import { formatBytes } from '@/lib/format-bytes'
 import { Database, Container, Monitor, X } from 'lucide-react'
 
 interface ServerInfo {
@@ -26,6 +28,7 @@ export function SettingsModal() {
   const setSettingsTab = useUIStore((s) => s.setSettingsTab)
   const closeSettings = useUIStore((s) => s.closeSettings)
   const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null)
+  const dbStats = useDbStats(open)
 
   const onOpenChange = (o: boolean) => {
     if (!o) closeSettings()
@@ -68,8 +71,8 @@ export function SettingsModal() {
               <TabsTrigger value="settings">Display</TabsTrigger>
               <TabsTrigger value="icons">Icons</TabsTrigger>
               <TabsTrigger value="projects">Projects</TabsTrigger>
-              <TabsTrigger value="sessions">Sessions</TabsTrigger>
               <TabsTrigger value="labels">Labels</TabsTrigger>
+              <TabsTrigger value="sessions">Sessions</TabsTrigger>
               <TabsTrigger value="keyboard">Keyboard</TabsTrigger>
             </TabsList>
           </div>
@@ -111,6 +114,12 @@ export function SettingsModal() {
             <span className="text-muted-foreground/30">|</span>
             <Database className="h-3 w-3 shrink-0" />
             <span className="truncate">{serverInfo.dbPath}</span>
+            {dbStats.data && (
+              <>
+                <span className="text-muted-foreground/30">|</span>
+                <span className="shrink-0 tabular-nums">{formatBytes(dbStats.data.sizeBytes)}</span>
+              </>
+            )}
           </div>
         )}
       </DialogContent>

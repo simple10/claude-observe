@@ -14,20 +14,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import {
-  Search,
-  X,
-  Tag,
-  Folder,
-  Clock,
-  Pencil,
-  Trash2,
-  Check,
-  Tags,
-  FolderTree,
-  Plus,
-  SquarePen,
-} from 'lucide-react'
+import { Search, X, Tag, Clock, Pencil, Trash2, Check, Plus, SquarePen } from 'lucide-react'
 // LabelsModalBody is now rendered inside the Settings modal as the
 // "Labels" tab. The standalone modal wrapper is gone.
 import type { Label, RecentSession } from '@/types'
@@ -68,8 +55,6 @@ function matchesSearch(session: RecentSession, sessionLabels: Label[], query: st
   return false
 }
 
-type ViewMode = 'label' | 'cwd'
-
 export function LabelsModalBody() {
   const labels = useUIStore((s) => s.labels)
   const labelMemberships = useUIStore((s) => s.labelMemberships)
@@ -82,7 +67,6 @@ export function LabelsModalBody() {
   const clearScrollTarget = useUIStore((s) => s.clearLabelsModalScrollTarget)
 
   const { data: sessions } = useRecentSessions(RECENT_LIMIT)
-  const [viewMode, setViewMode] = useState<ViewMode>('label')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [creating, setCreating] = useState(false)
@@ -97,10 +81,9 @@ export function LabelsModalBody() {
     return () => clearTimeout(t)
   }, [search])
 
-  // If we opened with a scroll target, switch to By-label and scroll to it.
+  // If we opened with a scroll target, scroll to it.
   useEffect(() => {
     if (!scrollToLabelId) return
-    setViewMode('label')
     setSearch('')
     setDebouncedSearch('')
     const id = scrollToLabelId
@@ -175,7 +158,6 @@ export function LabelsModalBody() {
     setNewLabelName('')
     setNewLabelError(null)
     setCreating(false)
-    setViewMode('label')
     // Scroll-and-highlight the new label group — even though it has no
     // sessions yet, we make the group visible so the user sees it landed.
     setHighlightLabelId(created.id)
@@ -203,8 +185,21 @@ export function LabelsModalBody() {
         {labeledTotal === 1 ? 'session' : 'sessions'}
       </div>
 
-      <div className="px-5 pb-3 flex items-center gap-2">
-        <div className="relative flex-1">
+      <div className="px-5 pb-3 flex items-center">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 text-xs"
+          onClick={() => {
+            setCreating(true)
+            setNewLabelError(null)
+          }}
+        >
+          <Plus className="h-3 w-3 mr-1" />
+          New label
+        </Button>
+
+        <div className="relative ml-auto w-94">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             value={search}
@@ -223,46 +218,6 @@ export function LabelsModalBody() {
             </button>
           )}
         </div>
-
-        <div className="flex rounded-md border border-border overflow-hidden">
-          <button
-            type="button"
-            className={`px-2 py-1 text-[11px] flex items-center gap-1 cursor-pointer transition-colors ${
-              viewMode === 'label'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-background text-muted-foreground hover:text-foreground'
-            }`}
-            onClick={() => setViewMode('label')}
-            aria-pressed={viewMode === 'label'}
-          >
-            <Tags className="h-3 w-3" /> By label
-          </button>
-          <button
-            type="button"
-            className={`px-2 py-1 text-[11px] flex items-center gap-1 cursor-pointer transition-colors ${
-              viewMode === 'cwd'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-background text-muted-foreground hover:text-foreground'
-            }`}
-            onClick={() => setViewMode('cwd')}
-            aria-pressed={viewMode === 'cwd'}
-          >
-            <FolderTree className="h-3 w-3" /> By cwd
-          </button>
-        </div>
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 text-xs"
-          onClick={() => {
-            setCreating(true)
-            setNewLabelError(null)
-          }}
-        >
-          <Plus className="h-3 w-3 mr-1" />
-          New label
-        </Button>
       </div>
 
       {creating && (
@@ -321,7 +276,7 @@ export function LabelsModalBody() {
             Create your first label with the <strong>New label</strong> button above, or open any
             session's <strong>Labels</strong> tab to bookmark it.
           </EmptyState>
-        ) : viewMode === 'label' ? (
+        ) : (
           <ByLabelView
             labels={labels}
             labelMemberships={labelMemberships}
@@ -330,20 +285,6 @@ export function LabelsModalBody() {
             search={debouncedSearch}
             highlightLabelId={highlightLabelId}
             registerLabelRef={registerLabelRef}
-            onOpenSession={handleOpenSession}
-            onOpenDetails={handleOpenDetails}
-          />
-        ) : labeledTotal === 0 ? (
-          <EmptyState title="No sessions labeled yet">
-            You have labels, but none of them have sessions yet. Visit a session and toggle a label
-            on.
-          </EmptyState>
-        ) : (
-          <ByCwdView
-            labelsBySession={labelsBySession}
-            labeledSessionIds={labeledSessionIds}
-            sessionsById={sessionsById}
-            search={debouncedSearch}
             onOpenSession={handleOpenSession}
             onOpenDetails={handleOpenDetails}
           />
@@ -438,78 +379,6 @@ function ByLabelView({
           onOpenSession={onOpenSession}
           onOpenDetails={onOpenDetails}
         />
-      ))}
-    </div>
-  )
-}
-
-function ByCwdView({
-  labelsBySession,
-  labeledSessionIds,
-  sessionsById,
-  search,
-  onOpenSession,
-  onOpenDetails,
-}: {
-  labelsBySession: Map<string, Label[]>
-  labeledSessionIds: Set<string>
-  sessionsById: Map<string, RecentSession>
-  search: string
-  onOpenSession: (session: RecentSession) => void
-  onOpenDetails: (sessionId: string) => void
-}) {
-  const groups = useMemo(() => {
-    const byCwd = new Map<string, RecentSession[]>()
-    for (const id of labeledSessionIds) {
-      const session = sessionsById.get(id)
-      if (!session) continue
-      const sLabels = labelsBySession.get(session.id) ?? []
-      if (!matchesSearch(session, sLabels, search)) continue
-      const cwd = sessionCwd(session) ?? '(no cwd)'
-      const list = byCwd.get(cwd) ?? []
-      list.push(session)
-      byCwd.set(cwd, list)
-    }
-    return [...byCwd.entries()]
-      .map(([cwd, sessions]) => ({
-        cwd,
-        sessions: sessions.sort((a, b) => b.lastActivity - a.lastActivity),
-      }))
-      .sort((a, b) => a.cwd.localeCompare(b.cwd))
-  }, [labeledSessionIds, sessionsById, labelsBySession, search])
-
-  if (groups.length === 0) {
-    return (
-      <EmptyState title="No matches">
-        No labeled sessions match "<strong>{search}</strong>".
-      </EmptyState>
-    )
-  }
-
-  return (
-    <div className="divide-y divide-border">
-      {groups.map((group) => (
-        <div key={group.cwd} className="py-1">
-          <div className="px-5 py-1.5 flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground/70">
-            <Folder className="h-3 w-3 shrink-0" />
-            <span className="truncate" title={group.cwd}>
-              {group.cwd === '(no cwd)' ? group.cwd : shortenCwd(group.cwd)}
-            </span>
-            <span className="ml-auto">
-              {group.sessions.length} {group.sessions.length === 1 ? 'session' : 'sessions'}
-            </span>
-          </div>
-          {group.sessions.map((session) => (
-            <SessionRow
-              key={session.id}
-              session={session}
-              sessionLabels={labelsBySession.get(session.id) ?? []}
-              showLabels
-              onOpen={() => onOpenSession(session)}
-              onOpenDetails={() => onOpenDetails(session.id)}
-            />
-          ))}
-        </div>
       ))}
     </div>
   )
