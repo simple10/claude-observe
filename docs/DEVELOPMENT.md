@@ -143,6 +143,19 @@ Look at the Performance flame graph:
 - **`setAnchorTime` firing more than once per `rangeMs`** → the animation re-start loop is running too hot.
 - **Live mode CPU similar with and without dots visible** → good sign; the animation alone shouldn't cost much.
 
+## Specs and plans
+
+Design docs and implementation plans live under `docs/`:
+
+| Kind | Location while active | When done |
+|------|-----------------------|-----------|
+| Spec (design doc) | `docs/specs/` | Move to `docs/plans/implemented/` |
+| Plan (step-by-step work) | `docs/plans/` | Move to `docs/plans/implemented/` |
+
+A feature is "done" when its plan is fully implemented and the code has landed on `main`. At that point, move **both** the plan and its related spec into `docs/plans/implemented/` in the same commit so the two stay paired. Use `YYYY-MM-DD-<slug>.md` for the plan and `YYYY-MM-DD-<slug>-design.md` for the spec so they sort together.
+
+Not every feature needs a dedicated plan — small, self-contained changes can ship from a spec alone. In that case still move the spec to `docs/plans/implemented/` once the feature ships.
+
 ## Code Style
 
 - TypeScript throughout, avoid `any`
