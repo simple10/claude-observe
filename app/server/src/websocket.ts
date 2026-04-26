@@ -95,12 +95,18 @@ export function shouldBroadcastActivity(
 }
 
 /** Broadcast an activity ping for a session if we haven't sent one for
- *  this session within the throttle window. Safe to call on every event. */
-export function broadcastActivity(sessionId: string, eventId: number): void {
+ *  this session within the throttle window. Safe to call on every event.
+ *  `projectId` is included so the client can pulse the project bucket
+ *  without needing to look up its session list. */
+export function broadcastActivity(
+  sessionId: string,
+  eventId: number,
+  projectId: number | null,
+): void {
   const now = Date.now()
   if (!shouldBroadcastActivity(lastActivityBroadcast, sessionId, now)) return
   lastActivityBroadcast.set(sessionId, now)
-  broadcastToAll({ type: 'activity', data: { sessionId, eventId, ts: now } })
+  broadcastToAll({ type: 'activity', data: { sessionId, projectId, eventId, ts: now } })
 }
 
 /** Clear the activity throttle state. Test-only. */

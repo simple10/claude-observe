@@ -12,12 +12,12 @@ import { api } from '@/lib/api-client'
 import { cn } from '@/lib/utils'
 import { ProjectModal } from '@/components/settings/project-modal'
 import { SessionItem } from './session-item'
-import { useAggregatePulseActive } from '@/hooks/use-pulse-active'
+import { useProjectPulseActive } from '@/hooks/use-pulse-active'
 import {
   NotificationIndicator,
   dismissNotifications,
-  useAnyHiddenFlaggedSession,
-  useAnySessionHasNotification,
+  useAnyHiddenFlaggedInProject,
+  useAnyFlaggedInProject,
 } from './notification-indicator'
 import type { Project, Session } from '@/types'
 
@@ -342,17 +342,21 @@ function UnassignedBucket({ sessions, collapsed }: { sessions: Session[]; collap
  * Clicking the bell dismisses every flagged session in the project.
  */
 function ProjectFolderWithBell({ projectId }: { projectId: number }) {
-  const { data: sessions } = useSessions(projectId)
-  const sessionIds = sessions?.map((s) => s.id) ?? []
-  const hasHiddenFlagged = useAnyHiddenFlaggedSession(sessionIds)
-  const pulseActive = useAggregatePulseActive(sessionIds)
+  // Project-scoped notification + pulse state — derived from global
+  // stores keyed by projectId, NOT from a per-project session fetch.
+  // This used to call useSessions(projectId) for every project in the
+  // sidebar, which fanned out to N /api/projects/:id/sessions requests
+  // on every page load.
+  const { hasHidden: hasHiddenFlagged, sessionIds: flaggedIds } =
+    useAnyHiddenFlaggedInProject(projectId)
+  const pulseActive = useProjectPulseActive(projectId)
   if (hasHiddenFlagged) {
     return (
       <NotificationIndicator
         className="h-3.5 w-3.5 shrink-0"
         onClick={(e) => {
           e.stopPropagation()
-          dismissNotifications(sessionIds)
+          dismissNotifications(flaggedIds)
         }}
       />
     )
@@ -390,10 +394,8 @@ function ProjectNotificationDot({
   projectId: number
   className?: string
 }) {
-  const { data: sessions } = useSessions(projectId)
-  const sessionIds = sessions?.map((s) => s.id) ?? []
-  const anyFlagged = useAnySessionHasNotification(sessionIds)
-  if (!anyFlagged) return null
+  const { any, sessionIds } = useAnyFlaggedInProject(projectId)
+  if (!any) return null
   return (
     <button
       type="button"

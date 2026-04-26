@@ -28,7 +28,7 @@ type Env = {
     store: EventStore
     broadcastToSession: (sessionId: string, msg: object) => void
     broadcastToAll: (msg: object) => void
-    broadcastActivity: (sessionId: string, eventId: number) => void
+    broadcastActivity: (sessionId: string, eventId: number, projectId: number | null) => void
   }
 }
 
@@ -181,7 +181,11 @@ router.post('/events', async (c) => {
       payload: envelope.payload,
     }
     broadcastToSession(envelope.sessionId, { type: 'event', data: event })
-    broadcastActivity(envelope.sessionId, eventId)
+    // Use the post-upsert canonical projectId — `resolvedProjectId` if
+    // we just (re)assigned, otherwise whatever's already on the row.
+    const broadcastProjectId =
+      resolvedProjectId ?? (session?.project_id as number | null | undefined) ?? null
+    broadcastActivity(envelope.sessionId, eventId, broadcastProjectId)
 
     if (flags.stopsSession) {
       broadcastToAll({

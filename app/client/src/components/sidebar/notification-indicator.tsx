@@ -208,6 +208,51 @@ export function useAnyHiddenFlaggedSession(sessionIds: Array<string | null | und
 }
 
 /**
+ * Project-scoped variant. Returns true when the project has at least
+ * one pending+undismissed notification whose session bell isn't already
+ * visible inline. Reads directly from the global pending map (each
+ * entry carries projectId), so the sidebar doesn't need to fetch the
+ * project's session list to decide whether to show the folder bell.
+ */
+export function useAnyHiddenFlaggedInProject(projectId: number | null | undefined): {
+  hasHidden: boolean
+  sessionIds: string[]
+} {
+  const enabled = useUIStore((s) => s.notificationsEnabled)
+  const pending = useNotificationStore((s) => s.pending)
+  const dismissed = useNotificationStore((s) => s.dismissed)
+  const visible = useNotificationStore((s) => s.visibleBellSessionIds)
+  if (!enabled || projectId == null) return { hasHidden: false, sessionIds: [] }
+  const sessionIds: string[] = []
+  let hasHidden = false
+  for (const entry of pending.values()) {
+    if (entry.projectId !== projectId) continue
+    if (dismissed.has(entry.sessionId)) continue
+    sessionIds.push(entry.sessionId)
+    if (!visible.has(entry.sessionId)) hasHidden = true
+  }
+  return { hasHidden, sessionIds }
+}
+
+/** Project-scoped variant of {@link useAnySessionHasNotification}. */
+export function useAnyFlaggedInProject(projectId: number | null | undefined): {
+  any: boolean
+  sessionIds: string[]
+} {
+  const enabled = useUIStore((s) => s.notificationsEnabled)
+  const pending = useNotificationStore((s) => s.pending)
+  const dismissed = useNotificationStore((s) => s.dismissed)
+  if (!enabled || projectId == null) return { any: false, sessionIds: [] }
+  const sessionIds: string[] = []
+  for (const entry of pending.values()) {
+    if (entry.projectId !== projectId) continue
+    if (dismissed.has(entry.sessionId)) continue
+    sessionIds.push(entry.sessionId)
+  }
+  return { any: sessionIds.length > 0, sessionIds }
+}
+
+/**
  * Hook used by SessionItem to announce that its bell is on-screen while
  * rendered. Announces on mount (and when needsAttention flips true),
  * unannounces on unmount / when needsAttention flips false.

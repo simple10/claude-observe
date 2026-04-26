@@ -177,7 +177,12 @@ interface UIState {
   // session's count and play a one-shot pulse animation when it
   // changes. See docs/superpowers/specs/2026-04-24-session-activity-pings-design.md.
   sessionPulses: Record<string, number>
-  pulseSession: (sessionId: string) => void
+  /** Project-scoped pulse counter, parallel to sessionPulses. Lets the
+   *  sidebar's project bell pulse without needing the project's session
+   *  list (every activity ping carries projectId; we update both in
+   *  one shot). */
+  projectPulses: Record<number, number>
+  pulseSession: (sessionId: string, projectId?: number | null) => void
 
   // Version tracking
   serverVersion: string | null
@@ -558,13 +563,27 @@ export const useUIStore = create<UIState>((set, get) => ({
     set((s) => ({ iconCustomizationVersion: s.iconCustomizationVersion + 1 })),
 
   sessionPulses: {},
-  pulseSession: (sessionId) =>
-    set((s) => ({
-      sessionPulses: {
+  projectPulses: {},
+  pulseSession: (sessionId, projectId) =>
+    set((s) => {
+      const sessionPulses = {
         ...s.sessionPulses,
         [sessionId]: (s.sessionPulses[sessionId] ?? 0) + 1,
-      },
-    })),
+      }
+      // Only rebuild the project map when we got a projectId and there's
+      // a real bump to record — avoids reference churn on null-project
+      // pings (e.g. sessions still in the Unassigned bucket).
+      if (projectId != null) {
+        return {
+          sessionPulses,
+          projectPulses: {
+            ...s.projectPulses,
+            [projectId]: (s.projectPulses[projectId] ?? 0) + 1,
+          },
+        }
+      }
+      return { sessionPulses }
+    }),
 
   serverVersion: null,
   setServerVersion: (version) => set({ serverVersion: version }),

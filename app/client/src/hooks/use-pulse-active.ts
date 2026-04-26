@@ -16,9 +16,21 @@ export function useSessionPulseActive(sessionId: string): boolean {
 }
 
 /**
+ * Project-scoped variant. Pulses whenever any session in the project
+ * pulses. Reads from the dedicated `projectPulses` counter that the WS
+ * handler updates alongside `sessionPulses` — no need to look up the
+ * project's session list.
+ */
+export function useProjectPulseActive(projectId: number | null | undefined): boolean {
+  const pulseCount = useUIStore((s) => (projectId != null ? (s.projectPulses[projectId] ?? 0) : 0))
+  return usePulseTimer(pulseCount)
+}
+
+/**
  * Variant that aggregates a set of session pulse counters into a single
- * value, so any child pulse re-triggers the timer. Used for the project
- * rollup — pulses any time any of its child sessions pulses.
+ * value, so any child pulse re-triggers the timer. Retained for callers
+ * that already have the explicit session-id list in hand; new code
+ * should prefer `useProjectPulseActive`.
  */
 export function useAggregatePulseActive(sessionIds: string[]): boolean {
   const sum = useUIStore((s) => {

@@ -184,8 +184,8 @@ export function useWebSocket(sessionId: string | null) {
         const { sessionId, ts } = msg.data
         clearNotification(sessionId, ts)
       } else if (msg.type === 'activity') {
-        const { sessionId } = msg.data
-        useUIStore.getState().pulseSession(sessionId)
+        const { sessionId, projectId } = msg.data
+        useUIStore.getState().pulseSession(sessionId, projectId)
         // Flip any cached Session rows for this session to 'active'.
         // Covers the gap where a ping arrives for a session that the
         // most recent /sessions fetch still has marked 'ended'. Next

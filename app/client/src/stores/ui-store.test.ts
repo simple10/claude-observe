@@ -583,7 +583,7 @@ describe('ui-store', () => {
 
   describe('session activity pulses', () => {
     beforeEach(() => {
-      useUIStore.setState({ sessionPulses: {} })
+      useUIStore.setState({ sessionPulses: {}, projectPulses: {} })
     })
 
     it('pulseSession bumps the counter for a new session from 0 to 1', () => {
@@ -603,6 +603,19 @@ describe('ui-store', () => {
       useUIStore.getState().pulseSession('sess-2')
       useUIStore.getState().pulseSession('sess-1')
       expect(useUIStore.getState().sessionPulses).toEqual({ 'sess-1': 2, 'sess-2': 1 })
+    })
+
+    it('pulseSession bumps projectPulses when a projectId is supplied', () => {
+      useUIStore.getState().pulseSession('sess-1', 42)
+      useUIStore.getState().pulseSession('sess-2', 42)
+      useUIStore.getState().pulseSession('sess-3', 99)
+      expect(useUIStore.getState().projectPulses).toEqual({ 42: 2, 99: 1 })
+    })
+
+    it('pulseSession leaves projectPulses untouched when projectId is null', () => {
+      useUIStore.getState().pulseSession('sess-1', null)
+      useUIStore.getState().pulseSession('sess-2')
+      expect(useUIStore.getState().projectPulses).toEqual({})
     })
 
     it('pulseSession replaces the record (not in-place mutation) so shallow-compare triggers re-renders', () => {
