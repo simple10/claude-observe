@@ -1,7 +1,6 @@
 // app/server/src/routes/sessions.ts
 import { Hono } from 'hono'
 import type { EventStore } from '../storage/types'
-import type { ParsedEvent } from '../types'
 import { config } from '../config'
 import { apiError } from '../errors'
 
@@ -105,12 +104,24 @@ router.get('/sessions/:id/agents', async (c) => {
   return c.json(agents)
 })
 
+// Allow-list of opt-in `fields=` values. Default response omits all of
+// these; clients pass `?fields=sessionId,cwd,createdAt,_meta` to opt in.
+const OPT_IN_FIELDS = new Set(['sessionId', 'cwd', 'createdAt', '_meta'])
+
 // GET /sessions/:id/events
 router.get('/sessions/:id/events', async (c) => {
   const store = c.get('store')
   const sessionId = decodeURIComponent(c.req.param('id'))
   const sinceParam = c.req.query('since')
   const agentIdParam = c.req.query('agentId')
+  const fieldsParam = c.req.query('fields')
+
+  const requested = new Set(
+    (fieldsParam ?? '')
+      .split(',')
+      .map((f) => f.trim())
+      .filter((f) => OPT_IN_FIELDS.has(f)),
+  )
 
   const rows = sinceParam
     ? await store.getEventsSince(sessionId, parseInt(sinceParam))
@@ -122,25 +133,28 @@ router.get('/sessions/:id/events', async (c) => {
         offset: c.req.query('offset') ? parseInt(c.req.query('offset')!) : undefined,
       })
 
-  const events: ParsedEvent[] = rows.map((r) => ({
-    id: r.id,
-    agentId: r.agent_id,
-    sessionId: r.session_id,
-    hookName: r.hook_name,
-    timestamp: r.timestamp,
-    createdAt: r.created_at || r.timestamp,
-    cwd: r.cwd ?? null,
-    _meta: r._meta ? JSON.parse(r._meta) : null,
-    payload: JSON.parse(r.payload),
-  }))
+  const events = rows.map((r) => {
+    const base: Record<string, unknown> = {
+      id: r.id,
+      agentId: r.agent_id,
+      hookName: r.hook_name,
+      timestamp: r.timestamp,
+      payload: JSON.parse(r.payload),
+    }
+    if (requested.has('sessionId')) base.sessionId = r.session_id
+    if (requested.has('cwd')) base.cwd = r.cwd ?? null
+    if (requested.has('createdAt')) base.createdAt = r.created_at || r.timestamp
+    if (requested.has('_meta')) base._meta = r._meta ? JSON.parse(r._meta) : null
+    return base
+  })
 
-  // Lazy session status correction based on event history.
-  // Phase 2: still uses the route's existing legacy compatibility wrapper
-  // (`updateSessionStatus`) which now writes only to `stopped_at`.
+  // Lazy session status correction based on event history (preserved from
+  // the original handler — the wrapped status field on `events` is gone
+  // but we still derive stopped/active from SessionEnd presence).
   if (events.length > 0) {
     let lastSessionEndIdx = -1
     for (let i = events.length - 1; i >= 0; i--) {
-      if (events[i].hookName === 'SessionEnd') {
+      if ((events[i] as { hookName: string }).hookName === 'SessionEnd') {
         lastSessionEndIdx = i
         break
       }
