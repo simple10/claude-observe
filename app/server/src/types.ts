@@ -89,44 +89,57 @@ export interface ParsedEvent {
   payload: Record<string, unknown>
 }
 
-// === Event Envelope (CLI → server) ===
+// === Event Envelope (Layer 1 → Layer 2 contract) ===
+//
+// See docs/specs/2026-04-25-three-layer-contract-design.md for the
+// authoritative definition. The server only ever inspects:
+//   - Top-level identity fields (required for routing).
+//   - Creation hints under `_meta` (consumed only when creating a row).
+//   - Behavior flags under `flags` (drive state transitions; not persisted).
+// It never branches on `payload` shape or `hookName` value.
 
-export interface EventEnvelopeMeta {
-  agentClass?: string
-  env?: Record<string, string>
-  /**
-   * When true, this event marks the session as having a pending
-   * notification. The server sets `pending_notification_ts` to the event
-   * timestamp and broadcasts `notification` if the transition is new.
-   */
-  isNotification?: boolean
-  /**
-   * When explicitly `false`, this event does NOT clear a pending
-   * notification. Any other value (including undefined) lets the server
-   * apply the default clearing behavior.
-   */
+export interface EventEnvelopeFlags {
+  /** Mark the session as having a pending notification. */
+  startsNotification?: boolean
+  /** Clear any pending notification on the session. */
   clearsNotification?: boolean
+  /** Stamp `sessions.stopped_at` with this event's timestamp. */
+  stopsSession?: boolean
+  /** Run project resolution if the session has no project_id yet. */
+  resolveProject?: boolean
+}
 
-  // ---- Event descriptors (stamped by the CLI) ----
-  /** Raw hook event name as emitted by the agent (agent-class-native). */
-  hookName?: string
-  /** Session id extracted from the payload by the agent lib. */
-  sessionId?: string
-  /** Subagent id if the event came from a subagent; null for main agent. */
-  agentId?: string | null
-
-  // ---- Legacy fields (Phase 2 compat — removed in Phase 3) ----
-  /** @deprecated removed in Phase 3 — server no longer derives type. */
-  type?: string
-  /** @deprecated removed in Phase 3 — server no longer derives subtype. */
-  subtype?: string | null
-  /** @deprecated removed in Phase 3 — server no longer derives toolName. */
-  toolName?: string | null
+export interface EventEnvelopeCreationHints {
+  session?: {
+    slug?: string | null
+    transcriptPath?: string | null
+    /** The cwd at session start; immutable after first write. */
+    startCwd?: string | null
+    metadata?: Record<string, unknown> | null
+  }
+  project?: {
+    /** Exact project id; obeyed if present. */
+    id?: number
+    /** Find-or-create by slug; obeyed if present. */
+    slug?: string
+  }
+  agent?: {
+    name?: string | null
+    description?: string | null
+    type?: string | null
+  }
 }
 
 export interface EventEnvelope {
-  hook_payload: Record<string, unknown>
-  meta?: EventEnvelopeMeta
+  agentClass: string
+  sessionId: string
+  agentId: string
+  hookName: string
+  cwd?: string | null
+  timestamp?: number
+  payload: Record<string, unknown>
+  _meta?: EventEnvelopeCreationHints
+  flags?: EventEnvelopeFlags
 }
 
 // === WebSocket Message Types ===

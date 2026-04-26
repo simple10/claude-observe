@@ -1,760 +1,311 @@
 import { describe, test, expect } from 'vitest'
-import { parseRawEvent } from './parser'
-import type { EventEnvelopeMeta } from './types'
+import { validateEnvelope, EnvelopeValidationError, clampTimestamp } from './parser'
 
-/**
- * Mimic the CLI's claude-code `buildHookEvent` for test inputs — keeps the
- * tests terse while exercising the real meta-first parser contract. For
- * non-hook (transcript-JSONL) payloads returns undefined so the parser
- * falls back to raw-payload-only behavior.
- */
-function stamp(raw: Record<string, unknown>): EventEnvelopeMeta | undefined {
-  const hookName = raw.hook_event_name as string | undefined
-  if (!hookName) return undefined
-  const toolName = (raw.tool_name as string | undefined) ?? null
-  const sessionId = raw.session_id as string | undefined
-  const agentId = (raw.agent_id as string | undefined) ?? null
-  let type: string
-  let subtype: string | null
-  switch (hookName) {
-    case 'SessionStart':
-      type = 'session'
-      subtype = 'SessionStart'
-      break
-    case 'UserPromptSubmit':
-      type = 'user'
-      subtype = 'UserPromptSubmit'
-      break
-    case 'PreToolUse':
-      type = 'tool'
-      subtype = 'PreToolUse'
-      break
-    case 'PostToolUse':
-      type = 'tool'
-      subtype = 'PostToolUse'
-      break
-    case 'PostToolUseFailure':
-      type = 'tool'
-      subtype = 'PostToolUseFailure'
-      break
-    case 'Stop':
-      type = 'system'
-      subtype = 'Stop'
-      break
-    case 'SubagentStop':
-      type = 'system'
-      subtype = 'SubagentStop'
-      break
-    case 'Notification':
-      type = 'system'
-      subtype = 'Notification'
-      break
-    default:
-      type = 'system'
-      subtype = hookName
-      break
-  }
-  return {
-    agentClass: 'claude-code',
-    hookName,
-    type,
-    subtype,
-    toolName,
-    sessionId,
-    agentId,
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Transcript JSONL format
-// ---------------------------------------------------------------------------
-describe('parseRawEvent — transcript JSONL format', () => {
-  test('parses user prompt event', () => {
-    const raw = {
-      project_name: 'my-project',
-      session_id: 'sess-123',
-      slug: 'twinkly-dragon',
-      type: 'user',
-      timestamp: '2026-03-25T22:24:17.686Z',
-      message: {
-        role: 'user',
-        content: 'hello world',
-      },
-      version: '2.1.83',
-      gitBranch: 'main',
-      cwd: '/Users/joe/project',
-      entrypoint: 'cli',
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.projectName).toBe('my-project')
-    expect(result.sessionId).toBe('sess-123')
-    expect(result.slug).toBe('twinkly-dragon')
-    expect(result.type).toBe('user')
-    expect(result.subtype).toBeNull()
-    expect(result.toolName).toBeNull()
+describe('validateEnvelope — new shape', () => {
+  test('accepts a minimally valid envelope', () => {
+    const result = validateEnvelope({
+      agentClass: 'claude-code',
+      sessionId: 's1',
+      agentId: 'a1',
+      hookName: 'PreToolUse',
+      payload: {},
+    })
+    expect(result.envelope.sessionId).toBe('s1')
+    expect(result.envelope.agentId).toBe('a1')
+    expect(result.envelope.agentClass).toBe('claude-code')
+    expect(result.envelope.hookName).toBe('PreToolUse')
     expect(result.timestamp).toBeGreaterThan(0)
-    expect(result.metadata.version).toBe('2.1.83')
   })
 
-  test('parses assistant tool_use event with Agent tool', () => {
-    const raw = {
-      project_name: 'my-project',
-      session_id: 'sess-123',
-      slug: 'twinkly-dragon',
-      type: 'assistant',
-      timestamp: '2026-03-25T22:24:25.479Z',
-      message: {
-        model: 'claude-opus-4-6',
-        role: 'assistant',
-        content: [
-          {
-            type: 'tool_use',
-            name: 'Agent',
-            input: { description: 'List current directory', prompt: 'Run ls...' },
-          },
-        ],
+  test('preserves _meta and flags verbatim when provided', () => {
+    const result = validateEnvelope({
+      agentClass: 'claude-code',
+      sessionId: 's1',
+      agentId: 'a1',
+      hookName: 'SessionStart',
+      payload: { hello: 'world' },
+      _meta: {
+        session: { transcriptPath: '/x', startCwd: '/cwd' },
+        project: { slug: 'override' },
       },
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.type).toBe('assistant')
-    expect(result.toolName).toBe('Agent')
-    expect(result.subAgentName).toBeNull()
-    expect(result.subAgentDescription).toBe('List current directory')
+      flags: { startsNotification: true, resolveProject: true },
+    })
+    expect(result.envelope._meta?.session?.transcriptPath).toBe('/x')
+    expect(result.envelope._meta?.project?.slug).toBe('override')
+    expect(result.envelope.flags?.startsNotification).toBe(true)
+    expect(result.envelope.flags?.resolveProject).toBe(true)
   })
 
-  test('parses assistant tool_use for non-Agent tool (no subAgentName)', () => {
-    const raw = {
-      project_name: 'my-project',
-      sessionId: 'sess-123',
-      type: 'assistant',
-      timestamp: '2026-03-25T22:24:25.479Z',
-      message: {
-        role: 'assistant',
-        content: [
-          {
-            type: 'tool_use',
-            name: 'Bash',
-            input: { command: 'ls -la' },
-          },
-        ],
-      },
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.type).toBe('assistant')
-    expect(result.toolName).toBe('Bash')
-    expect(result.subAgentName).toBeNull()
+  test('uses provided timestamp when present', () => {
+    const result = validateEnvelope({
+      agentClass: 'x',
+      sessionId: 's',
+      agentId: 'a',
+      hookName: 'h',
+      payload: {},
+      timestamp: 1700000000000,
+    })
+    expect(result.timestamp).toBe(1700000000000)
   })
 
-  test('parses progress/hook_progress event with subtype', () => {
-    const raw = {
-      project_name: 'my-project',
-      sessionId: 'sess-123',
-      type: 'progress',
-      data: {
-        type: 'hook_progress',
-        hookEvent: 'PreToolUse',
-        hookName: 'PreToolUse:Agent',
-      },
-      timestamp: '2026-03-25T22:24:25.482Z',
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.type).toBe('progress')
-    expect(result.subtype).toBe('PreToolUse')
-    expect(result.toolName).toBe('Agent')
+  test('clamps absurd future timestamps to now', () => {
+    const result = validateEnvelope({
+      agentClass: 'x',
+      sessionId: 's',
+      agentId: 'a',
+      hookName: 'h',
+      payload: {},
+      timestamp: Number.MAX_SAFE_INTEGER,
+    })
+    expect(result.timestamp).toBeLessThan(Date.now() + 1000)
   })
 
-  test('parses hook_progress with hookName lacking colon (no toolName)', () => {
-    const raw = {
-      project_name: 'my-project',
-      sessionId: 'sess-123',
-      type: 'progress',
-      data: {
-        type: 'hook_progress',
-        hookEvent: 'Stop',
-        hookName: 'Stop',
-      },
-      timestamp: '2026-03-25T22:24:39.271Z',
-    }
+  test('falls back to ingest time when timestamp is absent', () => {
+    const before = Date.now()
+    const result = validateEnvelope({
+      agentClass: 'x',
+      sessionId: 's',
+      agentId: 'a',
+      hookName: 'h',
+      payload: {},
+    })
+    expect(result.timestamp).toBeGreaterThanOrEqual(before)
+    expect(result.timestamp).toBeLessThanOrEqual(Date.now())
+  })
+})
 
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.subtype).toBe('Stop')
-    expect(result.toolName).toBeNull()
+describe('validateEnvelope — rejection', () => {
+  test('rejects non-object input', () => {
+    expect(() => validateEnvelope(null)).toThrow(EnvelopeValidationError)
+    expect(() => validateEnvelope('string')).toThrow(EnvelopeValidationError)
+    expect(() => validateEnvelope(42)).toThrow(EnvelopeValidationError)
   })
 
-  test('parses agent_progress event and extracts agentId', () => {
-    const raw = {
-      project_name: 'my-project',
-      sessionId: 'sess-123',
-      type: 'progress',
-      data: {
-        type: 'agent_progress',
-        agentId: 'ad03a9f1e00dc2c79',
-        prompt: 'Run ls in the current directory',
-      },
-      toolUseID: 'agent_msg_123',
-      parentToolUseID: 'toolu_abc',
-      timestamp: '2026-03-25T22:24:25.614Z',
+  test('rejects empty object with full missingFields list', () => {
+    let caught: unknown
+    try {
+      validateEnvelope({})
+    } catch (err) {
+      caught = err
     }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.subAgentId).toBe('ad03a9f1e00dc2c79')
-    expect(result.type).toBe('progress')
-    expect(result.subtype).toBe('agent_progress')
+    expect(caught).toBeInstanceOf(EnvelopeValidationError)
+    const err = caught as EnvelopeValidationError
+    expect(err.missingFields).toEqual(['agentClass', 'sessionId', 'agentId', 'hookName', 'payload'])
   })
 
-  test('parses agent_progress with nested tool_use extraction', () => {
-    const raw = {
-      project_name: 'my-project',
-      sessionId: 'sess-123',
-      type: 'progress',
-      data: {
-        type: 'agent_progress',
-        agentId: 'sub-agent-1',
-        message: {
-          message: {
-            content: [
-              { type: 'text', text: 'Let me run that command.' },
-              { type: 'tool_use', name: 'Bash', input: { command: 'ls' } },
-            ],
-          },
-        },
-      },
-      timestamp: 1711411200000,
+  test('rejects with a partial missingFields list', () => {
+    let caught: unknown
+    try {
+      validateEnvelope({
+        agentClass: 'x',
+        sessionId: 's',
+        payload: {},
+        // agentId + hookName missing
+      })
+    } catch (err) {
+      caught = err
     }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.subtype).toBe('agent_progress')
-    expect(result.subAgentId).toBe('sub-agent-1')
-    expect(result.toolName).toBe('Bash')
+    expect(caught).toBeInstanceOf(EnvelopeValidationError)
+    expect((caught as EnvelopeValidationError).missingFields).toEqual(['agentId', 'hookName'])
   })
 
-  test('agent_progress without nested tool_use sets toolName null', () => {
-    const raw = {
-      project_name: 'my-project',
-      sessionId: 'sess-123',
-      type: 'progress',
-      data: {
-        type: 'agent_progress',
-        agentId: 'sub-agent-1',
-        message: {
-          message: {
-            content: [{ type: 'text', text: 'just text' }],
-          },
-        },
-      },
-      timestamp: 1711411200000,
+  test('rejects when payload is null', () => {
+    let caught: unknown
+    try {
+      validateEnvelope({
+        agentClass: 'x',
+        sessionId: 's',
+        agentId: 'a',
+        hookName: 'h',
+        payload: null,
+      })
+    } catch (err) {
+      caught = err
     }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.toolName).toBeNull()
-  })
-
-  test('parses tool_result user event with agentId in toolUseResult', () => {
-    const raw = {
-      project_name: 'my-project',
-      sessionId: 'sess-123',
-      type: 'user',
-      toolUseResult: {
-        status: 'completed',
-        agentId: 'ad03a9f1e00dc2c79',
-        totalDurationMs: 6308,
-        totalTokens: 10071,
-      },
-      message: {
-        role: 'user',
-        content: [
-          {
-            tool_use_id: 'toolu_abc',
-            type: 'tool_result',
-            content: [{ type: 'text', text: 'result' }],
-          },
-        ],
-      },
-      timestamp: '2026-03-25T22:24:31.920Z',
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.subAgentId).toBe('ad03a9f1e00dc2c79')
-  })
-
-  test('toolUseResult without agentId does not set subAgentId', () => {
-    const raw = {
-      project_name: 'my-project',
-      sessionId: 'sess-123',
-      type: 'user',
-      toolUseResult: {
-        status: 'completed',
-      },
-      timestamp: 1711411200000,
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.subAgentId).toBeNull()
-  })
-
-  test('parses Stop system event', () => {
-    const raw = {
-      project_name: 'my-project',
-      sessionId: 'sess-123',
-      type: 'system',
-      subtype: 'stop_hook_summary',
-      timestamp: '2026-03-25T22:24:39.468Z',
-      hookCount: 2,
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.type).toBe('system')
-    expect(result.subtype).toBe('stop_hook_summary')
+    expect((caught as EnvelopeValidationError).missingFields).toEqual(['payload'])
   })
 })
 
 // ---------------------------------------------------------------------------
-// Hook format (hook_event_name present)
+// Legacy compatibility — pre-Phase-4 hook libs still post `{ hook_payload, meta }`.
+// These tests pin the translation behavior. The branch is retired in Phase 4.
 // ---------------------------------------------------------------------------
-describe('parseRawEvent — hook format', () => {
-  test('SessionStart', () => {
-    const raw = {
-      hook_event_name: 'SessionStart',
-      project_name: 'hook-proj',
-      session_id: 'hook-sess-1',
-      timestamp: 1711411200000,
-      version: '2.2.0',
-      gitBranch: 'feat/hooks',
-      cwd: '/home/dev/repo',
-      entrypoint: 'cli',
-      permissionMode: 'auto',
-    }
 
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.type).toBe('session')
-    expect(result.subtype).toBe('SessionStart')
-    expect(result.projectName).toBe('hook-proj')
-    expect(result.sessionId).toBe('hook-sess-1')
-    expect(result.toolName).toBeNull()
-    expect(result.subAgentId).toBeNull()
-    expect(result.ownerAgentId).toBeNull()
-    expect(result.metadata).toEqual({
-      version: '2.2.0',
-      gitBranch: 'feat/hooks',
-      cwd: '/home/dev/repo',
-      entrypoint: 'cli',
-      permissionMode: 'auto',
-    })
-  })
-
-  test('UserPromptSubmit', () => {
-    const raw = {
-      hook_event_name: 'UserPromptSubmit',
-      project_name: 'hook-proj',
-      session_id: 'hook-sess-1',
-      timestamp: 1711411201000,
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.type).toBe('user')
-    expect(result.subtype).toBe('UserPromptSubmit')
-  })
-
-  test('PreToolUse with non-Agent tool', () => {
-    const raw = {
-      hook_event_name: 'PreToolUse',
-      project_name: 'hook-proj',
-      session_id: 'hook-sess-1',
-      tool_name: 'Bash',
-      tool_input: { command: 'ls -la' },
-      timestamp: 1711411202000,
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.type).toBe('tool')
-    expect(result.subtype).toBe('PreToolUse')
-    expect(result.toolName).toBe('Bash')
-    expect(result.subAgentName).toBeNull()
-  })
-
-  test('PreToolUse with Agent tool extracts name and description from tool_input', () => {
-    const raw = {
-      hook_event_name: 'PreToolUse',
-      project_name: 'hook-proj',
-      session_id: 'hook-sess-1',
-      tool_name: 'Agent',
-      tool_input: { name: 'ls-agent', description: 'Run ls in the repo', prompt: 'List files' },
-      timestamp: 1711411202000,
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.type).toBe('tool')
-    expect(result.subtype).toBe('PreToolUse')
-    expect(result.toolName).toBe('Agent')
-    expect(result.subAgentName).toBe('ls-agent')
-    expect(result.subAgentDescription).toBe('Run ls in the repo')
-    expect(result.subAgentId).toBeNull()
-  })
-
-  test('PostToolUse with non-Agent tool', () => {
-    const raw = {
-      hook_event_name: 'PostToolUse',
-      project_name: 'hook-proj',
-      session_id: 'hook-sess-1',
-      tool_name: 'Read',
-      tool_input: { file_path: '/tmp/test.txt' },
-      tool_response: { content: 'file contents' },
-      timestamp: 1711411203000,
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.type).toBe('tool')
-    expect(result.subtype).toBe('PostToolUse')
-    expect(result.toolName).toBe('Read')
-    expect(result.subAgentId).toBeNull()
-    expect(result.subAgentName).toBeNull()
-  })
-
-  test('PostToolUse with Agent tool extracts subAgentId, name, and description', () => {
-    const raw = {
-      hook_event_name: 'PostToolUse',
-      project_name: 'hook-proj',
-      session_id: 'hook-sess-1',
-      tool_name: 'Agent',
-      tool_input: {
-        name: 'file-searcher',
-        description: 'Search for files',
-        prompt: 'Find all .ts files',
+describe('validateEnvelope — legacy compatibility', () => {
+  test('translates legacy claude-code envelope into new shape', () => {
+    const result = validateEnvelope({
+      hook_payload: {
+        hook_event_name: 'PreToolUse',
+        session_id: 'sess-1',
+        cwd: '/Users/joe/repo',
+        transcript_path: '/path/to/sess-1.jsonl',
+        tool_name: 'Bash',
+        tool_input: { command: 'ls' },
       },
-      tool_response: { agentId: 'sub-agent-abc', result: 'done' },
-      timestamp: 1711411203000,
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.type).toBe('tool')
-    expect(result.subtype).toBe('PostToolUse')
-    expect(result.toolName).toBe('Agent')
-    expect(result.subAgentId).toBe('sub-agent-abc')
-    expect(result.subAgentName).toBe('file-searcher')
-    expect(result.subAgentDescription).toBe('Search for files')
-  })
-
-  test('PostToolUse:Agent without tool_response does not set subAgentId', () => {
-    const raw = {
-      hook_event_name: 'PostToolUse',
-      project_name: 'hook-proj',
-      session_id: 'hook-sess-1',
-      tool_name: 'Agent',
-      tool_input: { description: 'Do something' },
-      timestamp: 1711411203000,
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.toolName).toBe('Agent')
-    expect(result.subAgentId).toBeNull()
-    expect(result.subAgentName).toBeNull()
-  })
-
-  test('Stop', () => {
-    const raw = {
-      hook_event_name: 'Stop',
-      project_name: 'hook-proj',
-      session_id: 'hook-sess-1',
-      timestamp: 1711411204000,
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.type).toBe('system')
-    expect(result.subtype).toBe('Stop')
-  })
-
-  test('SubagentStop extracts subAgentId from agent_id', () => {
-    const raw = {
-      hook_event_name: 'SubagentStop',
-      project_name: 'hook-proj',
-      session_id: 'hook-sess-1',
-      agent_id: 'sub-agent-xyz',
-      timestamp: 1711411205000,
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.type).toBe('system')
-    expect(result.subtype).toBe('SubagentStop')
-    expect(result.subAgentId).toBe('sub-agent-xyz')
-    // ownerAgentId is also agent_id (they use the same field)
-    expect(result.ownerAgentId).toBe('sub-agent-xyz')
-  })
-
-  test('PostToolUseFailure', () => {
-    const raw = {
-      hook_event_name: 'PostToolUseFailure',
-      project_name: 'hook-proj',
-      session_id: 'hook-sess-1',
-      tool_name: 'Bash',
-      timestamp: 1711411206000,
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.type).toBe('tool')
-    expect(result.subtype).toBe('PostToolUseFailure')
-    expect(result.toolName).toBe('Bash')
-  })
-
-  test('Notification', () => {
-    const raw = {
-      hook_event_name: 'Notification',
-      project_name: 'hook-proj',
-      session_id: 'hook-sess-1',
-      timestamp: 1711411207000,
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.type).toBe('system')
-    expect(result.subtype).toBe('Notification')
-  })
-
-  test('unknown hook event name falls through to default', () => {
-    const raw = {
-      hook_event_name: 'FutureEvent',
-      project_name: 'hook-proj',
-      session_id: 'hook-sess-1',
-      timestamp: 1711411208000,
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.type).toBe('system')
-    expect(result.subtype).toBe('FutureEvent')
-  })
-
-  test('hook event from subagent has ownerAgentId from agent_id', () => {
-    const raw = {
-      hook_event_name: 'PreToolUse',
-      project_name: 'hook-proj',
-      session_id: 'hook-sess-1',
-      agent_id: 'sub-agent-owner',
-      tool_name: 'Bash',
-      timestamp: 1711411209000,
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.ownerAgentId).toBe('sub-agent-owner')
-    expect(result.type).toBe('tool')
-    expect(result.subtype).toBe('PreToolUse')
-  })
-
-  test('hook event preserves tool_use_id in the raw payload for downstream consumers', () => {
-    // tool_use_id is no longer extracted to a column or to ParsedEvent —
-    // it lives only in raw.payload. Verify it survives round-trip.
-    const raw = {
-      hook_event_name: 'PreToolUse',
-      project_name: 'hook-proj',
-      session_id: 'hook-sess-1',
-      tool_name: 'Read',
-      tool_use_id: 'toolu_12345',
-      timestamp: 1711411210000,
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect((result.raw as Record<string, unknown>).tool_use_id).toBe('toolu_12345')
-  })
-
-  test('hook event — extracts transcript_path', () => {
-    const parsed = parseRawEvent({
-      hook_event_name: 'PreToolUse',
-      session_id: 'sess-1',
-      tool_name: 'Bash',
-      tool_input: { command: 'ls' },
-      transcript_path: '/Users/joe/.claude/projects/-Users-joe-my-app/sess-1.jsonl',
-      timestamp: 1000,
+      meta: {
+        agentClass: 'claude-code',
+        hookName: 'PreToolUse',
+        sessionId: 'sess-1',
+      },
     })
-    expect(parsed.transcriptPath).toBe('/Users/joe/.claude/projects/-Users-joe-my-app/sess-1.jsonl')
-  })
-
-  test('hook event — transcriptPath is null when not present', () => {
-    const parsed = parseRawEvent({
-      hook_event_name: 'Stop',
-      session_id: 'sess-1',
-      timestamp: 1000,
+    expect(result.envelope.agentClass).toBe('claude-code')
+    expect(result.envelope.sessionId).toBe('sess-1')
+    expect(result.envelope.agentId).toBe('sess-1') // defaulted from sessionId
+    expect(result.envelope.hookName).toBe('PreToolUse')
+    expect(result.envelope.cwd).toBe('/Users/joe/repo')
+    expect(result.envelope._meta?.session?.transcriptPath).toBe('/path/to/sess-1.jsonl')
+    expect(result.envelope._meta?.session?.startCwd).toBe('/Users/joe/repo')
+    // Payload is preserved verbatim.
+    expect(result.envelope.payload).toMatchObject({
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
     })
-    expect(parsed.transcriptPath).toBeNull()
   })
 
-  // --- Meta-first contract ---
-
-  test('reads hookName / type / subtype / toolName from envelope meta (meta wins)', () => {
-    // Payload says PreToolUse but meta says something else — meta wins.
-    const raw = {
-      hook_event_name: 'PreToolUse',
-      tool_name: 'Bash',
-      session_id: 'sess-1',
-      timestamp: 1000,
-    }
-    const meta: EventEnvelopeMeta = {
-      hookName: 'Override',
-      type: 'custom',
-      subtype: 'Override',
-      toolName: 'OverriddenTool',
-    }
-    const parsed = parseRawEvent(raw, meta)
-    expect(parsed.hookName).toBe('Override')
-    expect(parsed.type).toBe('custom')
-    expect(parsed.subtype).toBe('Override')
-    expect(parsed.toolName).toBe('OverriddenTool')
+  test('legacy isNotification translates to flags.startsNotification', () => {
+    const result = validateEnvelope({
+      hook_payload: {
+        hook_event_name: 'Notification',
+        session_id: 'sess-1',
+      },
+      meta: {
+        agentClass: 'claude-code',
+        hookName: 'Notification',
+        sessionId: 'sess-1',
+        isNotification: true,
+      },
+    })
+    expect(result.envelope.flags?.startsNotification).toBe(true)
   })
 
-  test('falls back to raw payload when meta is absent', () => {
-    const raw = {
-      hook_event_name: 'PreToolUse',
-      tool_name: 'Bash',
-      session_id: 'sess-1',
-      timestamp: 1000,
-    }
-    const parsed = parseRawEvent(raw) // no meta
-    expect(parsed.hookName).toBe('PreToolUse')
-    // type / subtype default when no meta — no server-side switch
-    expect(parsed.type).toBe('system')
-    expect(parsed.subtype).toBe('PreToolUse')
-    // toolName still comes from payload fallback
-    expect(parsed.toolName).toBe('Bash')
-    // sessionId still extracted from payload fallback
-    expect(parsed.sessionId).toBe('sess-1')
+  test('legacy claude-code UserPromptSubmit gets clearsNotification', () => {
+    const result = validateEnvelope({
+      hook_payload: {
+        hook_event_name: 'UserPromptSubmit',
+        session_id: 'sess-1',
+      },
+      meta: {
+        agentClass: 'claude-code',
+        hookName: 'UserPromptSubmit',
+        sessionId: 'sess-1',
+      },
+    })
+    expect(result.envelope.flags?.clearsNotification).toBe(true)
   })
 
-  test('meta.agentId takes precedence over raw.agent_id', () => {
-    const raw = {
-      hook_event_name: 'SubagentStop',
-      session_id: 'sess-1',
-      agent_id: 'payload-agent',
-      timestamp: 1000,
-    }
-    const meta: EventEnvelopeMeta = {
-      hookName: 'SubagentStop',
-      type: 'system',
-      subtype: 'SubagentStop',
-      agentId: 'meta-agent',
-    }
-    const parsed = parseRawEvent(raw, meta)
-    expect(parsed.ownerAgentId).toBe('meta-agent')
-    // Subagent extraction still runs from raw payload for the pairing map.
-    expect(parsed.subAgentId).toBe('payload-agent')
+  test('legacy claude-code SessionEnd gets stopsSession', () => {
+    const result = validateEnvelope({
+      hook_payload: {
+        hook_event_name: 'SessionEnd',
+        session_id: 'sess-1',
+      },
+      meta: {
+        agentClass: 'claude-code',
+        hookName: 'SessionEnd',
+        sessionId: 'sess-1',
+      },
+    })
+    expect(result.envelope.flags?.stopsSession).toBe(true)
   })
-})
 
-// ---------------------------------------------------------------------------
-// Common behavior: metadata, timestamp, defaults
-// ---------------------------------------------------------------------------
-describe('parseRawEvent — common behavior', () => {
-  test('extracts all metadata keys when present', () => {
-    const raw = {
-      hook_event_name: 'SessionStart',
-      project_name: 'proj',
-      session_id: 'sess',
-      timestamp: 1711411200000,
+  test('legacy claude-code SessionStart gets resolveProject', () => {
+    const result = validateEnvelope({
+      hook_payload: {
+        hook_event_name: 'SessionStart',
+        session_id: 'sess-1',
+      },
+      meta: {
+        agentClass: 'claude-code',
+        hookName: 'SessionStart',
+        sessionId: 'sess-1',
+      },
+    })
+    expect(result.envelope.flags?.resolveProject).toBe(true)
+  })
+
+  test('legacy env.AGENTS_OBSERVE_PROJECT_SLUG becomes _meta.project.slug', () => {
+    const result = validateEnvelope({
+      hook_payload: { hook_event_name: 'PreToolUse', session_id: 'sess-1' },
+      meta: {
+        agentClass: 'claude-code',
+        hookName: 'PreToolUse',
+        sessionId: 'sess-1',
+        env: { AGENTS_OBSERVE_PROJECT_SLUG: 'my-project' },
+      },
+    })
+    expect(result.envelope._meta?.project?.slug).toBe('my-project')
+  })
+
+  test('legacy payload metadata keys land on _meta.session.metadata', () => {
+    const result = validateEnvelope({
+      hook_payload: {
+        hook_event_name: 'SessionStart',
+        session_id: 'sess-1',
+        version: '2.2.0',
+        gitBranch: 'main',
+      },
+      meta: {
+        agentClass: 'claude-code',
+        hookName: 'SessionStart',
+        sessionId: 'sess-1',
+      },
+    })
+    expect(result.envelope._meta?.session?.metadata).toEqual({
       version: '2.2.0',
       gitBranch: 'main',
-      cwd: '/home/user',
-      entrypoint: 'cli',
-      permissionMode: 'auto',
-      userType: 'pro',
-      permission_mode: 'auto_accept',
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.metadata).toEqual({
-      version: '2.2.0',
-      gitBranch: 'main',
-      cwd: '/home/user',
-      entrypoint: 'cli',
-      permissionMode: 'auto',
-      userType: 'pro',
-      permission_mode: 'auto_accept',
     })
   })
 
-  test('metadata is empty when no metadata keys are present', () => {
-    const raw = {
-      project_name: 'proj',
-      session_id: 'sess',
-      type: 'user',
-      timestamp: 1711411200000,
-    }
-
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.metadata).toEqual({})
+  test('legacy subagent payload preserves agent_id as agentId', () => {
+    const result = validateEnvelope({
+      hook_payload: {
+        hook_event_name: 'PreToolUse',
+        session_id: 'sess-1',
+        agent_id: 'sub-agent-xyz',
+      },
+      meta: {
+        agentClass: 'claude-code',
+        hookName: 'PreToolUse',
+        sessionId: 'sess-1',
+        agentId: 'sub-agent-xyz',
+      },
+    })
+    expect(result.envelope.agentId).toBe('sub-agent-xyz')
   })
 
-  test('projectName defaults to null when not present', () => {
-    const parsed = parseRawEvent({ hook_event_name: 'Stop', session_id: 'x' })
-    expect(parsed.projectName).toBeNull()
-  })
-
-  test('defaults sessionId to "unknown" when session_id is absent', () => {
-    const raw = { project_name: 'p', type: 'user', timestamp: 1711411200000 }
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.sessionId).toBe('unknown')
-  })
-
-  test('slug is null when not provided', () => {
-    const raw = { project_name: 'p', session_id: 's', type: 'user', timestamp: 1711411200000 }
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.slug).toBeNull()
-  })
-
-  test('raw is passed through as-is', () => {
-    const raw = {
-      project_name: 'p',
-      session_id: 's',
-      type: 'user',
-      timestamp: 1711411200000,
-      custom_field: 'hello',
-    }
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.raw).toBe(raw)
-  })
-})
-
-// ---------------------------------------------------------------------------
-// parseTimestamp (exercised through parseRawEvent)
-// ---------------------------------------------------------------------------
-describe('parseRawEvent — timestamp parsing', () => {
-  test('numeric timestamp is used directly', () => {
-    const raw = { project_name: 'p', session_id: 's', type: 'user', timestamp: 1711411200000 }
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.timestamp).toBe(1711411200000)
-  })
-
-  test('ISO string timestamp is converted to epoch ms', () => {
-    const raw = {
-      project_name: 'p',
-      session_id: 's',
-      type: 'user',
-      timestamp: '2026-03-25T22:24:17.686Z',
-    }
-    const result = parseRawEvent(raw, stamp(raw))
+  test('legacy ISO string timestamp parsed to epoch ms', () => {
+    const result = validateEnvelope({
+      hook_payload: {
+        hook_event_name: 'PreToolUse',
+        session_id: 'sess-1',
+        timestamp: '2026-03-25T22:24:17.686Z',
+      },
+      meta: {
+        agentClass: 'claude-code',
+        hookName: 'PreToolUse',
+        sessionId: 'sess-1',
+      },
+    })
     expect(result.timestamp).toBe(new Date('2026-03-25T22:24:17.686Z').getTime())
   })
+})
 
-  test('invalid string timestamp falls back to Date.now()', () => {
-    const now = Date.now()
-    const raw = { project_name: 'p', session_id: 's', type: 'user', timestamp: 'not-a-date' }
-    const result = parseRawEvent(raw, stamp(raw))
-    // Should be close to now (within 1 second)
-    expect(result.timestamp).toBeGreaterThanOrEqual(now - 1000)
-    expect(result.timestamp).toBeLessThanOrEqual(now + 1000)
+describe('clampTimestamp', () => {
+  test('returns reasonable values unchanged', () => {
+    const ts = Date.now() - 1000
+    expect(clampTimestamp(ts)).toBe(ts)
   })
 
-  test('missing timestamp falls back to Date.now()', () => {
-    const now = Date.now()
-    const raw = { project_name: 'p', session_id: 's', type: 'user' }
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.timestamp).toBeGreaterThanOrEqual(now - 1000)
-    expect(result.timestamp).toBeLessThanOrEqual(now + 1000)
+  test('clamps far-future to now', () => {
+    const before = Date.now()
+    const result = clampTimestamp(Number.MAX_SAFE_INTEGER)
+    expect(result).toBeGreaterThanOrEqual(before)
+    expect(result).toBeLessThanOrEqual(Date.now())
   })
 
-  test('null timestamp falls back to Date.now()', () => {
-    const now = Date.now()
-    const raw = { project_name: 'p', session_id: 's', type: 'user', timestamp: null }
-    const result = parseRawEvent(raw, stamp(raw))
-    expect(result.timestamp).toBeGreaterThanOrEqual(now - 1000)
-    expect(result.timestamp).toBeLessThanOrEqual(now + 1000)
+  test('NaN/Infinity fall back to now', () => {
+    const before = Date.now()
+    expect(clampTimestamp(NaN)).toBeGreaterThanOrEqual(before)
+    expect(clampTimestamp(Infinity)).toBeGreaterThanOrEqual(before)
   })
 })

@@ -1,187 +1,194 @@
 // app/server/src/parser.ts
-// Extracts structural fields from raw JSONL events.
 //
-// For hook-format events, descriptor fields (hookName / type / subtype /
-// toolName / sessionId / agentId) are stamped by the CLI on `meta` —
-// this parser reads them meta-first and falls back to raw payload keys
-// that aren't agent-class-specific. Subagent-pairing extraction
-// (subAgentId / Name / Description) stays server-side because the route
-// layer uses it for Claude-Code-specific subagent record creation.
+// Layer 2 envelope validation. The server only ever inspects identity
+// fields, creation hints (_meta), and flags. Payload shape is opaque.
 //
-// NO formatting, NO truncation, NO summary generation — that's the client's job.
+// Spec: docs/specs/2026-04-25-three-layer-contract-design.md
+//   §"Layer 1 Contract — The Envelope"
+//   §"Layer 2 Contract — Server Behavior"
 
-import type { EventEnvelopeMeta } from './types'
+import type { EventEnvelope, EventEnvelopeCreationHints, EventEnvelopeFlags } from './types'
 
-export interface ParsedRawEvent {
-  projectName: string | null
-  sessionId: string
-  slug: string | null
-  transcriptPath: string | null
-  /** Raw hook event name (`hook_event_name` from payload). Null for non-hook-format events. */
-  hookName: string | null
-  type: string
-  subtype: string | null
-  toolName: string | null
+export interface ValidatedEnvelope {
+  envelope: EventEnvelope
   timestamp: number
-  // The agent this event belongs to (from payload.agent_id — present on subagent hook events)
-  ownerAgentId: string | null
-  // The subagent being spawned/stopped (from Agent tool response or SubagentStop)
-  subAgentId: string | null
-  subAgentName: string | null
-  subAgentDescription: string | null
-  metadata: Record<string, unknown>
-  raw: Record<string, unknown>
 }
 
-export function parseRawEvent(
-  raw: Record<string, unknown>,
-  envelopeMeta?: EventEnvelopeMeta,
-): ParsedRawEvent {
-  const projectName = (raw.project_name as string) || null
-  // Prefer CLI-stamped sessionId; fall back to payload's standard key.
-  const sessionId = envelopeMeta?.sessionId || (raw.session_id as string) || 'unknown'
-  const slug = (raw.slug as string) || null
-  const transcriptPath = (raw.transcript_path as string) || null
-  // Legacy meta-timestamp support: some older transcript-format events
-  // put the timestamp under a meta.timestamp key on the raw payload.
-  const legacyRawMeta = raw.meta as Record<string, unknown> | undefined
-  const timestamp = parseTimestamp(legacyRawMeta?.timestamp ?? raw.timestamp)
-  // agent_id is present on hook events fired from subagents; CLI may stamp
-  // it on envelope meta too.
-  const ownerAgentId = envelopeMeta?.agentId ?? ((raw.agent_id as string) || null)
+export class EnvelopeValidationError extends Error {
+  missingFields: string[]
+  constructor(message: string, missingFields: string[]) {
+    super(message)
+    this.name = 'EnvelopeValidationError'
+    this.missingFields = missingFields
+  }
+}
 
-  let type: string
-  let subtype: string | null = null
-  let toolName: string | null = null
-  let subAgentId: string | null = null
-  let subAgentName: string | null = null
-  let subAgentDescription: string | null = null
-
-  const hookEventName = raw.hook_event_name as string | undefined
-  // Prefer CLI-stamped hookName; fall back to raw payload key.
-  const hookName = envelopeMeta?.hookName ?? hookEventName ?? null
-
-  if (hookEventName) {
-    // === HOOK FORMAT ===
-    // Descriptor fields come from envelope meta; payload fallback for
-    // compatibility with CLIs that haven't been updated yet.
-    type = envelopeMeta?.type ?? 'system'
-    subtype = envelopeMeta?.subtype ?? hookEventName ?? null
-    toolName = envelopeMeta?.toolName ?? ((raw.tool_name as string | undefined) || null)
-
-    // Subagent extraction stays server-side — used by the route layer's
-    // Claude-Code-specific subagent-pairing map in events.ts. This is
-    // the only remaining Claude-Code assumption in the parser and it's
-    // intentionally out-of-scope for this refactor.
-    const toolInput = raw.tool_input as Record<string, unknown> | undefined
-    if (hookEventName === 'PreToolUse' && toolName === 'Agent') {
-      subAgentName = (toolInput?.name as string) || null
-      subAgentDescription = (toolInput?.description as string) || null
-    } else if (hookEventName === 'PostToolUse' && toolName === 'Agent') {
-      const toolResponse = raw.tool_response as Record<string, unknown> | undefined
-      if (toolResponse) {
-        subAgentId = (toolResponse.agentId as string) || null
-        subAgentName = (toolInput?.name as string) || null
-        subAgentDescription = (toolInput?.description as string) || null
-      }
-    } else if (hookEventName === 'SubagentStop') {
-      subAgentId = (raw.agent_id as string) || null
-    }
-  } else {
-    // === TRANSCRIPT JSONL FORMAT ===
-    type = (raw.type as string) || 'unknown'
-
-    if (raw.subtype) {
-      subtype = raw.subtype as string
-    }
-
-    const data = raw.data as Record<string, unknown> | undefined
-    const message = raw.message as Record<string, unknown> | undefined
-    const toolUseResult = raw.toolUseResult as Record<string, unknown> | undefined
-
-    if (type === 'progress' && data) {
-      const dataType = data.type as string
-
-      if (dataType === 'hook_progress') {
-        subtype = (data.hookEvent as string) || null
-        const hookName = data.hookName as string
-        if (hookName && hookName.includes(':')) {
-          toolName = hookName.split(':').slice(1).join(':')
-        }
-      }
-
-      if (dataType === 'agent_progress') {
-        subtype = 'agent_progress'
-        subAgentId = (data.agentId as string) || null
-        const nestedMsg = data.message as Record<string, unknown> | undefined
-        if (nestedMsg?.message) {
-          const innerMsg = nestedMsg.message as Record<string, unknown>
-          const content = innerMsg.content
-          if (Array.isArray(content)) {
-            const toolUse = content.find((c: any) => c.type === 'tool_use') as
-              | Record<string, unknown>
-              | undefined
-            if (toolUse) {
-              toolName = (toolUse.name as string) || null
-            }
-          }
-        }
-      }
-    }
-
-    if (type === 'assistant' && message) {
-      const content = message.content
-      if (Array.isArray(content)) {
-        const toolUse = content.find((c: any) => c.type === 'tool_use') as
-          | Record<string, unknown>
-          | undefined
-        if (toolUse) {
-          toolName = (toolUse.name as string) || null
-          if (toolName === 'Agent') {
-            const input = toolUse.input as Record<string, unknown> | undefined
-            subAgentName = (input?.name as string) || null
-            subAgentDescription = (input?.description as string) || null
-          }
-        }
-      }
-    }
-
-    if (toolUseResult) {
-      subAgentId = (toolUseResult.agentId as string) || subAgentId
-    }
+/**
+ * Validate an incoming envelope. Accepts both the new shape (top-level
+ * identity fields per spec) and the legacy `{ hook_payload, meta }`
+ * wrapper that pre-Phase-4 hook libs still post. Legacy envelopes are
+ * translated into the new shape here so the rest of the server only
+ * handles one form.
+ *
+ * NOTE: The legacy compatibility branch is transitional. Phase 4 of the
+ * three-layer-contract refactor rewrites the hook libs to emit the new
+ * shape directly; once those land, this branch can be retired.
+ */
+export function validateEnvelope(raw: unknown): ValidatedEnvelope {
+  if (!raw || typeof raw !== 'object') {
+    throw new EnvelopeValidationError('envelope must be an object', [])
   }
 
-  const metadata: Record<string, unknown> = {}
+  const candidate = isLegacyEnvelope(raw)
+    ? translateLegacyEnvelope(raw as LegacyEnvelope)
+    : (raw as Partial<EventEnvelope>)
+
+  const missing: string[] = []
+  if (!candidate.agentClass) missing.push('agentClass')
+  if (!candidate.sessionId) missing.push('sessionId')
+  if (!candidate.agentId) missing.push('agentId')
+  if (!candidate.hookName) missing.push('hookName')
+  if (candidate.payload === undefined || candidate.payload === null) missing.push('payload')
+
+  if (missing.length > 0) {
+    throw new EnvelopeValidationError(
+      `envelope missing required fields: ${missing.join(', ')}`,
+      missing,
+    )
+  }
+
+  const timestamp =
+    typeof candidate.timestamp === 'number' ? clampTimestamp(candidate.timestamp) : Date.now()
+
+  return { envelope: candidate as EventEnvelope, timestamp }
+}
+
+// ---------------------------------------------------------------------------
+// Legacy envelope translation (transitional; retired in Phase 4)
+// ---------------------------------------------------------------------------
+
+interface LegacyEnvelopeMeta {
+  agentClass?: string
+  env?: Record<string, string>
+  hookName?: string
+  sessionId?: string
+  agentId?: string | null
+  type?: string
+  subtype?: string | null
+  toolName?: string | null
+  isNotification?: boolean
+  clearsNotification?: boolean
+}
+
+interface LegacyEnvelope {
+  hook_payload: Record<string, unknown>
+  meta?: LegacyEnvelopeMeta
+}
+
+function isLegacyEnvelope(raw: object): raw is LegacyEnvelope {
+  return (
+    'hook_payload' in raw &&
+    typeof (raw as LegacyEnvelope).hook_payload === 'object' &&
+    (raw as LegacyEnvelope).hook_payload !== null
+  )
+}
+
+/**
+ * Translate the pre-Phase-4 envelope (`{ hook_payload, meta }`) into the
+ * new shape. The legacy meta carried identity bits at the meta level;
+ * everything else has to be lifted from the payload itself.
+ */
+function translateLegacyEnvelope(legacy: LegacyEnvelope): Partial<EventEnvelope> {
+  const meta = legacy.meta ?? {}
+  const payload = legacy.hook_payload ?? {}
+
+  const agentClass = meta.agentClass ?? 'claude-code'
+  const sessionId = meta.sessionId ?? (payload.session_id as string | undefined) ?? ''
+  // Legacy convention: when the payload doesn't carry an explicit
+  // agent_id, the event belongs to the root agent (== sessionId).
+  const agentId = meta.agentId ?? (payload.agent_id as string | undefined) ?? sessionId
+  const hookName =
+    meta.hookName ??
+    (payload.hook_event_name as string | undefined) ??
+    (typeof meta.subtype === 'string' ? meta.subtype : '') ??
+    ''
+
+  const cwd = (payload.cwd as string | undefined) ?? null
+  const transcriptPath = (payload.transcript_path as string | undefined) ?? null
+
+  // Lift session-level hints. Legacy hooks did not distinguish per-event
+  // cwd from session-start cwd; mirror cwd into both for now and let the
+  // server's "preserve-on-update" upsert keep the first value sticky.
+  const sessionHints: NonNullable<EventEnvelopeCreationHints['session']> = {}
+  if (transcriptPath) sessionHints.transcriptPath = transcriptPath
+  if (cwd) sessionHints.startCwd = cwd
+  // Legacy raw payload metadata keys (gitBranch, version, etc.) used to
+  // get stuffed into sessions.metadata via the parser's `metadata` bag.
+  // Reproduce the same behavior so that callbacks/sessions UI keep
+  // showing those fields after the refactor.
+  const legacyMetadata: Record<string, unknown> = {}
   for (const key of [
     'version',
     'gitBranch',
-    'cwd',
     'entrypoint',
     'permissionMode',
     'userType',
     'permission_mode',
   ]) {
-    if (raw[key] !== undefined) metadata[key] = raw[key]
+    const value = (payload as Record<string, unknown>)[key]
+    if (value !== undefined) legacyMetadata[key] = value
+  }
+  if (Object.keys(legacyMetadata).length > 0) sessionHints.metadata = legacyMetadata
+
+  const _meta: EventEnvelopeCreationHints = {}
+  if (Object.keys(sessionHints).length > 0) _meta.session = sessionHints
+
+  // Project slug override carried via env on legacy meta.
+  const projectSlug = meta.env?.AGENTS_OBSERVE_PROJECT_SLUG
+  if (projectSlug) _meta.project = { slug: projectSlug }
+
+  // Translate notification flags. Legacy `isNotification: true` becomes
+  // `startsNotification`; `clearsNotification: false` becomes the absence
+  // of the (default-on) clears flag — but in the new model nothing is
+  // default-on, so we just skip emitting it. Lifecycle stops/resolves
+  // are derived from the hook name for legacy compatibility (Phase 4
+  // moves this lifting into the libs).
+  const flags: EventEnvelopeFlags = {}
+  if (meta.isNotification === true) flags.startsNotification = true
+  if (agentClass === 'claude-code') {
+    if (hookName === 'UserPromptSubmit') flags.clearsNotification = true
+    if (hookName === 'SessionEnd') flags.stopsSession = true
+    if (hookName === 'SessionStart') flags.resolveProject = true
+  }
+  // Legacy claude-code lib set `clearsNotification: false` on
+  // SubagentStop / Stop. The new contract treats absence-of-flag as
+  // "do nothing", which is the same effect — no translation needed.
+
+  const envelope: Partial<EventEnvelope> = {
+    agentClass,
+    sessionId,
+    agentId,
+    hookName,
+    cwd: cwd ?? null,
+    payload,
+  }
+  if (Object.keys(_meta).length > 0) envelope._meta = _meta
+  if (Object.keys(flags).length > 0) envelope.flags = flags
+
+  // Lift legacy meta.timestamp / payload.timestamp if present.
+  const ts = (payload as Record<string, unknown>).timestamp
+  if (typeof ts === 'number') envelope.timestamp = ts
+  else if (typeof ts === 'string') {
+    const parsed = new Date(ts).getTime()
+    if (!isNaN(parsed)) envelope.timestamp = parsed
   }
 
-  return {
-    projectName,
-    sessionId,
-    slug,
-    transcriptPath,
-    hookName,
-    type,
-    subtype,
-    toolName,
-    timestamp,
-    ownerAgentId,
-    subAgentId,
-    subAgentName,
-    subAgentDescription,
-    metadata,
-    raw,
-  }
+  return envelope
 }
+
+// ---------------------------------------------------------------------------
+// Timestamp clamping
+// ---------------------------------------------------------------------------
 
 // Guard against bogus future timestamps. A sentinel like `9999999999999`
 // (year 2286) injected by a test fixture — or a misconfigured CLI — will
@@ -191,23 +198,14 @@ export function parseRawEvent(
 // clamp anything further to the ingest time.
 const FUTURE_TS_CAP_MS = 24 * 60 * 60 * 1000
 
-function parseTimestamp(ts: unknown): number {
-  const parsed = coerceTimestamp(ts)
+export function clampTimestamp(ts: number): number {
   const now = Date.now()
-  if (parsed > now + FUTURE_TS_CAP_MS) {
+  if (!Number.isFinite(ts)) return now
+  if (ts > now + FUTURE_TS_CAP_MS) {
     console.warn(
-      `[parser] Clamping future timestamp ${parsed} (>${FUTURE_TS_CAP_MS / 3600000}h ahead) to now=${now}`,
+      `[parser] Clamping future timestamp ${ts} (>${FUTURE_TS_CAP_MS / 3600000}h ahead) to now=${now}`,
     )
     return now
   }
-  return parsed
-}
-
-function coerceTimestamp(ts: unknown): number {
-  if (typeof ts === 'number') return ts
-  if (typeof ts === 'string') {
-    const parsed = new Date(ts).getTime()
-    return isNaN(parsed) ? Date.now() : parsed
-  }
-  return Date.now()
+  return ts
 }
