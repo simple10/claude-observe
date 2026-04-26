@@ -20,7 +20,19 @@ This refactor is in service of agents-observe being reused across multiple Missi
 
 Per-agent-class libs that read raw hook payloads, build the envelope, and POST to the server. Their job is **payload normalization into the envelope only**. They never mutate the raw payload.
 
-A `default.mjs` lib is the canonical implementation. Any agent whose payload uses the standard shape (`session_id`, `transcript_path`, `cwd`, `hook_event_name`) needs no custom code — they get an entry that calls `default.buildHookEvent` with their `agentClass` constant. Custom libs only exist for agents whose payloads diverge.
+Specifically, hook libs are responsible for lifting the following identity / hint fields **from** the raw payload **into** the envelope (top-level or `_meta`):
+- `sessionId` (envelope identity)
+- `agentId` (envelope identity; default to `sessionId` if not present)
+- `hookName` (envelope identity)
+- `cwd` (envelope optional, per-event)
+- `timestamp` (envelope optional)
+- `_meta.session.transcriptPath` (when present and starting a new session)
+- `_meta.session.startCwd` (the cwd at session start — used by project resolution)
+- `_meta.session.slug` / `gitBranch` / etc. (prefetched from transcript or env)
+
+The raw payload itself is forwarded unchanged. Field extraction logic is the only place agent-class-specific payload knowledge lives in Layer 1.
+
+A `default.mjs` lib is the canonical implementation. It assumes the standard hook-event shape (`session_id`, `transcript_path`, `cwd`, `hook_event_name`) and does the lifting above. Any agent whose payload uses that shape needs no custom code — its entry just calls `default.buildHookEvent` with its `agentClass` constant. Custom libs only exist for agents whose payloads diverge.
 
 ### Layer 2 — Server (`app/server/`)
 
@@ -89,7 +101,9 @@ type Envelope = {
 
 `_meta` is the bag of *instructional* envelope data the server inspects on first-write of a row. The leading underscore signals "internal / set by the hook lib for the server." It reserves a future `metadata` key for actual additional payload metadata if hook libs ever need to attach extra info that isn't part of the raw payload.
 
-Storage policy: the server persists `events._meta` for traceability ("what did the hook lib say about this event when it ingested?") but does not return it on default API responses. Opt-in via `?fields=_meta` or similar.
+Hook libs are stateless and have no way to know whether a given event is the first one for its session. They populate `_meta.session.*` and `_meta.agent.*` fields on **every** event when the corresponding info is available in the raw payload. The server uses these fields **only** when actually creating a new row; on subsequent events for an existing row, the fields are ignored (or persisted in `events._meta` for traceability but not applied to the row).
+
+Storage policy: the server persists `events._meta` to the events table for debugging traceability ("what did the hook lib say about this event when it ingested?"). Returned in the REST `/sessions/:id/events` response (full event), omitted from the WS broadcast.
 
 ### Why `flags` is log-only
 
@@ -126,16 +140,15 @@ A new agent class with a conforming payload needs ~5 lines: import default, over
 
 For every POST `/api/events`:
 
-1. **Validate identity.** Reject if `agentClass`, `sessionId`, `agentId`, or `hookName` is missing.
-2. **Upsert session row.** If new: use `_meta.session.*` for slug, transcript_path, metadata. Else: leave existing fields untouched (manual UI edits stick).
+1. **Validate identity.** If `agentClass`, `sessionId`, `agentId`, or `hookName` is missing, return HTTP 400 with `{ error: { message, missingFields: [...] } }`. No partial inserts.
+2. **Upsert session row.** If new: insert with `started_at = event.timestamp`, `last_activity = event.timestamp`, populate from `_meta.session.*` (slug, transcriptPath, startCwd, metadata). If existing: update `last_activity = event.timestamp` only; never overwrite slug, transcript_path, start_cwd, or metadata (manual UI edits stick).
 3. **Resolve project** if session has no `project_id` yet (algorithm below).
-4. **Upsert agent row.** If new: use `_meta.agent.*` for name, description, type. The `agent_class` comes from envelope `agentClass`.
-5. **Insert event row** with the provided fields. `payload` stored as-is.
-6. **Apply flags:**
-   - `startsNotification` → set `sessions.pending_notification_ts = timestamp`, increment `pending_notification_count`, set `last_notification_ts`.
-   - `clearsNotification` → clear `pending_notification_ts`, reset count.
-   - `stopsSession` → set `sessions.stopped_at = timestamp`.
-   - `resolveProject` → run resolution if session has no project (see algorithm).
+4. **Upsert agent row.** If new: insert with `agent_class = envelope.agentClass`, populate from `_meta.agent.*` (name, description, type). If existing: never overwrite `agent_class` (locked at first write); other fields are Layer 3's responsibility via PATCH.
+5. **Insert event row** with the provided fields. `payload` and `_meta` stored as-is JSON. `created_at = Date.now()` server-side.
+6. **Apply flags** in this order (so a single event can both clear an old notification and start a new one):
+   - `clearsNotification` → set `pending_notification_ts = NULL`, `pending_notification_count = 0`. Leave `last_notification_ts` alone.
+   - `startsNotification` → set `pending_notification_ts = event.timestamp`, `last_notification_ts = event.timestamp`, `pending_notification_count += 1`.
+   - `stopsSession` → set `sessions.stopped_at = event.timestamp`.
 7. **Broadcast.** Per-session WS event broadcast (subscribed clients) + global activity ping (all clients).
 
 ### What the server does NOT do
@@ -151,32 +164,40 @@ For every POST `/api/events`:
 
 ### Project resolution algorithm
 
+Note: project resolution evaluates against `sessions.start_cwd` and `sessions.transcript_path`, not the per-event `cwd`. The current event's cwd may diverge (worktrees, subagents, `cd`); session-level fields are the stable identity for grouping.
+
 ```
 on event for session S:
   if S.project_id is not null:
     skip (sticky after first assignment)
   elif _meta.project.id is set:
-    assign that id (validated to exist)
+    assign that id (validated to exist; if not, fall through to next branch)
   elif _meta.project.slug is set:
-    find-or-create-by-slug(slug)  // retry on UNIQUE collision
+    find-or-create-by-slug(slug)  // retry-once on UNIQUE collision
   elif flags.resolveProject is true:
-    candidates = sessions WHERE
-      (cwd matches event.cwd) OR
-      (transcript_path basedir matches new session's transcript basedir)
+    candidate_cwd = S.start_cwd  // already populated in step 2
+    candidate_basedir = dirname(S.transcript_path)
+    candidates = sessions WHERE id != S.id AND project_id IS NOT NULL AND (
+        (start_cwd = candidate_cwd AND candidate_cwd IS NOT NULL) OR
+        (dirname(transcript_path) = candidate_basedir AND candidate_basedir IS NOT NULL)
+      )
       ORDER BY last_activity DESC LIMIT 1
-    if candidate found and candidate.project_id is not null:
+    if candidate found:
       assign candidate.project_id
     else:
-      create new project with basedir-derived slug
+      slug = derive_slug_from(candidate_cwd or candidate_basedir or 'unnamed')
+      find-or-create-by-slug(slug)
   else:
     leave S.project_id as NULL  // frontend renders in "Unassigned"
 ```
 
 Sessions with `project_id IS NULL` render in a frontend-managed "Unassigned" group. There is no "unknown" project row.
 
-**Slug-collision handling:** find-or-create-by-slug must handle UNIQUE constraint violations on race by re-querying and joining the now-existing row. It must NOT auto-suffix (`-2`) — that creates split projects from concurrent inserts.
+**Slug-collision handling:** `find-or-create-by-slug` runs `INSERT … ON CONFLICT(slug) DO NOTHING` then `SELECT id FROM projects WHERE slug = ?`. If both the insert and the select fail (impossible under SQLite's serial writes, but defend anyway), retry the SELECT once. Never auto-suffix (`-2`) — concurrent inserts must converge on the same row.
 
-**Sibling-match tiebreaker:** most recent `last_activity` wins.
+**Sibling-match tiebreaker:** most recent `last_activity` wins. Stable: SQLite's `ORDER BY last_activity DESC LIMIT 1` is deterministic.
+
+**Transcript basedir:** plain `dirname(transcript_path)` — no agent-class-specific extraction. The current `extractProjectDir` heuristic in `utils/slug.ts` goes away.
 
 ## Layer 3 Contract — Client
 
@@ -221,6 +242,7 @@ slug                        text     NULL
 started_at                  integer  NOT NULL
 stopped_at                  integer  NULL
 transcript_path             text     NULL
+start_cwd                   text     NULL
 last_activity               integer  NOT NULL
 pending_notification_ts     integer  NULL
 pending_notification_count  integer  NOT NULL DEFAULT 0
@@ -232,7 +254,11 @@ updated_at                  integer  NOT NULL
 
 Removed: `status` (derive from `stopped_at`), `event_count`, `agent_count` (compute via GROUP BY).
 
+Added: `start_cwd` (the cwd recorded when the session was first observed; used by project resolution to find sibling sessions). Set from `_meta.session.startCwd` on session insert; never updated thereafter.
+
 `project_id` is nullable; sessions with NULL render in "Unassigned" client-side.
+
+Indexes: `(project_id, last_activity)` for sidebar queries, `(start_cwd)` and `(transcript_path)` for project-resolution sibling matching.
 
 ### `agents`
 
@@ -276,7 +302,7 @@ If profiling shows this is hot, add `agents_sessions(agent_id, session_id, agent
 
 ### REST `/api/sessions/:id/events`
 
-Default response (per event):
+Returns the full event row (per event):
 
 ```json
 {
@@ -284,13 +310,20 @@ Default response (per event):
   "timestamp": 1777056008484,
   "agent_id": "abc...",
   "hook_name": "PostToolUse",
-  "payload": { ... }
+  "cwd": "/path/...",
+  "payload": { ... },
+  "_meta": { ... },
+  "created_at": 1777056008485
 }
 ```
 
-Opt-in via `?fields=cwd,_meta,created_at` for additional fields.
+`session_id` omitted — implicit from the URL. Bandwidth is bounded by session size and the user is explicitly asking for one session's history; full payloads here are fine.
+
+No `?fields=` parameter. The historical-load REST path returns everything; trimming happens only on the high-volume WS broadcast path below.
 
 ### WebSocket — per-session subscribed broadcast
+
+Trimmed to the minimum the client needs to render a new event row. Layer 3 derives display data from `payload` and `hook_name`; cwd, `_meta`, and `created_at` are not used by any client renderer.
 
 ```json
 { "type": "event",
@@ -310,13 +343,7 @@ Unchanged from current implementation.
 
 ### REST `/api/agents/:id` (PATCH)
 
-Layer 3's persistence path for derived agent metadata. Accepts:
-
-```json
-{ "name": "...", "description": "...", "agent_type": "..." }
-```
-
-Server silently ignores attempts to change `id` or `agent_class`. Other fields validated as strings. This replaces the currently-dead `updateAgentMetadata` endpoint.
+Layer 3's persistence path for derived agent metadata. Accepts a partial body containing any subset of `{ name, description, agent_type }` (all string-or-null). Unrecognized fields and attempts to change `id` / `agent_class` are silently ignored — keeps the endpoint forgiving as agent classes evolve. Returns the updated row. Replaces the currently-dead `updateAgentMetadata` endpoint.
 
 ## Notification Semantics
 
@@ -340,9 +367,12 @@ Hook libs decide what counts as a notification per agent class; envelope flags c
 - `getThreadForEvent` in storage adapter
 - `deriveEventStatus` in routes
 - All `subtype === 'X'` branches in `routes/events.ts`
-- `parser.ts` subagent-extraction (PreToolUse/PostToolUse/SubagentStop branches) — moves to Layer 3
+- `parser.ts` simplifies to envelope validation + identity extraction. Subagent-extraction (PreToolUse/PostToolUse/SubagentStop branches) and the transcript-JSONL fallback path go away — moves to Layer 3.
+- `extractProjectDir` heuristic in `utils/slug.ts` — replaced by plain `dirname()` in the resolver
+- `services/project-resolver.ts` — rewritten per the new algorithm
 - "Unknown" singleton project shim
 - `event_count` / `agent_count` denormalization on session insert/delete
+- Pending-agent maps (`pendingAgentMeta`, `pendingAgentMetaQueue`, `pendingAgentTypes`) — Layer 3 reconstructs subagent metadata from events; server holds no pairing state.
 
 ### Database columns
 
@@ -369,11 +399,9 @@ A separate plan doc (`docs/plans/YYYY-MM-DD-three-layer-contract-impl.md`) will 
 
 ## Open questions deferred to plan time
 
-- **Bikeshed: `_meta` vs `_envelope` vs `creationHints` for the envelope sub-bag.** Picking `_meta` in this spec; not worth re-litigating without strong reason.
-- **`?fields=` parameter syntax.** REST convention is `?fields=a,b,c`. Worth cross-checking against existing API conventions in the repo before locking.
-- **Backwards compatibility window for old clients.** If the wire shape changes mid-refactor, do we double-publish for a release? Probably not — single repo, single client; ship together.
-- **Activity-ping payload during refactor.** Currently includes `eventId` — worth re-confirming nothing depends on this. Spec keeps it for future "click pulse → jump to event" affordance.
-- **Frontend rendering of NULL-project sessions.** "Unassigned" bucket in sidebar; new UI element. Sketching that lives outside this server-focused spec.
+- **Frontend rendering of NULL-project sessions.** "Unassigned" bucket in sidebar; new UI element. Sketch lives in the implementation plan.
+- **Migration data path.** Existing rows have `type` / `subtype` / `tool_name` / `agent_class` denormalized in places that will move. Plan must specify whether to backfill `_meta` from existing data or accept that legacy events lack envelope traceability. Recommendation: don't backfill — drop columns, leave existing event rows with NULL `_meta`. Pre-refactor events still display correctly via Layer 3 deriving from `hook_name` + `payload`.
+- **Concrete agent-class registration shape on the client.** Today's `AgentClassRegistration` interface (`app/client/src/agents/types.ts`) needs additions for status derivation, hierarchy reconstruction, and subagent-pairing. Plan time decides exact signatures.
 
 ## Summary in one paragraph
 
