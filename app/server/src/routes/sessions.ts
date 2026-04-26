@@ -133,8 +133,17 @@ router.get('/sessions/:id/events', async (c) => {
         offset: c.req.query('offset') ? parseInt(c.req.query('offset')!) : undefined,
       })
 
-  const events = rows.map((r) => {
-    const base: Record<string, unknown> = {
+  interface EventRow {
+    id: number
+    agentId: string
+    hookName: string
+    timestamp: number
+    payload: unknown
+    [key: string]: unknown
+  }
+
+  const events: EventRow[] = rows.map((r) => {
+    const base: EventRow = {
       id: r.id,
       agentId: r.agent_id,
       hookName: r.hook_name,
@@ -143,18 +152,16 @@ router.get('/sessions/:id/events', async (c) => {
     }
     if (requested.has('sessionId')) base.sessionId = r.session_id
     if (requested.has('cwd')) base.cwd = r.cwd ?? null
-    if (requested.has('createdAt')) base.createdAt = r.created_at || r.timestamp
+    if (requested.has('createdAt')) base.createdAt = r.created_at ?? r.timestamp
     if (requested.has('_meta')) base._meta = r._meta ? JSON.parse(r._meta) : null
     return base
   })
 
-  // Lazy session status correction based on event history (preserved from
-  // the original handler — the wrapped status field on `events` is gone
-  // but we still derive stopped/active from SessionEnd presence).
+  // Lazy session status correction based on event history.
   if (events.length > 0) {
     let lastSessionEndIdx = -1
     for (let i = events.length - 1; i >= 0; i--) {
-      if ((events[i] as { hookName: string }).hookName === 'SessionEnd') {
+      if (events[i].hookName === 'SessionEnd') {
         lastSessionEndIdx = i
         break
       }
