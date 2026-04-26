@@ -73,6 +73,25 @@ describe('SessionItem tooltip — agent classes', () => {
   })
 })
 
+describe('SessionItem status indicator', () => {
+  it('paints the dot green when stoppedAt is null (active)', () => {
+    renderItem(makeSession({ stoppedAt: null }))
+    const container = screen.getAllByText('my-session')[0].closest('[role="button"]') as HTMLElement
+    const dot = container.querySelector('span.rounded-full') as HTMLElement
+    expect(dot.className).toContain('bg-green-500')
+  })
+
+  it('paints the dot muted when stoppedAt is set (ended) regardless of session.status', () => {
+    // Pass an inconsistent shape on purpose: status='active' but
+    // stoppedAt is populated. The component should trust stoppedAt.
+    renderItem(makeSession({ status: 'active', stoppedAt: Date.now() }))
+    const container = screen.getAllByText('my-session')[0].closest('[role="button"]') as HTMLElement
+    const dot = container.querySelector('span.rounded-full') as HTMLElement
+    expect(dot.className).not.toContain('bg-green-500')
+    expect(dot.className).toContain('bg-muted-foreground')
+  })
+})
+
 describe('SessionItem accessibility', () => {
   it('renders the outer container as a focusable button', () => {
     renderItem(makeSession())

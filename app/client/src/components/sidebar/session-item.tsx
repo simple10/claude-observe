@@ -92,7 +92,12 @@ export function SessionItem({
     setEditValue('')
   }, [editValue, label, session.id, onRename])
 
-  const statusLabel = session.status === 'active' ? 'Active' : 'Ended'
+  // Status is derived from stoppedAt — the server emits a `status`
+  // string for back-compat but `stoppedAt` is the canonical signal and
+  // also the only one persisted on the row. Reading directly avoids a
+  // round-trip through a stringly-typed field.
+  const isActive = !session.stoppedAt
+  const statusLabel = isActive ? 'Active' : 'Ended'
   // `session.eventCount` is no longer part of the wire shape — derive
   // counts client-side via `useAgents` and pass through the override.
   const eventCount = eventCountOverride
@@ -165,7 +170,7 @@ export function SessionItem({
                   className={cn(
                     'h-2 w-2 rounded-full relative',
                     isPinned ? 'hidden' : 'group-hover:hidden',
-                    session.status === 'active'
+                    isActive
                       ? 'bg-green-500'
                       : 'bg-muted-foreground/60 dark:bg-muted-foreground/40',
                   )}
@@ -175,12 +180,12 @@ export function SessionItem({
                   className={cn(
                     'h-3 w-3 absolute inset-0 cursor-pointer transition-opacity',
                     isPinned
-                      ? session.status === 'active'
+                      ? isActive
                         ? 'opacity-80 text-green-500 hover:fill-none'
                         : 'opacity-60 text-primary hover:fill-none'
                       : 'opacity-0 group-hover:opacity-100',
                     !isPinned &&
-                      (session.status === 'active'
+                      (isActive
                         ? 'text-green-500/60 hover:text-green-500'
                         : 'text-muted-foreground/50 hover:text-muted-foreground'),
                   )}

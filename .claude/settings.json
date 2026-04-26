@@ -61,7 +61,8 @@
           }
         ]
       }
-    ],    "SessionStart": [
+    ],
+    "SessionStart": [
       {
         "matcher": "",
         "hooks": [
