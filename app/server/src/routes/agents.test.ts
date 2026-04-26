@@ -12,8 +12,7 @@ describe('agent routes', () => {
   let app: Hono<Env>
   const mockStore = {
     getAgentById: vi.fn(),
-    updateAgentName: vi.fn(),
-    updateAgentType: vi.fn(),
+    patchAgent: vi.fn(),
   }
 
   beforeEach(async () => {
@@ -37,8 +36,6 @@ describe('agent routes', () => {
     test('returns agentClass in response', async () => {
       mockStore.getAgentById.mockResolvedValue({
         id: 'agent-1',
-        session_id: 'sess-1',
-        parent_agent_id: null,
         name: 'Main',
         description: null,
         agent_type: 'general-purpose',
@@ -49,13 +46,12 @@ describe('agent routes', () => {
       expect(res.status).toBe(200)
       const body = await res.json()
       expect(body.agentClass).toBe('claude-code')
+      expect(body.agentType).toBe('general-purpose')
     })
 
     test('returns null agentClass when not set', async () => {
       mockStore.getAgentById.mockResolvedValue({
         id: 'agent-1',
-        session_id: 'sess-1',
-        parent_agent_id: null,
         name: null,
         description: null,
         agent_type: null,
@@ -65,6 +61,101 @@ describe('agent routes', () => {
       const res = await app.request('/api/agents/agent-1', { method: 'GET' })
       const body = await res.json()
       expect(body.agentClass).toBeNull()
+    })
+
+    test('returns 404 when agent does not exist', async () => {
+      mockStore.getAgentById.mockResolvedValue(null)
+      const res = await app.request('/api/agents/missing', { method: 'GET' })
+      expect(res.status).toBe(404)
+    })
+  })
+
+  describe('PATCH /api/agents/:id', () => {
+    function patchedRow(overrides: Record<string, unknown> = {}) {
+      return {
+        id: 'agent-1',
+        name: null,
+        description: null,
+        agent_type: null,
+        agent_class: 'claude-code',
+        ...overrides,
+      }
+    }
+
+    test('patches name only', async () => {
+      mockStore.patchAgent.mockResolvedValue(patchedRow({ name: 'Refactor Bot' }))
+      const res = await app.request('/api/agents/agent-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Refactor Bot' }),
+      })
+      expect(res.status).toBe(200)
+      expect(mockStore.patchAgent).toHaveBeenCalledWith('agent-1', { name: 'Refactor Bot' })
+      const body = await res.json()
+      expect(body.name).toBe('Refactor Bot')
+    })
+
+    test('patches multiple fields atomically', async () => {
+      mockStore.patchAgent.mockResolvedValue(
+        patchedRow({ name: 'X', description: 'desc', agent_type: 'general' }),
+      )
+      await app.request('/api/agents/agent-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'X', description: 'desc', agent_type: 'general' }),
+      })
+      expect(mockStore.patchAgent).toHaveBeenCalledWith('agent-1', {
+        name: 'X',
+        description: 'desc',
+        agent_type: 'general',
+      })
+    })
+
+    test('silently ignores id and agent_class in body', async () => {
+      mockStore.patchAgent.mockResolvedValue(patchedRow({ name: 'Z' }))
+      await app.request('/api/agents/agent-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 'attempted-rebrand',
+          agent_class: 'codex',
+          name: 'Z',
+        }),
+      })
+      expect(mockStore.patchAgent).toHaveBeenCalledWith('agent-1', { name: 'Z' })
+    })
+
+    test('silently ignores unrecognized fields', async () => {
+      mockStore.patchAgent.mockResolvedValue(patchedRow())
+      await app.request('/api/agents/agent-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ randomKey: 'whatever', another: 42 }),
+      })
+      expect(mockStore.patchAgent).toHaveBeenCalledWith('agent-1', {})
+    })
+
+    test('coerces null values to null (clearing a field)', async () => {
+      mockStore.patchAgent.mockResolvedValue(patchedRow())
+      await app.request('/api/agents/agent-1', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: null, description: null }),
+      })
+      expect(mockStore.patchAgent).toHaveBeenCalledWith('agent-1', {
+        name: null,
+        description: null,
+      })
+    })
+
+    test('returns 404 when agent does not exist', async () => {
+      mockStore.patchAgent.mockResolvedValue(null)
+      const res = await app.request('/api/agents/missing', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'X' }),
+      })
+      expect(res.status).toBe(404)
     })
   })
 })
