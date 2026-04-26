@@ -1,106 +1,44 @@
+// hooks/scripts/lib/agents/claude-code.mjs
+// Claude-Code-specific hook lib. Composes default.mjs and overrides
+// agentClass + adds Claude-specific lifecycle flags
+// (clearsNotification, stopsSession, resolveProject) per the three-layer
+// contract spec.
+
 import { readFileSync } from 'node:fs'
-import { isNotificationEvent } from './index.mjs'
+import { defaultLib } from './default.mjs'
 
-/**
- * Hook events that must not clear a pending notification. Terminal
- * lifecycle events from the agent itself — e.g. a subagent's
- * `SubagentStop` firing after the main agent's `Notification` — should
- * leave bell state alone rather than wiping the pending flag.
- *
- * `isNotificationEvent` wins over this set: if a user opts `Stop` into
- * `AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS`, Stop stamps `isNotification`
- * instead of being treated as non-clearing. SubagentStop stays fixed.
- */
-const NON_CLEARING_EVENTS = new Set(['SubagentStop', 'Stop'])
+// Hooks that should explicitly clear pending notifications
+// (Claude-Code-specific naming).
+const CLEARS_NOTIFICATION = new Set(['UserPromptSubmit'])
+// Hooks that mark the session as terminally stopped.
+const STOPS_SESSION = new Set(['SessionEnd'])
 
-/**
- * Map a Claude Code hook event name to a normalized `{ type, subtype }`
- * pair. Ported verbatim from the server's old parser switch — this
- * replaces the server-side derivation so the server stays
- * agent-class-neutral. Unknown hook events fall through to
- * `{ type: 'system', subtype: <hookName> }`, same default the parser used.
- */
-function deriveTypeSubtype(hookName) {
-  switch (hookName) {
-    case 'SessionStart':
-      return { type: 'session', subtype: 'SessionStart' }
-    case 'UserPromptSubmit':
-      return { type: 'user', subtype: 'UserPromptSubmit' }
-    case 'UserPromptExpansion':
-      return { type: 'user', subtype: 'UserPromptExpansion' }
-    case 'PreToolUse':
-      return { type: 'tool', subtype: 'PreToolUse' }
-    case 'PostToolUse':
-      return { type: 'tool', subtype: 'PostToolUse' }
-    case 'PostToolUseFailure':
-      return { type: 'tool', subtype: 'PostToolUseFailure' }
-    case 'Stop':
-      return { type: 'system', subtype: 'Stop' }
-    case 'SubagentStop':
-      return { type: 'system', subtype: 'SubagentStop' }
-    case 'Notification':
-      return { type: 'system', subtype: 'Notification' }
-    default:
-      return { type: 'system', subtype: hookName }
-  }
-}
-
-function buildEnv(config) {
-  const env = {}
-  if (config?.projectSlug) {
-    env.AGENTS_OBSERVE_PROJECT_SLUG = config.projectSlug
-  }
-  return env
+export function buildEnv(config) {
+  return defaultLib.buildEnv(config)
 }
 
 /**
- * Build the event envelope for a Claude Code hook payload. Stamps every
- * field the server stores as a column (hookName / type / subtype /
- * toolName / sessionId / agentId) plus the notification flags. Server
- * never inspects `hook_event_name` / payload shape for these fields
- * after this.
+ * Build the event envelope for a Claude Code hook payload. Composes the
+ * default lib then overrides agentClass and adds Claude-specific flags.
  *
  * @param {object} config
- * @param {object} _log
- * @param {object} hookPayload Raw hook payload from Claude Code.
+ * @param {object} log
+ * @param {object} payload Raw hook payload from Claude Code.
  * @returns {{ envelope: object, hookEvent: string, toolName: string }}
  */
-export function buildHookEvent(config, _log, hookPayload) {
-  const hookName = hookPayload?.hook_event_name || 'unknown'
-  const toolName = hookPayload?.tool_name || hookPayload?.tool?.name || null
-  const sessionId = hookPayload?.session_id || undefined
-  // agent_id is only present on subagent hook events; leave null for
-  // main-agent events — the server falls back to session id there.
-  const agentId = hookPayload?.agent_id || null
-  const { type, subtype } = deriveTypeSubtype(hookName)
+export function buildHookEvent(config, log, payload) {
+  const result = defaultLib.buildHookEvent(config, log, payload)
+  result.envelope.agentClass = 'claude-code'
 
-  // isNotificationEvent wins over NON_CLEARING_EVENTS: if a user opts
-  // `Stop` into AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS, Stop stamps
-  // isNotification instead of being treated as non-clearing.
-  const flags = {}
-  if (isNotificationEvent(config, hookName, hookPayload)) {
-    flags.isNotification = true
-  } else if (NON_CLEARING_EVENTS.has(hookName)) {
-    flags.clearsNotification = false
-  }
+  const flags = result.envelope.flags ?? {}
+  const hookName = result.envelope.hookName
+  if (CLEARS_NOTIFICATION.has(hookName)) flags.clearsNotification = true
+  if (STOPS_SESSION.has(hookName)) flags.stopsSession = true
+  // SessionStart re-resolves project lazily (cwd may newly be available).
+  if (hookName === 'SessionStart') flags.resolveProject = true
 
-  const envelope = {
-    hook_payload: hookPayload,
-    meta: {
-      agentClass: 'claude-code',
-      env: buildEnv(config),
-      hookName,
-      type,
-      subtype,
-      toolName,
-      sessionId,
-      agentId,
-      ...flags,
-    },
-  }
-  // Return toolName as '' (empty string) for the caller's log string —
-  // matches the pre-refactor signature expectation of string, not null.
-  return { envelope, hookEvent: hookName, toolName: toolName || '' }
+  if (Object.keys(flags).length > 0) result.envelope.flags = flags
+  return result
 }
 
 /**
@@ -118,7 +56,9 @@ export function buildHookEvent(config, _log, hookPayload) {
  * don't carry the remote origin.
  *
  * @param {object} args
- * @param {string} [args.transcript_path] Absolute path to the jsonl transcript.
+ * @param {string} [args.transcriptPath] Absolute path to the jsonl transcript.
+ * @param {string} [args.transcript_path] Snake-case alias accepted for
+ *   back-compat with older callers.
  * @param {string} [args.agentClass] The session's agent class — always
  *   "claude-code" by the time this handler is dispatched, but kept in
  *   the arg signature for symmetry with other agents.
@@ -128,18 +68,19 @@ export function buildHookEvent(config, _log, hookPayload) {
  * @param {object} ctx
  * @param {object} ctx.log Logger with debug/warn/etc.
  */
-export function getSessionInfo({ transcript_path, agentClass: _agentClass, cwd: _cwd }, { log }) {
-  if (!transcript_path) {
-    log.debug('claude-code.getSessionInfo: no transcript_path provided')
+export function getSessionInfo(args, { log }) {
+  const transcriptPath = args?.transcriptPath ?? args?.transcript_path
+  if (!transcriptPath) {
+    log.debug('claude-code.getSessionInfo: no transcriptPath provided')
     return null
   }
 
   let content
   try {
-    content = readFileSync(transcript_path, 'utf8')
+    content = readFileSync(transcriptPath, 'utf8')
   } catch (err) {
     log.warn(
-      `claude-code.getSessionInfo: cannot read transcript ${transcript_path}: ${err.message}`,
+      `claude-code.getSessionInfo: cannot read transcript ${transcriptPath}: ${err.message}`,
     )
     return null
   }
@@ -175,7 +116,7 @@ export function getSessionInfo({ transcript_path, agentClass: _agentClass, cwd: 
   }
 
   if (slug === null && branch === null) {
-    log.debug(`claude-code.getSessionInfo: no slug or gitBranch in ${transcript_path}`)
+    log.debug(`claude-code.getSessionInfo: no slug or gitBranch in ${transcriptPath}`)
   } else {
     log.debug(`claude-code.getSessionInfo: slug=${slug} branch=${branch}`)
   }
