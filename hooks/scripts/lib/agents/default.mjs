@@ -1,53 +1,100 @@
-// hooks/scripts/lib/agents/unknown.mjs
-// Fallback agent lib used when the CLI is invoked with an agent class
-// that doesn't have a dedicated module. Builds a pass-through envelope
-// with no class-specific categorization — so unrecognized agents
-// silently work but never produce bells unless the user explicitly
-// opts specific hook events into AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS.
+// hooks/scripts/lib/agents/default.mjs
+// Default hook lib. Other agent classes compose this and override as
+// needed. Assumes the standard hook-event payload shape:
+//   - payload.session_id      (required for the envelope's sessionId)
+//   - payload.agent_id        (optional; defaults to sessionId)
+//   - payload.hook_event_name (required for the envelope's hookName)
+//   - payload.cwd             (optional, per-event)
+//   - payload.transcript_path (optional, lifted to _meta.session)
+//   - payload.timestamp       (optional, falls back to ingest time)
+//
+// Builds the new flat envelope shape per
+// docs/specs/2026-04-25-three-layer-contract-design.md
+// §"Layer 1 Contract — The Envelope".
+//
+// Default behavior is conservative: the only flag the default lib sets
+// is `startsNotification` (when the hookName matches the configured
+// notification list). Per-class libs (claude-code, codex) compose this
+// and add their own flags (clearsNotification, stopsSession,
+// resolveProject).
 
-import { isNotificationEvent } from './index.mjs'
+const NOTIFICATION_HOOKS_DEFAULT = ['Notification']
 
-function buildEnv(config) {
+function notificationHooks(config) {
+  if (config?.notificationOnEvents !== undefined) return config.notificationOnEvents
+  return NOTIFICATION_HOOKS_DEFAULT
+}
+
+export function buildEnv(config) {
   const env = {}
-  if (config?.projectSlug) {
-    env.AGENTS_OBSERVE_PROJECT_SLUG = config.projectSlug
-  }
+  if (config?.projectSlug) env.AGENTS_OBSERVE_PROJECT_SLUG = config.projectSlug
   return env
 }
 
+export function isNotificationEvent(config, hookName) {
+  return notificationHooks(config).includes(hookName)
+}
+
 /**
+ * Build the envelope for a hook payload. Normalizes identity fields
+ * out of the payload into the envelope; never mutates the payload.
+ *
  * @returns {{ envelope: object, hookEvent: string, toolName: string }}
  */
-export function buildHookEvent(config, _log, hookPayload) {
-  const hookName = hookPayload?.hook_event_name || 'unknown'
-  const toolName = hookPayload?.tool_name || hookPayload?.tool?.name || null
-  const sessionId = hookPayload?.session_id || undefined
-  const agentId = hookPayload?.agent_id || null
+export function buildHookEvent(config, _log, payload) {
+  const sessionId = payload?.session_id || payload?.sessionId
+  const agentId = payload?.agent_id || payload?.agentId || sessionId
+  const hookName = payload?.hook_event_name || payload?.hookName
+  const cwd = payload?.cwd ?? null
+  const transcriptPath = payload?.transcript_path ?? null
+  const timestamp = typeof payload?.timestamp === 'number' ? payload.timestamp : undefined
 
   const flags = {}
-  if (isNotificationEvent(config, hookName, hookPayload)) {
-    flags.isNotification = true
+  if (hookName && isNotificationEvent(config, hookName)) {
+    flags.startsNotification = true
+  }
+  // Default lib is conservative: it never sets clearsNotification,
+  // stopsSession, or resolveProject. Per-class libs decide.
+
+  const _meta = {}
+  if (transcriptPath) {
+    _meta.session = { transcriptPath }
+  }
+  if (cwd) {
+    _meta.session = _meta.session || {}
+    _meta.session.startCwd = cwd // server uses only on first event
+  }
+  // Project slug override carried via env var lands on _meta.project.
+  if (config?.projectSlug) {
+    _meta.project = { slug: config.projectSlug }
   }
 
   const envelope = {
-    hook_payload: hookPayload,
-    meta: {
-      agentClass: config?.agentClass || 'unknown',
-      env: buildEnv(config),
-      hookName,
-      // type / subtype left null — unknown agents have no class-specific
-      // categorization; server stores null and the client treats them
-      // as uncategorized.
-      toolName,
-      sessionId,
-      agentId,
-      ...flags,
-    },
+    agentClass: 'default',
+    sessionId,
+    agentId,
+    hookName,
+    cwd,
+    payload,
   }
-  return { envelope, hookEvent: hookName, toolName: toolName || '' }
+  if (timestamp !== undefined) envelope.timestamp = timestamp
+  if (Object.keys(_meta).length > 0) envelope._meta = _meta
+  if (Object.keys(flags).length > 0) envelope.flags = flags
+
+  const toolName = payload?.tool_name || payload?.tool?.name || ''
+  return { envelope, hookEvent: hookName ?? '', toolName }
 }
 
-/** No-op session-info handler. The callbacks dispatcher skips gracefully. */
+/**
+ * No-op session-info handler. The default lib has no transcript-shape
+ * knowledge — agent-class-specific libs (claude-code, codex) implement
+ * this. The callbacks dispatcher tolerates a null return gracefully.
+ */
 export function getSessionInfo() {
   return null
 }
+
+// Re-export for composing libs (claude-code, codex). Lets a per-class
+// lib `import { defaultLib } from './default.mjs'` and call into the
+// canonical builder without depending on individual named exports.
+export const defaultLib = { buildHookEvent, buildEnv, isNotificationEvent, getSessionInfo }
