@@ -60,7 +60,7 @@ async function ensureRootAgent(
   let rootId = sessionRootAgents.get(sessionId)
   if (!rootId) {
     rootId = sessionId
-    await store.upsertAgent(rootId, sessionId, null, null, null, null, null, agentClass)
+    await store.upsertAgent(rootId, sessionId, null, null, null, null, agentClass)
     sessionRootAgents.set(sessionId, rootId)
   }
   return rootId
@@ -241,9 +241,8 @@ router.post('/events', async (c) => {
         }
       }
 
-      // Extract agent_type and transcript_path from the hook payload
+      // Extract agent_type from the hook payload
       const ownerAgentType: string | null = (hookPayload as any)?.agent_type ?? null
-      const agentTranscriptPath: string | null = (hookPayload as any)?.agent_transcript_path ?? null
 
       await store.upsertAgent(
         parsed.ownerAgentId,
@@ -252,7 +251,6 @@ router.post('/events', async (c) => {
         pending?.name ?? null,
         pending?.description ?? null,
         ownerAgentType,
-        agentTranscriptPath,
         agentClass,
       )
     }
@@ -288,7 +286,6 @@ router.post('/events', async (c) => {
         subAgentName,
         subAgentDescription,
         subAgentType,
-        null,
         agentClass,
       )
 

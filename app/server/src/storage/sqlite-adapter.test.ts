@@ -963,7 +963,7 @@ describe('SqliteAdapter — agent_classes aggregation', () => {
   test('getSessionById returns single class for single-class session', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, null, null, 'claude-code')
+    await store.upsertAgent('a1', 'sess1', null, null, null, null, 'claude-code')
 
     const session = await store.getSessionById('sess1')
     expect(parseClasses(session)).toEqual(['claude-code'])
@@ -972,9 +972,9 @@ describe('SqliteAdapter — agent_classes aggregation', () => {
   test('getSessionById deduplicates repeated agent classes', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, null, null, 'claude-code')
-    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', null, null, 'claude-code')
-    await store.upsertAgent('a3', 'sess1', 'a1', null, 'sub2', null, null, 'claude-code')
+    await store.upsertAgent('a1', 'sess1', null, null, null, null, 'claude-code')
+    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', null, 'claude-code')
+    await store.upsertAgent('a3', 'sess1', 'a1', null, 'sub2', null, 'claude-code')
 
     const session = await store.getSessionById('sess1')
     expect(parseClasses(session)).toEqual(['claude-code'])
@@ -983,8 +983,8 @@ describe('SqliteAdapter — agent_classes aggregation', () => {
   test('getSessionById returns multiple distinct classes sorted', async () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, null, null, 'claude-code')
-    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', null, null, 'codex')
+    await store.upsertAgent('a1', 'sess1', null, null, null, null, 'claude-code')
+    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', null, 'codex')
 
     const session = await store.getSessionById('sess1')
     expect(parseClasses(session)).toEqual(['claude-code', 'codex'])
@@ -995,7 +995,7 @@ describe('SqliteAdapter — agent_classes aggregation', () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
     await store.upsertAgent('a1', 'sess1', null, null, null) // no agentClass
-    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', null, null, 'codex')
+    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', null, 'codex')
 
     const session = await store.getSessionById('sess1')
     expect(parseClasses(session)).toEqual(['codex'])
@@ -1005,8 +1005,8 @@ describe('SqliteAdapter — agent_classes aggregation', () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
     await store.upsertSession('sess2', projId, null, null, 2000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, null, null, 'claude-code')
-    await store.upsertAgent('a2', 'sess2', null, null, null, null, null, 'codex')
+    await store.upsertAgent('a1', 'sess1', null, null, null, null, 'claude-code')
+    await store.upsertAgent('a2', 'sess2', null, null, null, null, 'codex')
 
     const sessions = await store.getSessionsForProject(projId)
     const bySessionId = new Map(sessions.map((s) => [s.id, parseClasses(s)]))
@@ -1018,9 +1018,9 @@ describe('SqliteAdapter — agent_classes aggregation', () => {
     const projId = await store.createProject('proj1', 'Project 1', null)
     await store.upsertSession('sess1', projId, null, null, 1000)
     await store.upsertSession('sess2', projId, null, null, 2000)
-    await store.upsertAgent('a1', 'sess1', null, null, null, null, null, 'claude-code')
-    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', null, null, 'codex')
-    await store.upsertAgent('a3', 'sess2', null, null, null, null, null, 'codex')
+    await store.upsertAgent('a1', 'sess1', null, null, null, null, 'claude-code')
+    await store.upsertAgent('a2', 'sess1', 'a1', null, 'sub', null, 'codex')
+    await store.upsertAgent('a3', 'sess2', null, null, null, null, 'codex')
 
     const recent = await store.getRecentSessions()
     const bySessionId = new Map(recent.map((s) => [s.id, parseClasses(s)]))

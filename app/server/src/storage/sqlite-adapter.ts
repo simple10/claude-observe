@@ -33,19 +33,36 @@ export class SqliteAdapter implements EventStore {
         name TEXT NOT NULL,
         transcript_path TEXT,
         cwd TEXT,
-        metadata TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       )
     `)
 
-    // Migration: add metadata to projects if missing
+    // Migration: ensure cwd exists on legacy projects (added later than original schema).
     const projectCols = this.db.prepare("PRAGMA table_info('projects')").all() as { name: string }[]
-    if (!projectCols.some((c) => c.name === 'metadata')) {
-      this.db.exec('ALTER TABLE projects ADD COLUMN metadata TEXT')
-    }
     if (!projectCols.some((c) => c.name === 'cwd')) {
       this.db.exec('ALTER TABLE projects ADD COLUMN cwd TEXT')
+    }
+
+    // Migration: drop unused projects.metadata column (zero readers/writers).
+    // Uses table-rebuild because SQLite's DROP COLUMN is unavailable on older
+    // bundled versions, and rebuild is safe when only one column changes.
+    if (projectCols.some((c) => c.name === 'metadata')) {
+      this.db.exec(`
+        CREATE TABLE projects_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          slug TEXT UNIQUE NOT NULL,
+          name TEXT NOT NULL,
+          transcript_path TEXT,
+          cwd TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        INSERT INTO projects_new (id, slug, name, transcript_path, cwd, created_at, updated_at)
+        SELECT id, slug, name, transcript_path, cwd, created_at, updated_at FROM projects;
+        DROP TABLE projects;
+        ALTER TABLE projects_new RENAME TO projects;
+      `)
     }
 
     this.db.exec(`
@@ -140,8 +157,6 @@ export class SqliteAdapter implements EventStore {
         description TEXT,
         agent_type TEXT,
         agent_class TEXT,
-        transcript_path TEXT,
-        metadata TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         FOREIGN KEY (session_id) REFERENCES sessions(id),
@@ -151,14 +166,34 @@ export class SqliteAdapter implements EventStore {
 
     // Migrations for agents
     const agentCols = this.db.prepare("PRAGMA table_info('agents')").all() as { name: string }[]
-    if (!agentCols.some((c) => c.name === 'metadata')) {
-      this.db.exec('ALTER TABLE agents ADD COLUMN metadata TEXT')
-    }
-    if (!agentCols.some((c) => c.name === 'transcript_path')) {
-      this.db.exec('ALTER TABLE agents ADD COLUMN transcript_path TEXT')
-    }
     if (!agentCols.some((c) => c.name === 'agent_class')) {
       this.db.exec('ALTER TABLE agents ADD COLUMN agent_class TEXT')
+    }
+
+    // Migration: drop unused agents.metadata + agents.transcript_path
+    // (zero readers; transcript_path was written but never read).
+    const agentsHasMetadata = agentCols.some((c) => c.name === 'metadata')
+    const agentsHasTranscriptPath = agentCols.some((c) => c.name === 'transcript_path')
+    if (agentsHasMetadata || agentsHasTranscriptPath) {
+      this.db.exec(`
+        CREATE TABLE agents_new (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          parent_agent_id TEXT,
+          name TEXT,
+          description TEXT,
+          agent_type TEXT,
+          agent_class TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          FOREIGN KEY (session_id) REFERENCES sessions(id),
+          FOREIGN KEY (parent_agent_id) REFERENCES agents(id)
+        );
+        INSERT INTO agents_new (id, session_id, parent_agent_id, name, description, agent_type, agent_class, created_at, updated_at)
+        SELECT id, session_id, parent_agent_id, name, description, agent_type, agent_class, created_at, updated_at FROM agents;
+        DROP TABLE agents;
+        ALTER TABLE agents_new RENAME TO agents;
+      `)
     }
 
     this.db.exec(`
@@ -368,7 +403,6 @@ export class SqliteAdapter implements EventStore {
     name: string | null,
     description: string | null,
     agentType?: string | null,
-    transcriptPath?: string | null,
     agentClass?: string | null,
   ): Promise<void> {
     const now = Date.now()
@@ -376,13 +410,12 @@ export class SqliteAdapter implements EventStore {
     this.db
       .prepare(
         `
-      INSERT INTO agents (id, session_id, parent_agent_id, name, description, agent_type, transcript_path, agent_class, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO agents (id, session_id, parent_agent_id, name, description, agent_type, agent_class, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         name = COALESCE(excluded.name, agents.name),
         description = COALESCE(excluded.description, agents.description),
         agent_type = COALESCE(excluded.agent_type, agents.agent_type),
-        transcript_path = COALESCE(excluded.transcript_path, agents.transcript_path),
         agent_class = COALESCE(excluded.agent_class, agents.agent_class),
         updated_at = ?
     `,
@@ -394,7 +427,6 @@ export class SqliteAdapter implements EventStore {
         name,
         description,
         agentType ?? null,
-        transcriptPath ?? null,
         agentClass ?? null,
         now,
         now,
