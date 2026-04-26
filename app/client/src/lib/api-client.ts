@@ -92,6 +92,8 @@ export const api = {
     fetchJson<NotificationPayload[]>(`/notifications?since=${sinceTs}`),
   getRecentSessions: (limit?: number) =>
     fetchJson<RecentSession[]>(`/sessions/recent${limit ? `?limit=${limit}` : ''}`),
+  getUnassignedSessions: (limit?: number) =>
+    fetchJson<RecentSession[]>(`/sessions/unassigned${limit ? `?limit=${limit}` : ''}`),
   getSessions: (projectId: number) => fetchJson<Session[]>(`/projects/${projectId}/sessions`),
   getSession: (sessionId: string) =>
     fetchJson<Session>(`/sessions/${encodeURIComponent(sessionId)}`),

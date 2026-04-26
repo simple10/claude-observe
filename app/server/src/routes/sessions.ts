@@ -26,12 +26,8 @@ const LOG_LEVEL = config.logLevel
 
 const router = new Hono<Env>()
 
-// GET /sessions/recent
-router.get('/sessions/recent', async (c) => {
-  const store = c.get('store')
-  const limit = c.req.query('limit') ? parseInt(c.req.query('limit')!) : 20
-  const rows = await store.getRecentSessions(limit)
-  const sessions = rows.map((r: any) => ({
+function rowToRecentSession(r: any) {
+  return {
     id: r.id,
     projectId: r.project_id,
     projectName: r.project_name,
@@ -47,8 +43,26 @@ router.get('/sessions/recent', async (c) => {
     eventCount: r.event_count,
     lastActivity: r.last_activity,
     agentClasses: parseAgentClasses(r.agent_classes),
-  }))
-  return c.json(sessions)
+  }
+}
+
+// GET /sessions/recent
+router.get('/sessions/recent', async (c) => {
+  const store = c.get('store')
+  const limit = c.req.query('limit') ? parseInt(c.req.query('limit')!) : 20
+  const rows = await store.getRecentSessions(limit)
+  return c.json(rows.map(rowToRecentSession))
+})
+
+// GET /sessions/unassigned — sessions with project_id IS NULL, used by
+// the sidebar's "Unassigned" bucket. Avoids the previous client-side
+// filter on /sessions/recent that pulled rows the sidebar would
+// immediately throw away.
+router.get('/sessions/unassigned', async (c) => {
+  const store = c.get('store')
+  const limit = c.req.query('limit') ? parseInt(c.req.query('limit')!) : 100
+  const rows = await store.getUnassignedSessions(limit)
+  return c.json(rows.map(rowToRecentSession))
 })
 
 // GET /sessions/:id

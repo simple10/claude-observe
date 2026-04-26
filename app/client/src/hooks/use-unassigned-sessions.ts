@@ -1,12 +1,12 @@
 import { useMemo } from 'react'
-import { useRecentSessions } from './use-recent-sessions'
+import { useQuery } from '@tanstack/react-query'
+import { api } from '@/lib/api-client'
 import type { Session, RecentSession } from '@/types'
 
-/** Coerce a `RecentSession` (the wire shape from `/sessions/recent`) into a
- *  `Session` (the shape the sidebar renderer expects). The two are nearly
- *  identical post-refactor; the only meaningful gap is `projectName /
- *  projectSlug`, both nullable on the recent response when the row has
- *  no project yet. */
+/** Coerce a `RecentSession` (the wire shape from `/sessions/unassigned`)
+ *  into a `Session` (the shape the sidebar renderer expects). The two
+ *  are nearly identical post-refactor; this helper just reshapes the
+ *  nullable project fields. */
 function toSession(r: RecentSession): Session {
   return {
     id: r.id,
@@ -27,20 +27,24 @@ function toSession(r: RecentSession): Session {
 /**
  * Returns sessions whose `project_id` is still NULL on the server —
  * these render in the sidebar's "Unassigned" bucket. The server now
- * permits sessions without a project (the auto-resolution happens only
+ * permits sessions without a project (auto-resolution happens only
  * when `flags.resolveProject` is set or `_meta.project.slug` is
  * supplied — see the three-layer contract spec). Until a user moves
  * one of these sessions into a project (via SessionEditModal), it
  * surfaces here.
  *
- * Backed by `/sessions/recent` because the server has no dedicated
- * "list unassigned" endpoint; we filter client-side. The default limit
- * is generous so the bucket isn't truncated for typical workloads.
+ * Backed by a dedicated `/api/sessions/unassigned` endpoint so the
+ * sidebar doesn't need to pull `/sessions/recent` (with all its
+ * already-assigned rows) just to filter client-side. Stays fresh via
+ * WS-driven invalidation in `use-websocket.ts` on session_update.
  */
 export function useUnassignedSessions(limit = 100): Session[] {
-  const { data } = useRecentSessions(limit)
+  const { data } = useQuery({
+    queryKey: ['unassigned-sessions', limit],
+    queryFn: () => api.getUnassignedSessions(limit),
+  })
   return useMemo(() => {
     if (!data) return []
-    return data.filter((r) => r.projectId == null).map(toSession)
+    return data.map(toSession)
   }, [data])
 }

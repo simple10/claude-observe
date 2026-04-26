@@ -124,6 +124,11 @@ export interface EventStore {
   getDbStats(): Promise<{ sessionCount: number; eventCount: number }>
   vacuum(): Promise<void>
   getRecentSessions(limit?: number): Promise<any[]>
+  /** Sessions where project_id IS NULL — surfaced in the sidebar's
+   *  "Unassigned" bucket. Server doesn't auto-assign post-refactor
+   *  unless `flags.resolveProject` or `_meta.project.slug` is set, so
+   *  these are genuinely user-actionable. */
+  getUnassignedSessions(limit?: number): Promise<any[]>
   healthCheck(): Promise<{ ok: boolean; error?: string }>
   /**
    * Scan all tables for rows with broken foreign keys and repair them.

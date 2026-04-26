@@ -892,6 +892,74 @@ describe('SqliteAdapter — getRecentSessions', () => {
 })
 
 // ---------------------------------------------------------------------------
+// getUnassignedSessions
+// ---------------------------------------------------------------------------
+describe('SqliteAdapter — getUnassignedSessions', () => {
+  test('returns only sessions with project_id IS NULL', async () => {
+    const projId = await store.createProject('proj1', 'Project 1')
+    await store.upsertSession('assigned-1', projId, 'a1', null, 1000)
+    await store.upsertSession('unassigned-1', null, 'u1', null, 2000)
+    await store.upsertSession('unassigned-2', null, 'u2', null, 3000)
+
+    const rows = await store.getUnassignedSessions()
+    expect(rows.map((r: { id: string }) => r.id).sort()).toEqual(['unassigned-1', 'unassigned-2'])
+    // Project columns are explicitly null on the response
+    expect(rows[0].project_slug).toBeNull()
+    expect(rows[0].project_name).toBeNull()
+  })
+
+  test('orders by last activity descending', async () => {
+    await store.upsertSession('older', null, null, null, 1000)
+    await store.upsertSession('newer', null, null, null, 5000)
+    await store.upsertAgent('a1', 'older', null, null, null)
+    await store.upsertAgent('a2', 'newer', null, null, null)
+    await insertHookEvent({
+      agentId: 'a1',
+      sessionId: 'older',
+      hookName: 'UserPromptSubmit',
+      timestamp: 1500,
+    })
+    await insertHookEvent({
+      agentId: 'a2',
+      sessionId: 'newer',
+      hookName: 'UserPromptSubmit',
+      timestamp: 7000,
+    })
+
+    const rows = await store.getUnassignedSessions()
+    expect(rows.map((r: { id: string }) => r.id)).toEqual(['newer', 'older'])
+  })
+
+  test('respects limit parameter', async () => {
+    for (let i = 0; i < 5; i++) {
+      await store.upsertSession(`u${i}`, null, null, null, 1000 + i * 100)
+    }
+    const rows = await store.getUnassignedSessions(3)
+    expect(rows).toHaveLength(3)
+  })
+
+  test('returns empty array when every session has a project', async () => {
+    const projId = await store.createProject('proj1', 'Project 1')
+    await store.upsertSession('assigned', projId, null, null, 1000)
+    const rows = await store.getUnassignedSessions()
+    expect(rows).toEqual([])
+  })
+
+  test('aggregates agent_classes for unassigned sessions', async () => {
+    await store.upsertSession('u1', null, null, null, 1000)
+    await store.upsertAgent('a1', 'u1', null, null, null, null, 'codex')
+    await insertHookEvent({
+      agentId: 'a1',
+      sessionId: 'u1',
+      hookName: 'UserPromptSubmit',
+      timestamp: 2000,
+    })
+    const rows = await store.getUnassignedSessions()
+    expect(rows[0].agent_classes).toBe('codex')
+  })
+})
+
+// ---------------------------------------------------------------------------
 // agent_classes aggregation — derived via events join now (Phase 2).
 // ---------------------------------------------------------------------------
 describe('SqliteAdapter — agent_classes aggregation', () => {

@@ -1029,6 +1029,33 @@ export class SqliteAdapter implements EventStore {
       .all(limit)
   }
 
+  async getUnassignedSessions(limit: number = 100): Promise<any[]> {
+    // Sessions whose project_id is NULL — surfaced in the sidebar's
+    // "Unassigned" bucket. Ordered identically to getRecentSessions so
+    // both lists feel consistent.
+    return this.db
+      .prepare(
+        `
+      SELECT s.*,
+        NULL as project_slug,
+        NULL as project_name,
+        (SELECT COUNT(*) FROM events e WHERE e.session_id = s.id) AS event_count,
+        (SELECT COUNT(DISTINCT e.agent_id) FROM events e WHERE e.session_id = s.id) AS agent_count,
+        (
+          SELECT GROUP_CONCAT(DISTINCT a.agent_class)
+          FROM agents a
+          JOIN events e ON e.agent_id = a.id
+          WHERE e.session_id = s.id AND a.agent_class IS NOT NULL
+        ) AS agent_classes
+      FROM sessions s
+      WHERE s.project_id IS NULL
+      ORDER BY COALESCE(s.last_activity, s.started_at) DESC
+      LIMIT ?
+    `,
+      )
+      .all(limit)
+  }
+
   async repairOrphans(): Promise<OrphanRepairResult> {
     const result: OrphanRepairResult = {
       sessionsReassigned: 0,

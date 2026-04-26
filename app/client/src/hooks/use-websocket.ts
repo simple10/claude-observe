@@ -149,10 +149,12 @@ export function useWebSocket(sessionId: string | null) {
         }
       } else if (msg.type === 'session_update') {
         queryClient.invalidateQueries({ queryKey: ['sessions'] })
-        // recent-sessions has a separate cache key prefix; invalidate
-        // explicitly so the home page + sidebar Unassigned bucket pick
-        // up new / changed sessions without needing a polling timer.
+        // recent-sessions and unassigned-sessions have separate cache
+        // key prefixes; invalidate explicitly so the home page + sidebar
+        // Unassigned bucket pick up new / changed sessions without
+        // needing a polling timer.
         queryClient.invalidateQueries({ queryKey: ['recent-sessions'] })
+        queryClient.invalidateQueries({ queryKey: ['unassigned-sessions'] })
         // Only invalidate the specific session that changed, not all ['session', *] queries
         const sessionData = msg.data as { id?: string }
         if (sessionData.id) {
