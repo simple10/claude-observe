@@ -1,4 +1,6 @@
 import { describe, test, expect, beforeEach } from 'vitest'
+import { tmpdir } from 'node:os'
+import { unlinkSync } from 'node:fs'
 import { SqliteAdapter } from './sqlite-adapter'
 
 let store: SqliteAdapter
@@ -278,6 +280,73 @@ describe('SqliteAdapter — sessions', () => {
     await store.upsertSession('sess1', null, null, null, 1000)
     const session = await store.getSessionById('sess1')
     expect(session.project_id).toBeNull()
+  })
+
+  test('backfills start_cwd from metadata.cwd on adapter open', async () => {
+    const tmpPath = `${tmpdir()}/agents-observe-backfill-${Date.now()}-${Math.random()}.db`
+    try {
+      const first = new SqliteAdapter(tmpPath)
+      // Bypass upsertSession (which would set start_cwd from input)
+      // to simulate a row that survived the v2 rebuild with a NULL
+      // start_cwd but a populated metadata.cwd.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(first as any).db
+        .prepare(
+          `INSERT INTO sessions (id, started_at, metadata, start_cwd, created_at, updated_at)
+           VALUES (?, ?, ?, NULL, ?, ?)`,
+        )
+        .run('sess-legacy', 1000, JSON.stringify({ cwd: '/legacy/cwd' }), 1000, 1000)
+      // Sanity: the row really has NULL start_cwd before the next boot.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const before = (first as any).db
+        .prepare("SELECT start_cwd FROM sessions WHERE id = 'sess-legacy'")
+        .get() as { start_cwd: string | null }
+      expect(before.start_cwd).toBeNull()
+
+      // Reopen → constructor migration fires the backfill UPDATE.
+      const second = new SqliteAdapter(tmpPath)
+      const row = await second.getSessionById('sess-legacy')
+      expect(row?.start_cwd).toBe('/legacy/cwd')
+    } finally {
+      try {
+        unlinkSync(tmpPath)
+      } catch {
+        // ignore
+      }
+    }
+  })
+
+  test('start_cwd backfill leaves rows without metadata.cwd alone', async () => {
+    const tmpPath = `${tmpdir()}/agents-observe-backfill-skip-${Date.now()}-${Math.random()}.db`
+    try {
+      const first = new SqliteAdapter(tmpPath)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(first as any).db
+        .prepare(
+          `INSERT INTO sessions (id, started_at, metadata, start_cwd, created_at, updated_at)
+           VALUES (?, ?, ?, NULL, ?, ?)`,
+        )
+        .run('sess-no-meta', 1000, null, 1000, 1000)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(first as any).db
+        .prepare(
+          `INSERT INTO sessions (id, started_at, metadata, start_cwd, created_at, updated_at)
+           VALUES (?, ?, ?, NULL, ?, ?)`,
+        )
+        .run('sess-meta-no-cwd', 1000, JSON.stringify({ otherKey: 'x' }), 1000, 1000)
+
+      const second = new SqliteAdapter(tmpPath)
+      const a = await second.getSessionById('sess-no-meta')
+      const b = await second.getSessionById('sess-meta-no-cwd')
+      expect(a?.start_cwd).toBeNull()
+      expect(b?.start_cwd).toBeNull()
+    } finally {
+      try {
+        unlinkSync(tmpPath)
+      } catch {
+        // ignore
+      }
+    }
   })
 
   // -------------------------------------------------------------------------
