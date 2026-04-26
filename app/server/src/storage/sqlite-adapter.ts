@@ -49,6 +49,9 @@ export class SqliteAdapter implements EventStore {
     // bundled versions, and rebuild is safe when only one column changes.
     if (projectCols.some((c) => c.name === 'metadata')) {
       this.db.exec(`
+        PRAGMA foreign_keys=OFF;
+        BEGIN IMMEDIATE;
+        DROP TABLE IF EXISTS projects_new;
         CREATE TABLE projects_new (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           slug TEXT UNIQUE NOT NULL,
@@ -62,6 +65,8 @@ export class SqliteAdapter implements EventStore {
         SELECT id, slug, name, transcript_path, cwd, created_at, updated_at FROM projects;
         DROP TABLE projects;
         ALTER TABLE projects_new RENAME TO projects;
+        COMMIT;
+        PRAGMA foreign_keys=ON;
       `)
     }
 
@@ -176,6 +181,9 @@ export class SqliteAdapter implements EventStore {
     const agentsHasTranscriptPath = agentCols.some((c) => c.name === 'transcript_path')
     if (agentsHasMetadata || agentsHasTranscriptPath) {
       this.db.exec(`
+        PRAGMA foreign_keys=OFF;
+        BEGIN IMMEDIATE;
+        DROP TABLE IF EXISTS agents_new;
         CREATE TABLE agents_new (
           id TEXT PRIMARY KEY,
           session_id TEXT NOT NULL,
@@ -193,6 +201,8 @@ export class SqliteAdapter implements EventStore {
         SELECT id, session_id, parent_agent_id, name, description, agent_type, agent_class, created_at, updated_at FROM agents;
         DROP TABLE agents;
         ALTER TABLE agents_new RENAME TO agents;
+        COMMIT;
+        PRAGMA foreign_keys=ON;
       `)
     }
 
