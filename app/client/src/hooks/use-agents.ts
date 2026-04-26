@@ -91,14 +91,19 @@ export function useAgents(sessionId: string | null, events: ParsedEvent[] | unde
 
   // Side effect: for every agentId seen in events but not present in
   // serverAgents, fetch the metadata and patch it into the ['agents',
-  // sessionId] cache. Previously this lived inside the useMemo above,
-  // which violated React's "pure render" contract (and could double-
-  // fire in StrictMode). Moving it to useEffect keeps the pattern
-  // honest without changing behavior.
+  // sessionId] cache.
+  //
+  // Gate on `serverAgents !== undefined` so we don't fire one
+  // /api/agents/:id call per event-derived agent before the bulk
+  // /api/sessions/:id/agents response has even returned. Without this,
+  // a session with N agents that received events before the bulk fetch
+  // completed could trigger N individual lazy-fetches that the bulk
+  // response would have covered.
   useEffect(() => {
     if (!sessionId || agentStats.size === 0) return
+    if (serverAgents === undefined) return // wait for the bulk fetch
     const serverIds = new Set<string>()
-    if (serverAgents) for (const a of serverAgents) serverIds.add(a.id)
+    for (const a of serverAgents) serverIds.add(a.id)
     for (const agentId of agentStats.keys()) {
       if (serverIds.has(agentId)) continue
       if (pendingFetches.has(agentId)) continue

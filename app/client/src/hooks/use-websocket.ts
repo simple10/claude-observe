@@ -9,14 +9,21 @@ import { useUIStore } from '@/stores/ui-store'
  *  that any row matching sessionId with status='ended' flips to 'active'.
  *  Called from the activity WS handler to close the gap between a ping
  *  arriving and the next sessions refetch. */
+/**
+ * On an activity ping, clear `stoppedAt` for the session in any cached
+ * sessions list — the activity is fresh evidence the session has come
+ * back to life. The status field this used to bump is gone (Phase 5
+ * dropped it in favor of deriving from `stoppedAt`); now we only patch
+ * when the session was actually stopped, otherwise it's a no-op.
+ */
 function markSessionActiveInCache(queryClient: QueryClient, sessionId: string): void {
   queryClient.setQueriesData<Session[]>({ queryKey: ['sessions'] }, (old) => {
     if (!old) return old
     let changed = false
     const next = old.map((s) => {
-      if (s.id === sessionId && s.status !== 'active') {
+      if (s.id === sessionId && s.stoppedAt != null) {
         changed = true
-        return { ...s, status: 'active' }
+        return { ...s, stoppedAt: null }
       }
       return s
     })
@@ -26,9 +33,9 @@ function markSessionActiveInCache(queryClient: QueryClient, sessionId: string): 
     if (!old) return old
     let changed = false
     const next = old.map((s) => {
-      if (s.id === sessionId && s.status !== 'active') {
+      if (s.id === sessionId && s.stoppedAt != null) {
         changed = true
-        return { ...s, status: 'active' }
+        return { ...s, stoppedAt: null }
       }
       return s
     })
