@@ -1,49 +1,78 @@
 // app/server/src/services/project-resolver.ts
 //
-// PHASE 2 STUB. The full algorithm specified in the three-layer contract
-// design ships in Phase 3. For now, only the explicit-slug branch is
-// honored — every other path returns null, which the caller treats as
-// "leave session unassigned" (project_id = NULL).
+// Project resolution per the three-layer contract spec
+// (docs/specs/2026-04-25-three-layer-contract-design.md
+// §"Project resolution algorithm").
 //
-// This keeps the schema migration atomic: Phase 2 drops projects.cwd /
-// projects.transcript_path so the old algorithm cannot run, and Phase 3
-// rewrites resolveProject + the events.ts caller against the new
-// adapter methods (findOrCreateProjectBySlug,
-// findSiblingSessionWithProject) at the same time.
+// Trigger contract:
+//  - The resolver runs at most once per session-event ingest. Callers
+//    invoke it after the session row has been upserted, passing
+//    `currentProjectId` from the freshly-read session.
+//  - If the session already has a project_id, the resolver short-circuits
+//    (sticky after first assignment).
+//  - Explicit `_meta.project.id` and `_meta.project.slug` are honored
+//    unconditionally; sibling matching only fires when the envelope
+//    sets `flags.resolveProject`.
+//
+// Returns the project_id the caller should write back, or `null` to
+// leave the session unassigned.
 
+import { dirname } from 'node:path'
 import type { EventStore } from '../storage/types'
+import type { EventEnvelopeCreationHints, EventEnvelopeFlags } from '../types'
+import { deriveSlugFromPath } from '../utils/slug'
 
 export interface ResolveProjectInput {
   sessionId: string
-  slug: string | null
-  /** @deprecated Phase 3 reads from sessions.transcript_path instead. */
-  transcriptPath?: string | null
-  /** @deprecated Phase 3 reads from sessions.start_cwd instead. */
-  cwd?: string | null
-}
-
-export interface ResolveProjectResult {
-  projectId: number | null
-  projectSlug: string
-  created: boolean
+  meta?: EventEnvelopeCreationHints['project']
+  flags?: EventEnvelopeFlags
+  /** sessions.start_cwd for this session (already populated). */
+  startCwd: string | null
+  /** sessions.transcript_path for this session (already populated). */
+  transcriptPath: string | null
+  /** sessions.project_id from the freshly-read row. */
+  currentProjectId: number | null
 }
 
 export async function resolveProject(
   store: EventStore,
   input: ResolveProjectInput,
-): Promise<ResolveProjectResult> {
-  const { slug } = input
-
-  if (slug) {
-    const existing = await store.getProjectBySlug(slug)
-    if (existing) {
-      return { projectId: existing.id, projectSlug: existing.slug, created: false }
-    }
-    const id = await store.createProject(slug, slug)
-    return { projectId: id, projectSlug: slug, created: true }
+): Promise<number | null> {
+  if (input.currentProjectId !== null && input.currentProjectId !== undefined) {
+    return input.currentProjectId
   }
 
-  // No slug — Phase 2 leaves the session unassigned. Phase 3 brings back
-  // sibling-session matching + transcript-basedir + cwd-derived slugs.
-  return { projectId: null, projectSlug: '', created: false }
+  // Explicit project.id wins (validated to exist).
+  if (input.meta?.id !== undefined && input.meta.id !== null) {
+    const exists = await store.getProjectById(input.meta.id)
+    if (exists) return exists.id
+    // Fall through if the id is invalid — better to attempt slug/sibling
+    // resolution than leave the session unassigned because of a stale id.
+  }
+
+  // Explicit project.slug — find or create.
+  if (input.meta?.slug) {
+    const result = await store.findOrCreateProjectBySlug(input.meta.slug)
+    return result.id
+  }
+
+  // Sibling matching only fires on explicit flag.
+  if (input.flags?.resolveProject) {
+    const transcriptBasedir = input.transcriptPath ? dirname(input.transcriptPath) : null
+    const sibling = await store.findSiblingSessionWithProject({
+      startCwd: input.startCwd,
+      transcriptBasedir,
+      excludeSessionId: input.sessionId,
+    })
+    if (sibling) return sibling.projectId
+
+    const slugSource = input.startCwd ?? transcriptBasedir
+    if (slugSource) {
+      const slug = deriveSlugFromPath(slugSource)
+      const result = await store.findOrCreateProjectBySlug(slug)
+      return result.id
+    }
+  }
+
+  return null
 }

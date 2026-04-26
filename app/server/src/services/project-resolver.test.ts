@@ -8,55 +8,199 @@ beforeEach(() => {
   store = new SqliteAdapter(':memory:')
 })
 
-// Phase 2: project-resolver is reduced to an explicit-slug-only stub.
-// The full algorithm (sibling matching, cwd-derived slugs, transcript
-// basedir matching) is reintroduced in Phase 3. Tests for that behavior
-// are skipped here with TODO markers.
+async function seedSession(opts: {
+  id: string
+  projectId?: number | null
+  slug?: string | null
+  startCwd?: string | null
+  transcriptPath?: string | null
+  lastActivity?: number
+}) {
+  await store.upsertSession(
+    opts.id,
+    opts.projectId ?? null,
+    opts.slug ?? null,
+    null,
+    opts.lastActivity ?? 1000,
+    opts.transcriptPath ?? null,
+    opts.startCwd ?? null,
+  )
+}
 
-describe('resolveProject (Phase 2 stub)', () => {
-  test('creates new project from slug when no project exists', async () => {
+describe('resolveProject', () => {
+  test('returns existing project id when session already assigned', async () => {
+    const id = await store.findOrCreateProjectBySlug('existing')
     const result = await resolveProject(store, {
       sessionId: 'sess1',
-      slug: 'my-project',
+      currentProjectId: id.id,
+      startCwd: null,
+      transcriptPath: null,
     })
-    expect(result.projectId).not.toBeNull()
-    expect(result.projectId).toBeGreaterThan(0)
-    expect(result.projectSlug).toBe('my-project')
-    expect(result.created).toBe(true)
+    expect(result).toBe(id.id)
   })
 
-  test('returns existing project when slug matches', async () => {
-    const existingId = await store.createProject('my-project', 'my-project')
+  test('honors explicit _meta.project.id', async () => {
+    const proj = await store.findOrCreateProjectBySlug('alpha')
     const result = await resolveProject(store, {
       sessionId: 'sess1',
-      slug: 'my-project',
+      meta: { id: proj.id },
+      currentProjectId: null,
+      startCwd: null,
+      transcriptPath: null,
     })
-    expect(result.projectId).toBe(existingId)
-    expect(result.created).toBe(false)
+    expect(result).toBe(proj.id)
   })
 
-  test('returns null projectId when no slug provided', async () => {
+  test('explicit _meta.project.slug — creates if missing', async () => {
     const result = await resolveProject(store, {
       sessionId: 'sess1',
-      slug: null,
+      meta: { slug: 'fresh-slug' },
+      currentProjectId: null,
+      startCwd: null,
+      transcriptPath: null,
     })
-    expect(result.projectId).toBeNull()
-    expect(result.created).toBe(false)
+    expect(result).not.toBeNull()
+    const proj = await store.getProjectBySlug('fresh-slug')
+    expect(proj?.id).toBe(result)
   })
 
-  // TODO(phase-3): re-enable after route rewrite + new resolver algorithm
-  test.skip('matches project by transcript_path when no slug provided', async () => {})
-  test.skip('creates project from transcript_path when no match exists', async () => {})
-  test.skip('handles slug collision when deriving from transcript_path', async () => {})
-  test.skip('falls back to unknown project when no slug or transcript_path', async () => {})
-  test.skip('reuses existing unknown project on second call', async () => {})
-  test.skip('matches existing project by cwd before falling through to transcript_path', async () => {})
-  test.skip('creates new project with cwd-derived slug', async () => {})
-  test.skip('normalizes trailing slashes on cwd for matching', async () => {})
-  test.skip('cwd match takes precedence over transcript_path match', async () => {})
-  test.skip('slug collision when deriving from cwd appends suffix', async () => {})
-  test.skip('backfills cwd on a pre-existing project when matched by slug', async () => {})
-  test.skip('does not overwrite an existing cwd when matched by slug', async () => {})
-  test.skip('falls through to transcript_path when cwd does not match an existing project', async () => {})
-  test.skip('slug override takes priority over transcript_path', async () => {})
+  test('explicit _meta.project.slug — finds existing', async () => {
+    const existing = await store.findOrCreateProjectBySlug('reused-slug')
+    const result = await resolveProject(store, {
+      sessionId: 'sess1',
+      meta: { slug: 'reused-slug' },
+      currentProjectId: null,
+      startCwd: null,
+      transcriptPath: null,
+    })
+    expect(result).toBe(existing.id)
+  })
+
+  test('falls through when explicit project.id does not exist', async () => {
+    const result = await resolveProject(store, {
+      sessionId: 'sess1',
+      meta: { id: 999_999 },
+      currentProjectId: null,
+      startCwd: null,
+      transcriptPath: null,
+    })
+    expect(result).toBeNull()
+  })
+
+  test('flags.resolveProject — sibling match by start_cwd', async () => {
+    const proj = await store.findOrCreateProjectBySlug('shared')
+    await seedSession({ id: 'sib', projectId: proj.id, startCwd: '/Users/joe/repo' })
+    const result = await resolveProject(store, {
+      sessionId: 'new',
+      flags: { resolveProject: true },
+      currentProjectId: null,
+      startCwd: '/Users/joe/repo',
+      transcriptPath: null,
+    })
+    expect(result).toBe(proj.id)
+  })
+
+  test('flags.resolveProject — sibling match by transcript basedir', async () => {
+    const proj = await store.findOrCreateProjectBySlug('via-transcript')
+    await seedSession({
+      id: 'sib',
+      projectId: proj.id,
+      transcriptPath: '/Users/joe/.claude/projects/my-app/session-a.jsonl',
+    })
+    const result = await resolveProject(store, {
+      sessionId: 'new',
+      flags: { resolveProject: true },
+      currentProjectId: null,
+      startCwd: null,
+      transcriptPath: '/Users/joe/.claude/projects/my-app/session-b.jsonl',
+    })
+    expect(result).toBe(proj.id)
+  })
+
+  test('flags.resolveProject — most recent sibling wins', async () => {
+    const projOld = await store.findOrCreateProjectBySlug('old')
+    const projNew = await store.findOrCreateProjectBySlug('new')
+    await seedSession({
+      id: 'sib-old',
+      projectId: projOld.id,
+      startCwd: '/repo',
+      lastActivity: 1000,
+    })
+    await seedSession({
+      id: 'sib-new',
+      projectId: projNew.id,
+      startCwd: '/repo',
+      lastActivity: 5000,
+    })
+    const result = await resolveProject(store, {
+      sessionId: 'fresh',
+      flags: { resolveProject: true },
+      currentProjectId: null,
+      startCwd: '/repo',
+      transcriptPath: null,
+    })
+    expect(result).toBe(projNew.id)
+  })
+
+  test('flags.resolveProject — no siblings → creates new project from cwd basename', async () => {
+    const result = await resolveProject(store, {
+      sessionId: 'sess1',
+      flags: { resolveProject: true },
+      currentProjectId: null,
+      startCwd: '/Users/joe/Development/my-app',
+      transcriptPath: null,
+    })
+    expect(result).not.toBeNull()
+    const proj = await store.getProjectById(result!)
+    expect(proj.slug).toBe('my-app')
+  })
+
+  test('flags.resolveProject — no cwd, falls back to transcript basedir basename', async () => {
+    const result = await resolveProject(store, {
+      sessionId: 'sess1',
+      flags: { resolveProject: true },
+      currentProjectId: null,
+      startCwd: null,
+      transcriptPath: '/Users/joe/.claude/projects/my-app/session.jsonl',
+    })
+    expect(result).not.toBeNull()
+    const proj = await store.getProjectById(result!)
+    expect(proj.slug).toBe('my-app')
+  })
+
+  test('flags.resolveProject — no signal → returns null', async () => {
+    const result = await resolveProject(store, {
+      sessionId: 'sess1',
+      flags: { resolveProject: true },
+      currentProjectId: null,
+      startCwd: null,
+      transcriptPath: null,
+    })
+    expect(result).toBeNull()
+  })
+
+  test('no flag and no slug → returns null (sessions land unassigned)', async () => {
+    const result = await resolveProject(store, {
+      sessionId: 'sess1',
+      currentProjectId: null,
+      startCwd: '/Users/joe/repo',
+      transcriptPath: '/Users/joe/.claude/projects/foo/session.jsonl',
+    })
+    expect(result).toBeNull()
+  })
+
+  test('UNIQUE collision on slug recovers via re-select', async () => {
+    // Seed the slug already so the INSERT in findOrCreateProjectBySlug
+    // hits the ON CONFLICT branch.
+    const first = await store.findOrCreateProjectBySlug('clash')
+    expect(first.created).toBe(true)
+    const result = await resolveProject(store, {
+      sessionId: 'sess1',
+      meta: { slug: 'clash' },
+      currentProjectId: null,
+      startCwd: null,
+      transcriptPath: null,
+    })
+    expect(result).toBe(first.id)
+  })
 })
