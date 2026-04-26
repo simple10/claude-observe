@@ -99,6 +99,44 @@ function getFilterTags(
   return { static: null, dynamic: subtype ? [subtype] : [] }
 }
 
+/**
+ * Build the minimal `AgentPatch` that would actually change the canonical
+ * agent row, given the values discovered in an event. Returns `null` when
+ * every proposed field already matches the current row — that's the case
+ * the calling site uses to skip a redundant PATCH.
+ *
+ * `current` is undefined when the bulk /api/sessions/:id/agents fetch
+ * hasn't landed yet; we conservatively send the patch in that case so
+ * fresh agents don't go un-named on first load.
+ */
+function diffAgentPatch(
+  current:
+    | { name?: string | null; description?: string | null; agentType?: string | null }
+    | undefined,
+  proposed: { name?: string | null; description?: string | null; agent_type?: string | null },
+): { name?: string | null; description?: string | null; agent_type?: string | null } | null {
+  const patch: { name?: string | null; description?: string | null; agent_type?: string | null } =
+    {}
+  if ('name' in proposed && proposed.name != null && proposed.name !== current?.name) {
+    patch.name = proposed.name
+  }
+  if (
+    'description' in proposed &&
+    proposed.description != null &&
+    proposed.description !== current?.description
+  ) {
+    patch.description = proposed.description
+  }
+  if (
+    'agent_type' in proposed &&
+    proposed.agent_type != null &&
+    proposed.agent_type !== current?.agentType
+  ) {
+    patch.agent_type = proposed.agent_type
+  }
+  return Object.keys(patch).length === 0 ? null : patch
+}
+
 /** Local fallback for the inline status decision inside processEvent.
  *  The exported `deriveStatus(event, grouped)` (in `./derivers`) is the
  *  spec hook used by the registration; this variant only sees the
@@ -154,12 +192,11 @@ export function processEvent(raw: RawEvent, ctx: ProcessingContext): ProcessEven
   if (subtype === 'SubagentStart') {
     const agentType = typeof p.agent_type === 'string' ? (p.agent_type as string) : null
     const agentName = typeof p.name === 'string' ? (p.name as string) : null
-    if (agentType !== null || agentName !== null) {
-      const patch: { name?: string | null; agent_type?: string | null } = {}
-      if (agentType !== null) patch.agent_type = agentType
-      if (agentName !== null) patch.name = agentName
-      agentPatchDebouncer.schedule(raw.agentId, patch)
-    }
+    const patch = diffAgentPatch(ctx.getAgent(raw.agentId), {
+      name: agentName,
+      agent_type: agentType,
+    })
+    if (patch) agentPatchDebouncer.schedule(raw.agentId, patch)
   }
   if (subtype === 'PostToolUse' && toolName === 'Agent' && toolUseId) {
     const spawnedAgentId =
@@ -167,15 +204,15 @@ export function processEvent(raw: RawEvent, ctx: ProcessingContext): ProcessEven
     if (spawnedAgentId) {
       const meta = ctx.consumePendingAgentMeta(toolUseId)
       if (meta && (meta.name || meta.description)) {
-        // Debounced + fire-and-forget. Multiple discoveries for the
-        // same agent (Pre/Post pair, follow-up SubagentStop carrying
-        // an agent_type, etc.) coalesce into a single PATCH so a
-        // chatty session doesn't hammer /api/agents/:id. The dashboard
-        // re-reads on the next useAgents refetch / WS broadcast.
-        agentPatchDebouncer.schedule(spawnedAgentId, {
-          name: meta.name ?? null,
-          description: meta.description ?? null,
+        // Skip the PATCH if the agent row already has matching values
+        // for the fields we'd write. Without this check we re-PATCH on
+        // every page load even though /api/sessions/:id/agents already
+        // returned the canonical name/description.
+        const patch = diffAgentPatch(ctx.getAgent(spawnedAgentId), {
+          name: meta.name,
+          description: meta.description,
         })
+        if (patch) agentPatchDebouncer.schedule(spawnedAgentId, patch)
       }
     }
   }

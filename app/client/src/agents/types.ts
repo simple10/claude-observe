@@ -66,6 +66,12 @@ export interface ProcessingContext {
   dedupEnabled: boolean
 
   // Read
+  /** Look up the canonical Agent row by id. Returns undefined if the
+   *  bulk /api/sessions/:id/agents fetch hasn't landed yet, or if the
+   *  agent isn't known. Used by process-event implementations to skip
+   *  no-op metadata PATCHes when the server already has the same
+   *  values. */
+  getAgent(agentId: string): Agent | undefined
   getGroupedEvents(groupId: string): EnrichedEvent[]
   getAgentEvents(agentId: string): EnrichedEvent[]
   getCurrentTurn(agentId: string): string | null

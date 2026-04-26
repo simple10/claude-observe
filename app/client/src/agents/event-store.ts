@@ -142,6 +142,7 @@ export class EventStore {
   private createProcessingContext(): ProcessingContext {
     return {
       dedupEnabled: this.dedupEnabled,
+      getAgent: (agentId) => this.agentMap.get(agentId),
       getGroupedEvents: (groupId) => this.groupIndex.get(groupId) ?? [],
       getAgentEvents: (agentId) => this.agentIndex.get(agentId) ?? [],
       getCurrentTurn: (agentId) => this.currentTurns.get(agentId) ?? null,
