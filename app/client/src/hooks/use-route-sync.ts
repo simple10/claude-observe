@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useUIStore } from '@/stores/ui-store'
 import { useProjects } from '@/hooks/use-projects'
 import { api } from '@/lib/api-client'
+import type { Session } from '@/types'
 
 /**
  * Syncs the URL hash with the UI state on load and when project slugs change.
@@ -15,17 +17,25 @@ import { api } from '@/lib/api-client'
  *   - If the URL slug doesn't match the selected project's actual slug, updates the URL
  */
 export function useRouteSync() {
+  const queryClient = useQueryClient()
   const { data: projects } = useProjects()
   const selectedSessionId = useUIStore((s) => s.selectedSessionId)
   const selectedProjectId = useUIStore((s) => s.selectedProjectId)
   const selectedProjectSlug = useUIStore((s) => s.selectedProjectSlug)
 
-  // On mount: resolve session → project if we have a sessionId but no projectId
+  // On mount: resolve session → project if we have a sessionId but no projectId.
+  // Use queryClient.fetchQuery so the result lands in the canonical
+  // `['session', sessionId]` cache — SessionBreadcrumb + the permission-mode
+  // backfill consumer both read from that key and skip their own fetches.
+  // Without this, three separate paths each fetched /api/sessions/:id.
   useEffect(() => {
     if (!selectedSessionId || selectedProjectId) return
 
-    api
-      .getSession(selectedSessionId)
+    queryClient
+      .fetchQuery<Session>({
+        queryKey: ['session', selectedSessionId],
+        queryFn: () => api.getSession(selectedSessionId),
+      })
       .then((session) => {
         if (!session) return
         const projectId = session.projectId

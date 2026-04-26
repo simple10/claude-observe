@@ -40,12 +40,16 @@ export function EventStream() {
   const rawEvents = eventsQuery.data
   const agents = useAgents(selectedSessionId, rawEvents)
 
-  // Backfill permission_mode into session metadata if missing.
+  // Backfill permission_mode into session metadata if missing. Shares
+  // the canonical `['session', sessionId]` cache key with SessionBreadcrumb
+  // and useRouteSync — three consumers, one network fetch. The backfill
+  // hook tracks per-session "already checked" via its own ref so cache
+  // invalidations from session_update don't trigger duplicate PATCHes.
   const { data: sessionForBackfill } = useQuery({
-    queryKey: ['session-backfill', selectedSessionId],
+    queryKey: ['session', selectedSessionId],
     queryFn: () => api.getSession(selectedSessionId!),
     enabled: !!selectedSessionId,
-    staleTime: Infinity,
+    staleTime: 30_000,
   })
   usePermissionModeBackfill(sessionForBackfill, rawEvents, agents)
 
