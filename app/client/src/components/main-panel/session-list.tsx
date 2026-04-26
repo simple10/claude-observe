@@ -38,8 +38,14 @@ export function SessionList({
 }: SessionListProps) {
   const { setSelectedProject, setSelectedSessionId } = useUIStore()
 
-  const handleSessionClick = (projectId: number, projectSlug: string, sessionId: string) => {
-    setSelectedProject(projectId, projectSlug)
+  const handleSessionClick = (
+    projectId: number | null,
+    projectSlug: string,
+    sessionId: string,
+  ) => {
+    // Sessions in the Unassigned bucket have no project; clicking one
+    // just selects the session and clears any project selection.
+    setSelectedProject(projectId, projectId ? projectSlug : null)
     setTimeout(() => setSelectedSessionId(sessionId), 0)
   }
 

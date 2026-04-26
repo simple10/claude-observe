@@ -40,7 +40,7 @@ describe('AgentPatchDebouncer', () => {
     await Promise.resolve()
 
     expect(patchFn).toHaveBeenCalledTimes(2)
-    const calls = patchFn.mock.calls.map((c) => c[0]).sort()
+    const calls = patchFn.mock.calls.map((c) => (c as unknown as [string])[0]).sort()
     expect(calls).toEqual(['agent-1', 'agent-2'])
   })
 
@@ -62,8 +62,7 @@ describe('AgentPatchDebouncer', () => {
   it('skips scheduling when no allowed fields are supplied', () => {
     const patchFn = vi.fn(async () => ({}))
     const d = createAgentPatchDebouncer(500, patchFn)
-    // @ts-expect-error — testing unrecognized key gets dropped
-    d.schedule('agent-1', { foo: 'bar' } as AgentPatch)
+    d.schedule('agent-1', { foo: 'bar' } as unknown as AgentPatch)
     expect(d.size).toBe(0)
     vi.advanceTimersByTime(500)
     expect(patchFn).not.toHaveBeenCalled()

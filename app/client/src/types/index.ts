@@ -18,8 +18,12 @@ export interface Session {
   // null`. The sidebar groups those into a synthetic "Unassigned"
   // bucket; users can move them via the SessionEditModal.
   projectId: number | null
-  projectSlug?: string
-  projectName?: string
+  // Nullable to accommodate Unassigned sessions (project_id IS NULL on
+  // the server). The /sessions/recent payload now carries explicit
+  // null for these; the per-project /projects/:id/sessions response
+  // still always populates them.
+  projectSlug?: string | null
+  projectName?: string | null
   transcriptPath?: string | null
   slug: string | null
   // Status is a derived field. Server returns either `'active'` or

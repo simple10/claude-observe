@@ -605,7 +605,9 @@ export function MoveSessionModal({
   onClose,
 }: {
   open: boolean
-  currentProjectId: number
+  // Allow null so the modal can move "Unassigned" sessions into a
+  // project. When null, every project shows as a target.
+  currentProjectId: number | null
   sessionCount: number
   onSelect: (project: Project) => void
   onClose: () => void

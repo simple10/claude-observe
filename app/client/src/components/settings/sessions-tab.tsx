@@ -144,7 +144,8 @@ export function SessionsTab() {
     setEditingSessionId(session.id)
   }
 
-  function openProjectModal(projectId: number) {
+  function openProjectModal(projectId: number | null) {
+    if (projectId == null) return
     const match = projects?.find((p) => p.id === projectId)
     if (match) setModalProject(match)
   }

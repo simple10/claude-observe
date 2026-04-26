@@ -96,6 +96,9 @@ export function ProjectsTab() {
     if (!projects) return []
     const byId = new Map<number, Omit<ProjectRow, 'project'>>()
     for (const s of sessions ?? []) {
+      // Skip Unassigned sessions — they don't belong to any project
+      // row in this tab. The sidebar handles them in its own bucket.
+      if (s.projectId == null) continue
       const la = s.lastActivity || s.startedAt
       const prev = byId.get(s.projectId) ?? {
         eventCount: 0,
