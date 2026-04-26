@@ -25,7 +25,6 @@ import {
   Eraser,
   Copy,
   Folder,
-  Activity,
   Clock,
   CalendarDays,
   Hash,

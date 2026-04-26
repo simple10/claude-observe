@@ -152,10 +152,8 @@ export function processEvent(raw: RawEvent, ctx: ProcessingContext): ProcessEven
   // the debouncer so the canonical agent row gets the agent_type
   // populated even when the Pre/Post Agent pairing didn't carry it.
   if (subtype === 'SubagentStart') {
-    const agentType =
-      typeof p.agent_type === 'string' ? (p.agent_type as string) : null
-    const agentName =
-      typeof p.name === 'string' ? (p.name as string) : null
+    const agentType = typeof p.agent_type === 'string' ? (p.agent_type as string) : null
+    const agentName = typeof p.name === 'string' ? (p.name as string) : null
     if (agentType !== null || agentName !== null) {
       const patch: { name?: string | null; agent_type?: string | null } = {}
       if (agentType !== null) patch.agent_type = agentType

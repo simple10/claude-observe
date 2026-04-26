@@ -95,6 +95,12 @@ export interface RecentSession {
   metadata: Record<string, unknown> | null
   lastActivity: number
   agentClasses: string[]
+  // Aggregate counts derived server-side via subqueries on the events
+  // and agents tables. Both routes (`/sessions/recent` and
+  // `/projects/:id/sessions`) populate them so the projects-tab can
+  // sum them per-project without an extra round trip.
+  eventCount?: number
+  agentCount?: number
 }
 
 export interface NotificationPayload {

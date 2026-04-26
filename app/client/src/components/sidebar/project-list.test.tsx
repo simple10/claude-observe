@@ -166,9 +166,7 @@ describe('ProjectList - Project edit modal', () => {
 
 describe('ProjectList - Unassigned bucket', () => {
   it('does not render the Unassigned bucket when there are no null-project sessions', () => {
-    setMockProjects([
-      { id: 1, slug: 'p', name: 'P', createdAt: Date.now(), sessionCount: 0 },
-    ])
+    setMockProjects([{ id: 1, slug: 'p', name: 'P', createdAt: Date.now(), sessionCount: 0 }])
     setMockUnassignedSessions([])
     renderWithProviders(<ProjectList collapsed={false} />)
     expect(screen.queryByTestId('unassigned-bucket')).not.toBeInTheDocument()
@@ -176,9 +174,7 @@ describe('ProjectList - Unassigned bucket', () => {
   })
 
   it('renders the Unassigned bucket when at least one null-project session exists', () => {
-    setMockProjects([
-      { id: 1, slug: 'p', name: 'P', createdAt: Date.now(), sessionCount: 0 },
-    ])
+    setMockProjects([{ id: 1, slug: 'p', name: 'P', createdAt: Date.now(), sessionCount: 0 }])
     setMockUnassignedSessions([
       makeSession({ id: 'sess-orphan-1', projectId: null, slug: 'orphan-1' }),
     ])
@@ -199,9 +195,7 @@ describe('ProjectList - Unassigned bucket', () => {
   })
 
   it('toggles collapse/expand when the bucket header is clicked', () => {
-    setMockProjects([
-      { id: 1, slug: 'p', name: 'P', createdAt: Date.now(), sessionCount: 0 },
-    ])
+    setMockProjects([{ id: 1, slug: 'p', name: 'P', createdAt: Date.now(), sessionCount: 0 }])
     setMockUnassignedSessions([
       makeSession({ id: 'sess-orphan-1', projectId: null, slug: 'orphan-1' }),
     ])
@@ -219,9 +213,7 @@ describe('ProjectList - Unassigned bucket', () => {
   })
 
   it('opens the SessionEditModal when the pencil icon on an unassigned session is clicked', () => {
-    setMockProjects([
-      { id: 1, slug: 'p', name: 'P', createdAt: Date.now(), sessionCount: 0 },
-    ])
+    setMockProjects([{ id: 1, slug: 'p', name: 'P', createdAt: Date.now(), sessionCount: 0 }])
     setMockUnassignedSessions([
       makeSession({ id: 'sess-orphan-1', projectId: null, slug: 'orphan-1' }),
     ])

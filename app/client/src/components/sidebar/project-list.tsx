@@ -4,14 +4,7 @@ import { useSessions } from '@/hooks/use-sessions'
 import { useUnassignedSessions } from '@/hooks/use-unassigned-sessions'
 import { useEvents } from '@/hooks/use-events'
 import { useUIStore } from '@/stores/ui-store'
-import {
-  ChevronDown,
-  ChevronRight,
-  Folder,
-  Pencil,
-  Clock,
-  CalendarDays,
-} from 'lucide-react'
+import { ChevronDown, ChevronRight, Folder, Pencil, Clock, CalendarDays } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useQueryClient } from '@tanstack/react-query'
