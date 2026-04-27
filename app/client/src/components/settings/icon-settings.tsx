@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { DynamicIcon, resolveIconName } from '@/lib/dynamic-icon'
-import { eventIcons, eventColors, defaultEventIcon } from '@/config/event-icons'
+import { EVENT_ICON_REGISTRY, type EventIconEntry } from '@/lib/event-icon-registry'
 import { useIconCustomizations, COLOR_PRESETS } from '@/hooks/use-icon-customizations'
 import { IconPicker } from './icon-picker'
 import { ColorPicker } from './color-picker'
@@ -11,8 +11,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { RotateCcw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-// Determine default color key for each event type by matching its CSS classes
-// against our COLOR_PRESETS.
+/** Map a Tailwind iconColor class back to the COLOR_PRESETS preset key,
+ *  if any. Used to render the default-color swatch in the picker. */
 function resolveDefaultColorKey(iconColor: string): string | undefined {
   for (const [key, preset] of Object.entries(COLOR_PRESETS)) {
     if (preset.iconColor === iconColor) return key
@@ -20,95 +20,36 @@ function resolveDefaultColorKey(iconColor: string): string | undefined {
   return undefined
 }
 
-/** Resolve the PascalCase name of a LucideIcon component */
+/** Resolve the PascalCase name of a LucideIcon component (for the icon picker). */
 function getIconComponentName(icon: LucideIcon): string {
   return (icon as { displayName?: string }).displayName || icon.name || 'Pin'
 }
 
-// Curated list of logical event keys grouped by category
-interface EventEntry {
-  key: string // logical key (matches resolveEventKey output, e.g., "Bash", "SessionStart")
-  label: string // human-readable label
-  category: string // grouping header
-}
-
-const CURATED_EVENTS: EventEntry[] = [
-  // Session
-  { key: 'SessionStart', label: 'Session Start', category: 'Session' },
-  { key: 'SessionEnd', label: 'Session End', category: 'Session' },
-  { key: 'Stop', label: 'Stop', category: 'Session' },
-  { key: 'StopFailure', label: 'Stop Failure', category: 'Session' },
-
-  // User Input
-  { key: 'UserPromptSubmit', label: 'User Prompt', category: 'User Input' },
-  { key: 'UserPromptSubmitResponse', label: 'Prompt Response', category: 'User Input' },
-
-  // Tools
-  { key: 'Bash', label: 'Bash', category: 'Tools' },
-  { key: 'Read', label: 'Read', category: 'Tools' },
-  { key: 'Write', label: 'Write', category: 'Tools' },
-  { key: 'Edit', label: 'Edit', category: 'Tools' },
-  { key: 'Glob', label: 'Glob', category: 'Tools' },
-  { key: 'Grep', label: 'Grep', category: 'Tools' },
-  { key: 'WebSearch', label: 'Web Search', category: 'Tools' },
-  { key: 'WebFetch', label: 'Web Fetch', category: 'Tools' },
-  { key: 'Agent', label: 'Agent', category: 'Tools' },
-
-  // Agents
-  { key: 'SubagentStart', label: 'Subagent Start', category: 'Agents' },
-  { key: 'SubagentStop', label: 'Subagent Stop', category: 'Agents' },
-  { key: 'TeammateIdle', label: 'Teammate Idle', category: 'Agents' },
-
-  // Tasks
-  { key: 'TaskCreated', label: 'Task Created', category: 'Tasks' },
-  { key: 'TaskCompleted', label: 'Task Completed', category: 'Tasks' },
-
-  // System
-  { key: 'PermissionRequest', label: 'Permission Request', category: 'System' },
-  { key: 'Notification', label: 'Notification', category: 'System' },
-  { key: 'InstructionsLoaded', label: 'Instructions Loaded', category: 'System' },
-  { key: 'ConfigChange', label: 'Config Change', category: 'System' },
-  { key: 'CwdChanged', label: 'CWD Changed', category: 'System' },
-  { key: 'FileChanged', label: 'File Changed', category: 'System' },
-
-  // Compaction
-  { key: 'PreCompact', label: 'Pre-Compact', category: 'Compaction' },
-  { key: 'PostCompact', label: 'Post-Compact', category: 'Compaction' },
-
-  // MCP
-  { key: '_MCP', label: 'MCP Tool', category: 'MCP' },
-  { key: 'Elicitation', label: 'Elicitation', category: 'MCP' },
-  { key: 'ElicitationResult', label: 'Elicitation Result', category: 'MCP' },
-
-  // Worktrees
-  { key: 'WorktreeCreate', label: 'Worktree Create', category: 'Worktrees' },
-  { key: 'WorktreeRemove', label: 'Worktree Remove', category: 'Worktrees' },
-]
-
-const DEFAULT_EVENT_COLOR: [string, string] = [
-  'text-muted-foreground',
-  'bg-muted-foreground dark:bg-muted-foreground',
-]
-
-// Build resolved event list with defaults from event-icons.ts
-interface ResolvedEventEntry extends EventEntry {
+interface ResolvedEntry {
+  /** Registry id — also the localStorage key for customizations. */
+  id: string
+  /** Display label (e.g. "Bash"). */
+  name: string
+  /** Section header (e.g. "Tools"). */
+  group: string
+  /** Default Lucide icon name for the picker. */
   defaultIconName: string
+  /** COLOR_PRESETS key matching the default color, if any. */
   defaultColorKey: string | undefined
+  /** Tailwind iconColor class to render the preview when no override. */
   defaultIconColorClass: string
-  defaultDotColorClass: string
 }
 
-const EVENT_LIST: ResolvedEventEntry[] = CURATED_EVENTS.map((entry) => {
-  const icon = eventIcons[entry.key] || defaultEventIcon
-  const [iconColor, dotColor] = eventColors[entry.key] || DEFAULT_EVENT_COLOR
-  return {
-    ...entry,
-    defaultIconName: getIconComponentName(icon),
-    defaultColorKey: resolveDefaultColorKey(iconColor),
-    defaultIconColorClass: iconColor,
-    defaultDotColorClass: dotColor,
-  }
-})
+const ALL_ENTRIES: ResolvedEntry[] = Object.values(EVENT_ICON_REGISTRY).map(
+  (entry: EventIconEntry) => ({
+    id: entry.id,
+    name: entry.name,
+    group: entry.group,
+    defaultIconName: getIconComponentName(entry.icon),
+    defaultColorKey: resolveDefaultColorKey(entry.defaultColor.iconColor),
+    defaultIconColorClass: entry.defaultColor.iconColor,
+  }),
+)
 
 export function IconSettings() {
   const { customizations, setCustomization, resetCustomization, resetAll } = useIconCustomizations()
@@ -116,30 +57,31 @@ export function IconSettings() {
 
   const hasAnyCustomizations = Object.keys(customizations).length > 0
 
-  const filteredEvents = useMemo(() => {
-    if (!filter) return EVENT_LIST
+  const filteredEntries = useMemo(() => {
+    if (!filter) return ALL_ENTRIES
     const lower = filter.toLowerCase()
-    return EVENT_LIST.filter(
+    return ALL_ENTRIES.filter(
       (e) =>
-        e.label.toLowerCase().includes(lower) ||
-        e.key.toLowerCase().includes(lower) ||
-        e.category.toLowerCase().includes(lower),
+        e.name.toLowerCase().includes(lower) ||
+        e.id.toLowerCase().includes(lower) ||
+        e.group.toLowerCase().includes(lower),
     )
   }, [filter])
 
-  // Group filtered entries by category, preserving order
+  // Group filtered entries by `group`, preserving the order they appear
+  // in the registry.
   const grouped = useMemo(() => {
-    const groups: { category: string; entries: ResolvedEventEntry[] }[] = []
-    let currentCategory = ''
-    for (const entry of filteredEvents) {
-      if (entry.category !== currentCategory) {
-        currentCategory = entry.category
-        groups.push({ category: currentCategory, entries: [] })
+    const groups: { group: string; entries: ResolvedEntry[] }[] = []
+    let currentGroup = ''
+    for (const entry of filteredEntries) {
+      if (entry.group !== currentGroup) {
+        currentGroup = entry.group
+        groups.push({ group: currentGroup, entries: [] })
       }
       groups[groups.length - 1].entries.push(entry)
     }
     return groups
-  }, [filteredEvents])
+  }, [filteredEntries])
 
   return (
     <div className="flex flex-col gap-3 h-full max-h-full">
@@ -167,27 +109,27 @@ export function IconSettings() {
       <ScrollArea className="-mx-1" style={{ height: 'calc(80vh - 220px)' }}>
         <div className="space-y-0.5 px-1">
           {grouped.map((group) => (
-            <div key={group.category}>
+            <div key={group.group}>
               <div className="px-2 pt-3 pb-1 first:pt-0">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                  {group.category}
+                  {group.group}
                 </span>
               </div>
               {group.entries.map((entry) => (
                 <EventRow
-                  key={entry.key}
+                  key={entry.id}
                   entry={entry}
-                  customization={customizations[entry.key]}
-                  onChangeIcon={(iconName) => setCustomization(entry.key, { iconName })}
+                  customization={customizations[entry.id]}
+                  onChangeIcon={(iconName) => setCustomization(entry.id, { iconName })}
                   onChangeColor={(colorName, customHex) =>
-                    setCustomization(entry.key, { colorName, customHex })
+                    setCustomization(entry.id, { colorName, customHex })
                   }
-                  onReset={() => resetCustomization(entry.key)}
+                  onReset={() => resetCustomization(entry.id)}
                 />
               ))}
             </div>
           ))}
-          {filteredEvents.length === 0 && (
+          {filteredEntries.length === 0 && (
             <p className="py-4 text-center text-sm text-muted-foreground">
               No event types match your filter.
             </p>
@@ -199,7 +141,7 @@ export function IconSettings() {
 }
 
 interface EventRowProps {
-  entry: ResolvedEventEntry
+  entry: ResolvedEntry
   customization: { iconName?: string; colorName?: string; customHex?: string } | undefined
   onChangeIcon: (iconName: string) => void
   onChangeColor: (colorName: string, customHex?: string) => void
@@ -212,11 +154,9 @@ function EventRow({ entry, customization, onChangeIcon, onChangeColor, onReset }
   const activeColorKey = customization?.colorName || entry.defaultColorKey
   const activeCustomHex = customization?.customHex
 
-  // Resolve whether to use dynamic or default icon for preview
   const useDynamic = !!resolveIconName(activeIconName)
-  const FallbackIcon = defaultEventIcon
+  const FallbackIcon = EVENT_ICON_REGISTRY.Default.icon
 
-  // Resolve active color class or custom hex
   const isCustomColor = activeColorKey === 'custom' && activeCustomHex
   const activeIconColorClass = isCustomColor
     ? ''
@@ -224,7 +164,6 @@ function EventRow({ entry, customization, onChangeIcon, onChangeColor, onReset }
       ? COLOR_PRESETS[activeColorKey].iconColor
       : entry.defaultIconColorClass
 
-  // Default swatch for color picker
   const defaultSwatch = entry.defaultColorKey
     ? COLOR_PRESETS[entry.defaultColorKey]?.swatch
     : '#6b7280'
@@ -250,17 +189,16 @@ function EventRow({ entry, customization, onChangeIcon, onChangeColor, onReset }
         />
       )}
 
-      {/* Event name: label + key */}
+      {/* Event name: label + id */}
       <div className="flex-1 min-w-0">
-        <span className="truncate text-xs">{entry.label}</span>
-        {entry.label !== entry.key && (
+        <span className="truncate text-xs">{entry.name}</span>
+        {entry.name !== entry.id && (
           <span className="ml-1.5 truncate font-mono text-[10px] text-muted-foreground/60">
-            {entry.key}
+            {entry.id}
           </span>
         )}
       </div>
 
-      {/* Reset button to the left of icon/color pickers */}
       {hasCustom && (
         <Button
           variant="ghost"
@@ -273,15 +211,13 @@ function EventRow({ entry, customization, onChangeIcon, onChangeColor, onReset }
         </Button>
       )}
 
-      {/* Icon picker */}
       <IconPicker
         currentIconName={activeIconName}
-        iconColorClass={isCustomColor ? '' : activeIconColorClass}
+        iconColorClass={!isCustomColor ? activeIconColorClass : ''}
         iconStyle={isCustomColor ? { color: activeCustomHex } : undefined}
         onSelect={onChangeIcon}
       />
 
-      {/* Color picker */}
       <ColorPicker
         currentColor={activeColorKey}
         customHex={activeCustomHex}

@@ -48,6 +48,7 @@ import { useUIStore } from '@/stores/ui-store'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { AgentLabel } from '@/components/shared/agent-label'
 import { AgentRegistry } from '@/agents/registry'
+import { resolveEventIcon, resolveEventColor } from '@/lib/event-icon-registry'
 import type { Agent } from '@/types'
 import type { EnrichedEvent, AgentClassRegistration } from '@/agents/types'
 
@@ -115,8 +116,8 @@ function DotContainerInner({
         if (position < -5 || position > 205) return null
 
         // Resolve icon/color at render time for instant customization updates
-        const Icon = registration.getEventIcon(event)
-        const { dotColor, customHex } = registration.getEventColor(event)
+        const Icon = resolveEventIcon(event.iconId)
+        const { dotColor, customHex } = resolveEventColor(event.iconId)
 
         return (
           <button

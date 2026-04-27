@@ -1,15 +1,26 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useUIStore } from './ui-store'
-import type { ParsedEvent } from '@/types'
+import type { EnrichedEvent } from '@/agents/types'
 
-function makeEvent(id: number): ParsedEvent {
+function makeEvent(id: number): EnrichedEvent {
   return {
     id,
     agentId: 'a',
-    sessionId: 's',
     hookName: 'PreToolUse',
     timestamp: id * 1000,
-    createdAt: id * 1000,
+    toolName: 'Bash',
+    status: 'completed',
+    groupId: null,
+    turnId: null,
+    displayEventStream: true,
+    displayTimeline: true,
+    label: 'Tool',
+    labelTooltip: null,
+    iconId: 'ToolBash',
+    filterTags: { static: 'Tools', dynamic: ['Bash'] },
+    searchText: '',
+    dedupMode: false,
+    summary: '',
     payload: { tool_name: 'Bash' },
   }
 }

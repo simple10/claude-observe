@@ -14,7 +14,7 @@ import { format } from 'timeago.js'
 import { buildAgentColorMap } from '@/lib/agent-utils'
 import { QueryBoundary } from '@/components/shared/query-boundary'
 import { EmptyState, Spinner } from '@/components/shared/loading-states'
-import { eventMatchesFilters } from '@/config/filters'
+import { STATIC_FILTERS, matchesStaticFilter } from '@/config/filters'
 import type { Agent } from '@/types'
 
 export function EventStream() {
@@ -93,7 +93,8 @@ export function EventStream() {
     // filtered by the singular `filterTags.static`, which forced a
     // single category per event.
     if (deferredStaticFilters.length > 0) {
-      filtered = filtered.filter((e) => eventMatchesFilters(e, deferredStaticFilters, []))
+      const activeFilters = STATIC_FILTERS.filter((f) => deferredStaticFilters.includes(f.label))
+      filtered = filtered.filter((e) => activeFilters.some((f) => matchesStaticFilter(e, f)))
     }
 
     // Dynamic tool filters (row 2: Bash, Read, Edit, etc.)

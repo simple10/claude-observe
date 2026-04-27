@@ -1,26 +1,5 @@
 import { format } from 'timeago.js'
-import { getEventSummary } from '@/lib/event-summary'
-import type { ParsedEvent } from '@/types'
-import { deriveToolName } from '@/agents/claude-code/derivers'
-
-// Friendly label for event types shown at the top of the tooltip
-function tooltipLabel(event: ParsedEvent): string {
-  // The wire ParsedEvent no longer carries toolName — derive on the
-  // fly. Timeline dots are claude-code-specific today; if more agent
-  // classes need this, route through the registration's
-  // deriveToolName.
-  const subtype = event.hookName || null
-  const toolName = deriveToolName(event)
-  if (subtype === 'PreToolUse' || subtype === 'PostToolUse') {
-    return toolName || 'Tool'
-  }
-  const map: Record<string, string> = {
-    UserPromptSubmit: 'Prompt',
-    Stop: 'Stop',
-    SessionStart: 'Session Start',
-  }
-  return map[subtype || ''] || subtype || event.hookName
-}
+import type { EnrichedEvent } from '@/agents/types'
 
 function formatTimeOfDay(ts: number): string {
   return new Date(ts).toLocaleTimeString('en-US', {
@@ -37,21 +16,18 @@ function formatTimeOfDay(ts: number): string {
  * Presence to mount children lazily, so rendering thousands of tooltip
  * elements in the parent's JSX has near-zero cost until one is shown.
  */
-export function DotTooltipContent({ event }: { event: ParsedEvent }) {
-  const label = tooltipLabel(event)
-  const summary = getEventSummary(event)
+export function DotTooltipContent({ event }: { event: EnrichedEvent }) {
   const time = formatTimeOfDay(event.timestamp)
   const relative = format(event.timestamp)
-  const subtype = event.hookName || null
-  const hook = subtype && subtype !== label ? subtype : null
+  const hookLine = event.hookName !== event.label ? event.hookName : null
 
   return (
     <>
       <div className="flex items-baseline gap-2">
-        <span className="font-medium">{label}</span>
-        {hook && <span className="ml-auto text-[10px] font-normal opacity-70">{hook}</span>}
+        <span className="font-medium">{event.label}</span>
+        {hookLine && <span className="ml-auto text-[10px] font-normal opacity-70">{hookLine}</span>}
       </div>
-      {summary && <div className="opacity-80 truncate">{summary}</div>}
+      {event.summary && <div className="opacity-80 truncate">{event.summary}</div>}
       <div className="text-[10px] font-medium tabular-nums mt-0.5">
         {time} <span className="opacity-80">({relative})</span>
       </div>

@@ -44,11 +44,6 @@ AgentRegistry.register({
   processEvent,
   deriveToolName,
   deriveStatus,
-  getEventIcon: () => Terminal,
-  getEventColor: () => ({
-    iconColor: 'text-muted-foreground',
-    dotColor: 'bg-muted-foreground',
-  }),
   RowSummary: DefaultRowSummary,
   EventDetail: DefaultEventDetail,
   DotTooltip: DefaultDotTooltip,

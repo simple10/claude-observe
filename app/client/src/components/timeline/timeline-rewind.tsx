@@ -2,15 +2,14 @@ import { memo, useRef, useMemo, useEffect, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { getRangeMs } from '@/config/time-ranges'
 import { useUIStore } from '@/stores/ui-store'
-import { useDedupedEvents } from '@/hooks/use-deduped-events'
-import { getEventIcon, getEventColor } from '@/config/event-icons'
-import { deriveToolName } from '@/agents/claude-code/derivers'
+import { resolveEventIcon, resolveEventColor } from '@/lib/event-icon-registry'
 import { buildAgentColorMap, getAgentColorById } from '@/lib/agent-utils'
 import { AgentLabel } from '@/components/shared/agent-label'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { DotTooltipContent } from './dot-tooltip'
 import { registerTimelineScroll, getEventStreamScrollTo, withSyncLock } from '@/lib/scroll-sync'
-import type { Agent, ParsedEvent } from '@/types'
+import type { Agent } from '@/types'
+import type { EnrichedEvent } from '@/agents/types'
 
 const LABEL_WIDTH = 160 // px — matches the w-40 sticky label
 const LANE_HEIGHT = 32 // px — matches h-8
@@ -28,7 +27,10 @@ const MAX_TOTAL_WIDTH_PX = 10_000_000
  * Find the index of the first event whose timestamp is >= targetTs.
  * Events must be sorted ascending by timestamp. Returns -1 if none found.
  */
-export function findFirstEventAtOrAfter(events: ParsedEvent[], targetTs: number): number {
+export function findFirstEventAtOrAfter<T extends { timestamp: number }>(
+  events: T[],
+  targetTs: number,
+): number {
   let lo = 0
   let hi = events.length - 1
   let result = -1
@@ -49,7 +51,7 @@ export function findFirstEventAtOrAfter(events: ParsedEvent[], targetTs: number)
 let pendingLeftmostTs: number | null = null
 
 interface TimelineRewindProps {
-  events: ParsedEvent[] // frozen deduped events (shared with event stream)
+  events: EnrichedEvent[] // already processed + deduped by per-class processEvent
   agents: Agent[]
 }
 
@@ -60,10 +62,9 @@ export const TimelineRewind = memo(function TimelineRewind({
   const { timeRange, selectedAgentIds, setScrollToEventId } = useUIStore()
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Re-dedupe is a no-op when we receive already-deduped events, but the
-  // hook is cheap and keeps this component resilient to callers passing
-  // raw events.
-  const deduped = useDedupedEvents(events)
+  // Filter to events that should appear on the timeline. processEvent
+  // already deduped Pre/Post pairs and stamped `displayTimeline`.
+  const deduped = useMemo(() => events.filter((e) => e.displayTimeline), [events])
 
   // Compute session time span and pixel scale
   const { sessionStart, totalWidth, pixelsPerMs } = useMemo(() => {
@@ -101,7 +102,7 @@ export const TimelineRewind = memo(function TimelineRewind({
   const agentColorMap = useMemo(() => buildAgentColorMap(agents), [agents])
 
   const eventsByAgent = useMemo(() => {
-    const map = new Map<string, ParsedEvent[]>()
+    const map = new Map<string, EnrichedEvent[]>()
     deduped.forEach((e) => {
       const list = map.get(e.agentId) || []
       list.push(e)
@@ -260,12 +261,8 @@ export const TimelineRewind = memo(function TimelineRewind({
               <div className="flex-1 relative h-full">
                 {agentEvents.map((event) => {
                   const left = LEFT_PADDING + (event.timestamp - sessionStart) * pixelsPerMs
-                  // Per the three-layer contract, derive toolName from
-                  // the wire event before resolving icon + color.
-                  const hookName = event.hookName || null
-                  const toolName = deriveToolName(event)
-                  const Icon = getEventIcon(hookName, toolName)
-                  const { dotColor, customHex } = getEventColor(hookName, toolName)
+                  const Icon = resolveEventIcon(event.iconId)
+                  const { dotColor, customHex } = resolveEventColor(event.iconId)
 
                   return (
                     <Tooltip key={event.id}>

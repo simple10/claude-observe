@@ -198,7 +198,7 @@ export function ActivityTimeline() {
       if (rewindMode) {
         exitRewindMode()
       } else {
-        enterRewindMode(events || [])
+        enterRewindMode(enrichedEvents || [])
       }
     })
   }
@@ -293,7 +293,7 @@ export function ActivityTimeline() {
         >
           {rewindMode ? (
             <TimelineRewind
-              events={frozenEvents || events || []}
+              events={frozenEvents || enrichedEvents || []}
               agents={frozenAgentsRef.current}
             />
           ) : (

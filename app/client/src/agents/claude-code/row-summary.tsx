@@ -4,6 +4,7 @@
 // This component is a dumb renderer for the slot fields.
 
 import { computeRuntimeMs, formatRuntime } from './runtime'
+import { resolveEventColor } from '@/lib/event-icon-registry'
 import type { FrameworkDataApi } from '../types'
 import type { ClaudeCodeEnrichedEvent } from './types'
 
@@ -26,6 +27,7 @@ export function ClaudeCodeRowSummary({ event, dataApi }: Props) {
 
   const summary = event.summary
   const summaryHasNewline = summary.includes('\n')
+  const { iconColor } = resolveEventColor(event.iconId)
 
   return (
     <>
@@ -36,7 +38,7 @@ export function ClaudeCodeRowSummary({ event, dataApi }: Props) {
       {/* Slot 1: colored "tool" slot — uses iconColor from the enriched event */}
       {event.summaryTool && (
         <span
-          className={`text-xs font-medium shrink-0 ${event.iconColor || 'text-blue-700 dark:text-blue-400'}`}
+          className={`text-xs font-medium shrink-0 ${iconColor || 'text-blue-700 dark:text-blue-400'}`}
         >
           {event.summaryTool}
         </span>

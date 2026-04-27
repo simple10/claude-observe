@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import type { Label, ParsedEvent } from '@/types'
+import type { Label } from '@/types'
+import type { EnrichedEvent } from '@/agents/types'
 import type { TimeRange } from '@/config/time-ranges'
 import { getServerHealth } from '@/lib/server-health'
 
@@ -153,10 +154,10 @@ interface UIState {
 
   // Rewind mode: freezes the event/timeline view at a snapshot of events
   rewindMode: boolean
-  frozenEvents: ParsedEvent[] | null
+  frozenEvents: EnrichedEvent[] | null
   /** Pre-rewind autoFollow value, restored on exit */
   autoFollowBeforeRewind: boolean
-  enterRewindMode: (events: ParsedEvent[]) => void
+  enterRewindMode: (events: EnrichedEvent[]) => void
   exitRewindMode: () => void
 
   // Session sort order in sidebar

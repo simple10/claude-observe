@@ -1,9 +1,45 @@
 import type { RawEvent, ProcessingContext } from '../types'
 import type { ClaudeCodeEnrichedEvent } from './types'
-import { getEventIcon, getEventColor } from './icons'
+import { EVENT_ICON_REGISTRY } from '@/lib/event-icon-registry'
 import { getEventSummary, buildSearchText } from './helpers'
 import { deriveToolName } from './derivers'
 import { agentPatchDebouncer } from '@/lib/agent-patch-debouncer'
+
+/** Map (hookName, toolName) → registry icon id. Tool icons are prefixed
+ *  `Tool` to disambiguate from hookName-shaped ids. */
+function pickIconId(hookName: string, toolName: string | null): string {
+  const isTool =
+    hookName === 'PreToolUse' || hookName === 'PostToolUse' || hookName === 'PostToolUseFailure'
+  if (isTool) {
+    if (toolName?.startsWith('mcp__')) return 'ToolMcp'
+    const map: Record<string, string> = {
+      Bash: 'ToolBash',
+      Read: 'ToolRead',
+      Write: 'ToolWrite',
+      Edit: 'ToolEdit',
+      Glob: 'ToolGlob',
+      Grep: 'ToolGrep',
+      WebSearch: 'ToolWebSearch',
+      WebFetch: 'ToolWebFetch',
+      Agent: 'ToolAgent',
+    }
+    return map[toolName ?? ''] ?? 'ToolDefault'
+  }
+  return EVENT_ICON_REGISTRY[hookName] ? hookName : 'Default'
+}
+
+/** Detect payload-level error indicators. Used to bump status to
+ *  'failed' so the Errors filter can rely on `event.status` alone. */
+function isPayloadFailed(payload: Record<string, unknown>): boolean {
+  if (typeof payload.error === 'string' && (payload.error as string) !== '') return true
+  const tr = payload.tool_response
+  if (tr && typeof tr === 'object') {
+    if ((tr as Record<string, unknown>).is_error === true) return true
+    const err = (tr as Record<string, unknown>).error
+    if (typeof err === 'string' && err !== '') return true
+  }
+  return false
+}
 
 // Label mapping for the framework's left-side chrome. Keyed by hookName.
 const LABELS: Record<string, string> = {
@@ -226,9 +262,9 @@ export function processEvent(
     }
   }
 
-  // Resolve icon and color
-  const icon = getEventIcon(hookName, toolName)
-  const { iconColor, dotColor, customHex } = getEventColor(hookName, toolName)
+  // Pick the registry icon id; renderers resolve to component + color
+  // at render time via resolveEventIcon / resolveEventColor.
+  const iconId = pickIconId(hookName, toolName)
   const dedup = ctx.dedupEnabled
 
   // Turn tracking (only when dedup is on)
@@ -368,12 +404,10 @@ export function processEvent(
     displayTimeline,
     label: LABELS[hookName] || hookName || 'Event',
     labelTooltip: hookName,
-    icon,
-    iconColor,
-    dotColor,
-    iconColorHex: customHex ?? null,
+    iconId,
     dedupMode: dedup,
-    status: statusOverride ?? deriveLocalStatus(hookName),
+    status:
+      statusOverride ?? (isPayloadFailed(raw.payload) ? 'failed' : deriveLocalStatus(hookName)),
     filterTags: getFilterTags(hookName, toolName, displayEventStream),
     searchText: buildSearchText(raw, slots.summary, toolName),
     summary: slots.summary,

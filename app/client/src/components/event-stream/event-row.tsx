@@ -7,6 +7,7 @@ import { AgentClassIcon } from '@/components/shared/agent-class-icon'
 import { useUIStore } from '@/stores/ui-store'
 import { Check, X, Loader } from 'lucide-react'
 import type { EnrichedEvent, FrameworkDataApi } from '@/agents/types'
+import { resolveEventIcon, resolveEventColor } from '@/lib/event-icon-registry'
 import { useTimestampTooltip } from './timestamp-tooltip'
 
 interface EventRowProps {
@@ -52,8 +53,8 @@ export const EventRow = memo(function EventRow({
   // when unknown, or claude-code for legacy rows with null agentClass), then
   // use its icon/color resolvers so each agent class controls its own rendering.
   const registration = AgentRegistry.get(agent?.agentClass || 'claude-code')
-  const Icon = registration.getEventIcon(event)
-  const { iconColor, customHex } = registration.getEventColor(event)
+  const Icon = resolveEventIcon(event.iconId)
+  const { iconColor, customHex } = resolveEventColor(event.iconId)
   const RowSummary = registration.RowSummary
   const EventDetail = registration.EventDetail
 

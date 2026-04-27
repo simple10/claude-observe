@@ -19,7 +19,7 @@ import {
 const ReactDiffViewer = lazy(() => import('react-diff-viewer-continued'))
 import { cn } from '@/lib/utils'
 import { getAgentDisplayName } from '@/lib/agent-utils'
-import { getEventIcon } from './icons'
+import { resolveEventIcon } from '@/lib/event-icon-registry'
 import { getEventSummary, relativePath } from './helpers'
 import { computeRuntimeMs, formatRuntime } from './runtime'
 import type { FrameworkDataApi } from '../types'
@@ -1107,7 +1107,7 @@ function ThreadEvent({
   event: ClaudeCodeEnrichedEvent
   isCurrentEvent: boolean
 }) {
-  const Icon = event.icon || getEventIcon(event.hookName, event.toolName)
+  const Icon = resolveEventIcon(event.iconId)
   const isTool = event.hookName === 'PreToolUse' || event.hookName === 'PostToolUse'
   const isCompleted = event.status === 'completed'
   const rawLabel = event.hookName

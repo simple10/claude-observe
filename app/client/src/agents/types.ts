@@ -31,10 +31,10 @@ export interface EnrichedEvent {
   label: string
   /** Tooltip for the label / icon. Defaults to `hookName` when null. */
   labelTooltip: string | null
-  icon: ComponentType | null
-  iconColor: string | null
-  dotColor: string | null
-  iconColorHex: string | null
+  /** Stable icon registry id (see `lib/event-icon-registry.ts`).
+   *  Renderers resolve to a Lucide component + colors at render time
+   *  via `resolveEventIcon` / `resolveEventColor`. */
+  iconId: string
   filterTags: {
     static: string | null // category: 'Prompts', 'Tools', 'Agents', etc. (null if hidden)
     dynamic: string[] // specific filters: ['Bash'], ['Read'], etc.
@@ -144,11 +144,6 @@ export interface AgentClassRegistration<TEvent extends EnrichedEvent = EnrichedE
    *  sibling events (e.g. PreToolUse + matching PostToolUse). Returns
    *  null when status doesn't apply for this hook. */
   deriveStatus(event: RawEvent, groupedEvents: RawEvent[]): EventStatus | null
-
-  // Render-time icon/color resolvers — called per-row so live icon
-  // customization propagates without a full reprocess.
-  getEventIcon(event: TEvent): ComponentType<{ className?: string }>
-  getEventColor(event: TEvent): EventColor
 
   // Rendering components
   RowSummary: ComponentType<{ event: TEvent; dataApi: FrameworkDataApi }>
