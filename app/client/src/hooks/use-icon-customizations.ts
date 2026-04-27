@@ -133,16 +133,51 @@ export const COLOR_PRESETS: Record<
 }
 
 // --- Key migration ---
-// Convert old localStorage keys like "PreToolUse:Bash" or "PostToolUse:Bash" to logical keys like "Bash"
+// Migrates old localStorage keys to current registry IDs. Two passes:
+//   1. Strip `PreToolUse:` / `PostToolUse:` / `PostToolUseFailure:` prefix
+//      (legacy from before tool subtype was extracted).
+//   2. Map old un-prefixed tool names + underscore-prefixed sentinels to
+//      the new `Tool*` registry IDs. Drops entries for IDs the registry
+//      no longer recognizes (`_ToolSuccess`, `_ToolFailure`, `system`,
+//      `user`, `assistant`, `agent_progress`, `progress`,
+//      `UserPromptSubmitResponse`).
+const REGISTRY_ID_REMAP: Record<string, string> = {
+  // Tools — un-prefixed → prefixed
+  Bash: 'ToolBash',
+  Read: 'ToolRead',
+  Write: 'ToolWrite',
+  Edit: 'ToolEdit',
+  Glob: 'ToolGlob',
+  Grep: 'ToolGrep',
+  WebSearch: 'ToolWebSearch',
+  WebFetch: 'ToolWebFetch',
+  Agent: 'ToolAgent',
+  // Underscore-prefixed sentinels → registry IDs
+  _MCP: 'ToolMcp',
+  _ToolDefault: 'ToolDefault',
+  // Dropped (no longer in registry — value of '' means delete)
+  _ToolSuccess: '',
+  _ToolFailure: '',
+  system: '',
+  user: '',
+  assistant: '',
+  agent_progress: '',
+  progress: '',
+  UserPromptSubmitResponse: '',
+}
+
 function migrateKeys(data: IconCustomizations): IconCustomizations {
   const migrated: IconCustomizations = {}
   let changed = false
   for (const [key, value] of Object.entries(data)) {
-    const match = key.match(/^(?:Pre|Post)ToolUse(?:Failure)?:(.+)$/)
-    const newKey = match ? match[1] : key
-    if (newKey !== key) changed = true
-    if (!migrated[newKey]) {
-      migrated[newKey] = value
+    // Step 1: strip Pre/PostToolUse[Failure]: prefix.
+    const m = key.match(/^(?:Pre|Post)ToolUse(?:Failure)?:(.+)$/)
+    const stripped = m ? m[1] : key
+    // Step 2: remap to current registry ID (or drop if mapped to '').
+    const remapped = stripped in REGISTRY_ID_REMAP ? REGISTRY_ID_REMAP[stripped] : stripped
+    if (remapped !== key) changed = true
+    if (remapped && !migrated[remapped]) {
+      migrated[remapped] = value
     }
   }
   return changed ? migrated : data
