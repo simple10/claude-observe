@@ -136,7 +136,9 @@ Update the `$CLAUDE_PROJECT_DIR` paths to point to your agents-observe install l
 Codex support uses Codex hooks plus the `codex` agent adapter in
 `hooks/scripts/lib/agents/codex.mjs`. This repo already includes a local
 Codex hook config at `.codex/hooks.json` and enables hooks in
-`.codex/config.toml`.
+`.codex/config.toml`. The bundled `.codex/hooks.json` is repo-local: it
+uses `$(git rev-parse --show-toplevel)` and should only be copied within
+this checkout.
 
 For this repo, start the server and then run Codex from the repo root:
 
@@ -146,10 +148,19 @@ codex
 ```
 
 For another project, add equivalent Codex hook config in that project's
-`.codex/hooks.json`, pointing the command at this checkout's
-`hooks/scripts/hook.sh`, and set `AGENTS_OBSERVE_AGENT_CLASS=codex`.
-Set `AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS=Stop` if you want a dashboard
-notification when a Codex turn completes.
+`.codex/hooks.json`, pointing the command at this checkout with an
+absolute path:
+
+```json
+{
+  "type": "command",
+  "command": "AGENTS_OBSERVE_AGENT_CLASS=codex bash /absolute/path/to/agents-observe/hooks/scripts/hook.sh"
+}
+```
+
+Codex `PermissionRequest` events trigger dashboard notifications by
+default. Set `AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS` only if you want to
+override that behavior.
 
 **Environment variables set in the config:**
 
@@ -231,9 +242,9 @@ package.json                 # Version metadata and workspace scripts
 
 ## How it works
 
-**Hooks** fire on every Claude Code or Codex event (tool calls, prompts, stops, subagent lifecycle). `observe_cli.mjs` reads the raw event from stdin and dispatches through `hooks/scripts/lib/agents/<class>.mjs` — each agent class's `buildHookEvent()` builds the envelope (project metadata plus agent-class-aware flags like `meta.isNotification` / `meta.clearsNotification`) and the CLI POSTs it to the server. If the server needs additional data (like the session's human-readable slug), it responds with a request — the hook reads it from the local transcript file and sends it back.
+**Hooks** fire on Claude Code or Codex events (tool calls, prompts, stops, subagent lifecycle where supported). `observe_cli.mjs` reads the raw event from stdin and dispatches through `hooks/scripts/lib/agents/<class>.mjs` — each agent class's `buildHookEvent()` builds the event envelope with identity fields, project/session hints under `_meta`, and behavior flags such as `startsNotification` or `clearsNotification`. The CLI POSTs that envelope to the server. If the server needs additional data (like the session's human-readable slug), it responds with a request — the hook reads it from the local transcript file and sends it back.
 
-**Server** receives raw events, extracts structural fields (type, tool name, agent ID), stores agent metadata (name, description, type, parentage), and saves everything in SQLite. Events are forwarded to WebSocket clients subscribed to the relevant session — each browser tab only receives events for the session it's viewing. The server tracks session status (active/stopped) but does not track agent status.
+**Server** validates the envelope, stores the opaque payload in SQLite, applies `_meta` creation hints, and uses flags to update session state. Events are forwarded to WebSocket clients subscribed to the relevant session — each browser tab only receives events for the session it's viewing. The server tracks session status (active/stopped) but does not track agent status.
 
 **Client** fetches events via REST API on initial load, then receives real-time updates via WebSocket (events are appended to the local cache — no refetching). All agent state (status, event counts, timing) is derived from the event stream. Tool events are deduped client-side (PreToolUse + PostToolUse merged into a single row). The emoji icon mapping and summary generation are editable config files.
 
