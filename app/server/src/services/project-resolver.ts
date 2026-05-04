@@ -22,6 +22,39 @@ import type { EventStore } from '../storage/types'
 import type { EventEnvelopeCreationHints, EventEnvelopeFlags } from '../types'
 import { deriveSlugFromPath } from '../utils/slug'
 
+const WORKTREE_SEGMENT_RE = /^\.?worktrees?$/
+
+/**
+ * Detects a worktree-style cwd and returns the slug of the most likely
+ * parent-repo project for a *match-only* lookup. Walks the path from
+ * right to left for a `worktree` / `worktrees` / `.worktree` /
+ * `.worktrees` segment, then continues leftward past any dotfile
+ * directory (e.g. `.claude`, `.codex`) to the first non-dot ancestor.
+ * Returns `null` when no worktree segment is found, when the worktree
+ * segment is at the root, or when every ancestor is a dotfile dir.
+ *
+ * The returned slug is normalized via `deriveSlugFromPath` so it can
+ * be compared directly against `projects.slug` values.
+ */
+export function findExistingWorktreeProjectSlug(startCwd: string | null): string | null {
+  if (!startCwd) return null
+  const parts = startCwd.split('/').filter(Boolean)
+  let worktreeIdx = -1
+  for (let i = parts.length - 1; i >= 0; i--) {
+    if (WORKTREE_SEGMENT_RE.test(parts[i])) {
+      worktreeIdx = i
+      break
+    }
+  }
+  if (worktreeIdx <= 0) return null
+  for (let i = worktreeIdx - 1; i >= 0; i--) {
+    if (!parts[i].startsWith('.')) {
+      return deriveSlugFromPath(parts[i])
+    }
+  }
+  return null
+}
+
 export interface ResolveProjectInput {
   sessionId: string
   meta?: EventEnvelopeCreationHints['project']
