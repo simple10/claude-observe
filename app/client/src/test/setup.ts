@@ -44,3 +44,56 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     disconnect() {}
   } as unknown as typeof ResizeObserver
 }
+
+// CSS Custom Highlight API polyfill for jsdom.
+// Real browsers paint these; jsdom doesn't render — we just need the
+// surface so tests can construct, register, and assert on highlights.
+if (typeof (globalThis as any).Highlight === 'undefined') {
+  class HighlightPolyfill {
+    private ranges = new Set<Range>()
+    priority = 0
+    constructor(...ranges: Range[]) {
+      for (const r of ranges) this.ranges.add(r)
+    }
+    add(range: Range) {
+      this.ranges.add(range)
+    }
+    has(range: Range) {
+      return this.ranges.has(range)
+    }
+    delete(range: Range) {
+      return this.ranges.delete(range)
+    }
+    clear() {
+      this.ranges.clear()
+    }
+    get size() {
+      return this.ranges.size
+    }
+    [Symbol.iterator]() {
+      return this.ranges[Symbol.iterator]()
+    }
+  }
+  ;(globalThis as any).Highlight = HighlightPolyfill
+}
+
+if (typeof CSS !== 'undefined' && !('highlights' in CSS)) {
+  ;(CSS as any).highlights = new Map()
+}
+
+// Element.prototype.scrollBy is not implemented in jsdom; LogsModal's
+// scrollMatchIntoView calls it on <pre> and the modal scroller. Make it
+// a no-op so tests don't throw. Tests that need to assert on scroll
+// behavior patch this prototype themselves.
+if (typeof Element !== 'undefined' && typeof Element.prototype.scrollBy !== 'function') {
+  Element.prototype.scrollBy = function scrollByNoop() {} as typeof Element.prototype.scrollBy
+}
+
+// Range.prototype.getBoundingClientRect is not implemented in jsdom;
+// scrollMatchIntoView calls it to calculate scroll deltas. Return a
+// zero DOMRect so the no-op scrollBy above absorbs the call silently.
+if (typeof Range !== 'undefined' && typeof Range.prototype.getBoundingClientRect !== 'function') {
+  Range.prototype.getBoundingClientRect = function getBoundingClientRectNoop(): DOMRect {
+    return new DOMRect(0, 0, 0, 0)
+  }
+}

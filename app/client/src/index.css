@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 @theme inline {
   --color-background: var(--background);
@@ -42,7 +42,7 @@
   --secondary: oklch(0.94 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.94 0 0);
-  --muted-foreground: oklch(0.40 0 0);
+  --muted-foreground: oklch(0.4 0 0);
   --accent: oklch(0.94 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -81,6 +81,22 @@
 }
 
 @keyframes flash-ring {
-  0%, 100% { box-shadow: none; }
-  50% { box-shadow: 0 0 0 2px oklch(0.6 0.15 250 / 0.6); }
+  0%,
+  100% {
+    box-shadow: none;
+  }
+  50% {
+    box-shadow: 0 0 0 2px oklch(0.6 0.15 250 / 0.6);
+  }
+}
+
+/* Logs modal search — paints matches found by LogsModal's
+   CSS Custom Highlight API integration. logs-search-current has
+   higher priority so the active match shows orange over yellow. */
+::highlight(logs-search-all) {
+  background-color: rgb(250 204 21 / 0.35);
+}
+::highlight(logs-search-current) {
+  background-color: rgb(249 115 22 / 0.75);
+  color: black;
 }
