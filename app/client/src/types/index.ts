@@ -37,6 +37,11 @@ export interface Session {
   // Distinct agent_class values across every agent in the session (root +
   // subagents). Empty array for legacy sessions predating the column.
   agentClasses: string[]
+  // Aggregate event count derived server-side via a subquery on the
+  // events table. Both `/sessions/recent` and `/projects/:id/sessions`
+  // populate this; only the active session's count is recomputed
+  // live in the client from streaming events.
+  eventCount?: number
 }
 
 /** Agent metadata from the server — no derived state.

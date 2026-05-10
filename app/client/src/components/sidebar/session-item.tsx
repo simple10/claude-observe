@@ -98,8 +98,10 @@ export function SessionItem({
   // round-trip through a stringly-typed field.
   const isActive = !session.stoppedAt
   const statusLabel = isActive ? 'Active' : 'Ended'
-  // `session.eventCount` is no longer part of the wire shape — derive
-  // counts client-side via `useAgents` and pass through the override.
+  // `eventCountOverride` is supplied by the parent — live count for
+  // the active session (from streaming events) or the server-provided
+  // count for the rest. Undefined for sessions whose payload predates
+  // the count.
   const eventCount = eventCountOverride
   const lastActivityTs = session.lastActivity ?? session.startedAt
   const needsAttention = useSessionHasNotification(session.id)

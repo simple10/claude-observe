@@ -505,8 +505,15 @@ function SessionList({ projectId }: { projectId: number }) {
             </div>
             {visibleSessions.map((session) => {
               const isSelected = selectedSessionId === session.id
+              // Active session: live count from streaming events.
+              // Other sessions: server-provided count (refreshes when
+              // sessions list refetches). Falls through to undefined
+              // for sessions whose payload predates the eventCount
+              // field.
               const liveEventCount =
-                session.id === selectedSessionId && currentEvents ? currentEvents.length : undefined
+                session.id === selectedSessionId && currentEvents
+                  ? currentEvents.length
+                  : session.eventCount
 
               return (
                 <SessionItem
