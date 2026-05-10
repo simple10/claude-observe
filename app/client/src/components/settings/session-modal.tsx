@@ -135,7 +135,8 @@ export function SessionEditModal() {
     await api.updateSessionSlug(session.id, trimmed)
     await queryClient.invalidateQueries({ queryKey: ['session', session.id] })
     await queryClient.invalidateQueries({ queryKey: ['sessions'] })
-    await queryClient.invalidateQueries({ queryKey: ['recentSessions'] })
+    await queryClient.invalidateQueries({ queryKey: ['recent-sessions'] })
+    await queryClient.invalidateQueries({ queryKey: ['unassigned-sessions'] })
     setIsRenaming(false)
   }
 
@@ -146,7 +147,11 @@ export function SessionEditModal() {
       await api.deleteSession(session.id)
       if (selectedSessionId === session.id) setSelectedSessionId(null)
       await queryClient.invalidateQueries({ queryKey: ['sessions'] })
-      await queryClient.invalidateQueries({ queryKey: ['recentSessions'] })
+      await queryClient.invalidateQueries({ queryKey: ['recent-sessions'] })
+      // Unassigned sessions live in their own query key; without this
+      // invalidate the sidebar's Unassigned bucket keeps the deleted
+      // row until the next mount / window focus.
+      await queryClient.invalidateQueries({ queryKey: ['unassigned-sessions'] })
       await queryClient.invalidateQueries({ queryKey: ['projects'] })
       setConfirmAction(null)
       setEditingSessionId(null)
@@ -175,7 +180,9 @@ export function SessionEditModal() {
       await api.moveSession(session.id, targetProject.id)
       await queryClient.invalidateQueries({ queryKey: ['session', session.id] })
       await queryClient.invalidateQueries({ queryKey: ['sessions'] })
-      await queryClient.invalidateQueries({ queryKey: ['recentSessions'] })
+      await queryClient.invalidateQueries({ queryKey: ['recent-sessions'] })
+      // Moving from / to the Unassigned bucket changes its contents.
+      await queryClient.invalidateQueries({ queryKey: ['unassigned-sessions'] })
       await queryClient.invalidateQueries({ queryKey: ['projects'] })
       setMoveOpen(false)
     } finally {
