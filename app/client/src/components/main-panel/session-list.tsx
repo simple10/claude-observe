@@ -96,12 +96,27 @@ function SessionRow({
   const needsAttention = useSessionHasNotification(session.id)
 
   return (
-    <button
+    // role="button" + tabIndex rather than a real <button>, so the
+    // NotificationIndicator's button child (when the session needs
+    // attention) doesn't produce an invalid nested-<button> tree.
+    <div
+      role="button"
+      tabIndex={0}
       className={cn(
         'w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors cursor-pointer',
         'focus:outline-none focus-visible:ring-1 focus-visible:ring-ring',
       )}
       onClick={onSelect}
+      onKeyDown={(e) => {
+        // Only activate on Enter/Space when this row itself is the
+        // target. Without this guard, Enter on the inner bell would
+        // fire the dismiss AND navigate to the session.
+        if (e.target !== e.currentTarget) return
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelect()
+        }
+      }}
     >
       <div className="flex items-center gap-2 min-w-0">
         {needsAttention ? (
@@ -150,6 +165,6 @@ function SessionRow({
           {formatRelativeTime(lastTime)}
         </span>
       </div>
-    </button>
+    </div>
   )
 }
