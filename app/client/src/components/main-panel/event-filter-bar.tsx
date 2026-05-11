@@ -1,26 +1,11 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useUIStore } from '@/stores/ui-store'
+import { useFilterStore } from '@/stores/filter-store'
 import { useProcessedEvents } from '@/agents/event-processing-context'
 import { cn } from '@/lib/utils'
 import { Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { focusSiblingMatching } from '@/lib/keyboard-nav'
-
-// Framework-defined static filter categories (always shown in this order)
-const STATIC_CATEGORIES = [
-  'Prompts',
-  'Tools',
-  'Agents',
-  'Tasks',
-  'Session',
-  'MCP',
-  'Permissions',
-  'Notifications',
-  'Stop',
-  'Compaction',
-  'Errors',
-  'Config',
-]
 
 export function EventFilterBar() {
   const {
@@ -69,27 +54,36 @@ export function EventFilterBar() {
     [displayedEvents, selectedAgentIds],
   )
 
-  // Which static categories have at least one event
-  const activeCategories = useMemo(() => {
-    const cats = new Set<string>()
+  // Pill names that appear in at least one displayed event, by row.
+  const primaryNames = useMemo(() => {
+    const out = new Set<string>()
     for (const e of agentFilteredEvents) {
-      if (e.filterTags.static) cats.add(e.filterTags.static)
-      // 'Errors' is cross-cutting — check status and payload
-      if (e.status === 'failed' || (e.payload as any)?.error) cats.add('Errors')
+      for (const name of e.filters.primary) out.add(name)
     }
-    return cats
+    return Array.from(out).sort()
   }, [agentFilteredEvents])
 
-  // Collect all unique dynamic filter names
-  const dynamicNames = useMemo(() => {
-    const names = new Set<string>()
+  const secondaryNames = useMemo(() => {
+    const out = new Set<string>()
     for (const e of agentFilteredEvents) {
-      for (const tag of e.filterTags.dynamic) {
-        names.add(tag)
-      }
+      for (const name of e.filters.secondary) out.add(name)
     }
-    return Array.from(names).sort()
+    return Array.from(out).sort()
   }, [agentFilteredEvents])
+
+  // Map pill name -> kind for styling. User filters win when multiple
+  // filters share the same pill name so user-customized pills are always
+  // visually distinguishable.
+  const filters = useFilterStore((s) => s.filters)
+  const pillKindByName = useMemo(() => {
+    const m = new Map<string, 'user' | 'default'>()
+    for (const f of filters) {
+      const existing = m.get(f.pillName)
+      if (existing === 'user') continue
+      m.set(f.pillName, f.kind)
+    }
+    return m
+  }, [filters])
 
   const hasAnyFilter = activeStaticFilters.length > 0 || activeToolFilters.length > 0
 
@@ -148,9 +142,9 @@ export function EventFilterBar() {
           >
             All
           </button>
-          {STATIC_CATEGORIES.map((category) => {
+          {primaryNames.map((category) => {
             const isActive = activeStaticFilters.includes(category)
-            const hasMatches = activeCategories.has(category)
+            const isUser = pillKindByName.get(category) === 'user'
             return (
               <button
                 key={category}
@@ -159,10 +153,12 @@ export function EventFilterBar() {
                 className={cn(
                   'rounded-full px-2.5 py-0.5 text-xs transition-colors border',
                   isActive
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : hasMatches
-                      ? 'bg-secondary text-secondary-foreground border-primary/40 hover:bg-accent'
-                      : 'bg-secondary text-muted-foreground/70 dark:text-muted-foreground/50 border-transparent hover:bg-accent hover:text-secondary-foreground',
+                    ? isUser
+                      ? 'bg-violet-500 text-white border-violet-500'
+                      : 'bg-primary text-primary-foreground border-primary'
+                    : isUser
+                      ? 'bg-secondary text-secondary-foreground border-violet-500/40 hover:bg-accent'
+                      : 'bg-secondary text-secondary-foreground border-primary/40 hover:bg-accent',
                 )}
                 onClick={() => toggleStaticFilter(category)}
               >
@@ -208,24 +204,32 @@ export function EventFilterBar() {
       </div>
 
       {/* Row 2: Dynamic tool filters */}
-      {dynamicNames.length > 0 && (
+      {secondaryNames.length > 0 && (
         <div className="flex items-center gap-1 flex-wrap">
-          {dynamicNames.map((name) => (
-            <button
-              key={name}
-              data-filter-pill=""
-              data-filter-row="1"
-              className={cn(
-                'rounded-full px-2.5 py-0.5 text-xs transition-colors border',
-                activeToolFilters.includes(name)
-                  ? 'border-blue-500 bg-blue-500/15 text-blue-700 dark:text-blue-400'
-                  : 'border-border text-muted-foreground hover:border-blue-500/50 hover:text-foreground',
-              )}
-              onClick={() => toggleToolFilter(name)}
-            >
-              {name}
-            </button>
-          ))}
+          {secondaryNames.map((name) => {
+            const isActive = activeToolFilters.includes(name)
+            const isUser = pillKindByName.get(name) === 'user'
+            return (
+              <button
+                key={name}
+                data-filter-pill=""
+                data-filter-row="1"
+                className={cn(
+                  'rounded-full px-2.5 py-0.5 text-xs transition-colors border',
+                  isUser
+                    ? isActive
+                      ? 'border-violet-500 bg-violet-500/15 text-violet-700 dark:text-violet-400'
+                      : 'border-border text-muted-foreground hover:border-violet-500/50 hover:text-foreground'
+                    : isActive
+                      ? 'border-blue-500 bg-blue-500/15 text-blue-700 dark:text-blue-400'
+                      : 'border-border text-muted-foreground hover:border-blue-500/50 hover:text-foreground',
+                )}
+                onClick={() => toggleToolFilter(name)}
+              >
+                {name}
+              </button>
+            )
+          })}
         </div>
       )}
     </div>
