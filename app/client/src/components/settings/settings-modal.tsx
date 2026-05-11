@@ -52,7 +52,13 @@ export function SettingsModal() {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         aria-describedby={undefined}
-        className="w-[720px] max-w-[90vw] max-h-[80vh] flex flex-col p-0"
+        // Filters tab needs more horizontal room for the sidebar + editor;
+        // every other tab stays at the default 720×80vh.
+        className={
+          activeTab === 'filters'
+            ? 'w-[1100px] max-w-[95vw] max-h-[90vh] flex flex-col p-0'
+            : 'w-[720px] max-w-[90vw] max-h-[80vh] flex flex-col p-0'
+        }
       >
         <div className="flex items-center px-6 pt-6 pb-0">
           <DialogTitle>Settings</DialogTitle>
