@@ -21,6 +21,8 @@ export class EventStore {
   private pendingAgentMeta = new Map<string, { name: string | null; description: string | null }>()
   private pendingUpdates: Array<{ eventId: number; changes: Partial<EnrichedEvent> }> = []
   private dedupEnabled = true
+  private compiledFilters: readonly import('@/lib/filters/types').CompiledFilter[] = []
+  private lastCompiledFilters: readonly import('@/lib/filters/types').CompiledFilter[] = []
 
   // Agent class lookup — set by the framework from the agents query
   private agentClassMap = new Map<string, string>()
@@ -48,10 +50,16 @@ export class EventStore {
    * Process raw events. Automatically detects whether to do a full
    * reprocess or incremental append based on what changed.
    */
-  process(rawEvents: RawEvent[], dedupEnabled: boolean): EnrichedEvent[] {
-    // Full reprocess needed if settings changed or events were replaced (not appended)
+  process(
+    rawEvents: RawEvent[],
+    dedupEnabled: boolean,
+    compiledFilters: readonly import('@/lib/filters/types').CompiledFilter[],
+  ): EnrichedEvent[] {
+    // Full reprocess needed if any of: dedup toggled, compiled filter
+    // set changed reference, events were replaced (not appended).
     const needsFullReprocess =
       dedupEnabled !== this.lastDedupEnabled ||
+      compiledFilters !== this.lastCompiledFilters ||
       rawEvents.length < this.lastProcessedCount ||
       (this.lastProcessedCount > 0 &&
         rawEvents.length > 0 &&
@@ -60,7 +68,9 @@ export class EventStore {
     if (needsFullReprocess) {
       this.clear()
       this.dedupEnabled = dedupEnabled
+      this.compiledFilters = compiledFilters
       this.lastDedupEnabled = dedupEnabled
+      this.lastCompiledFilters = compiledFilters
       for (const raw of rawEvents) {
         this.processOne(raw)
       }
@@ -70,13 +80,13 @@ export class EventStore {
 
     // Incremental: only process newly appended events
     this.dedupEnabled = dedupEnabled
+    this.compiledFilters = compiledFilters
     const newEvents = rawEvents.slice(this.lastProcessedCount)
     if (newEvents.length === 0) return this.events
     for (const raw of newEvents) {
       this.processOne(raw)
     }
     this.lastProcessedCount = rawEvents.length
-    // Return a new array reference so React detects the change
     this.events = [...this.events]
     return this.events
   }
@@ -142,6 +152,7 @@ export class EventStore {
   private createProcessingContext(): ProcessingContext {
     return {
       dedupEnabled: this.dedupEnabled,
+      compiledFilters: this.compiledFilters,
       getAgent: (agentId) => this.agentMap.get(agentId),
       getGroupedEvents: (groupId) => this.groupIndex.get(groupId) ?? [],
       getAgentEvents: (agentId) => this.agentIndex.get(agentId) ?? [],
