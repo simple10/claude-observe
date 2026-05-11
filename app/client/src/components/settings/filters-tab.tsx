@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useFilterStore } from '@/stores/filter-store'
+import { useFilterDraftStore, type FilterDraft } from '@/stores/filter-draft-store'
 import { useUIStore } from '@/stores/ui-store'
 import { applyFilters } from '@/lib/filters/matcher'
 import type { CompiledFilter } from '@/lib/filters/types'
-import type { Filter, FilterPattern, ParsedEvent } from '@/types'
+import type { Filter, ParsedEvent } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -21,18 +22,11 @@ import { cn } from '@/lib/utils'
 
 type DisplayTab = 'primary' | 'secondary'
 
-// In-progress edits live here, keyed by filter id, so the user can
-// navigate between filters without losing work. Save / Discard removes
-// the entry; selecting a filter without an existing draft falls back to
-// the committed values on the filter itself.
-interface Draft {
-  name: string
-  pillName: string
-  pillNameAutoMirror: boolean
-  display: 'primary' | 'secondary'
-  combinator: 'and' | 'or'
-  patterns: FilterPattern[]
-}
+// In-progress edits live in filter-draft-store so the SettingsModal
+// close handler can detect them. Save / Discard removes the entry;
+// selecting a filter without an existing draft falls back to the
+// committed values on the filter itself.
+type Draft = FilterDraft
 
 function draftFromFilter(f: Filter): Draft {
   return {
@@ -50,23 +44,9 @@ export function FiltersTab() {
   const [displayTab, setDisplayTab] = useState<DisplayTab>('primary')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [drafts, setDrafts] = useState<Map<string, Draft>>(new Map())
-
-  const setDraftFor = (id: string, next: Draft) => {
-    setDrafts((prev) => {
-      const m = new Map(prev)
-      m.set(id, next)
-      return m
-    })
-  }
-  const clearDraftFor = (id: string) => {
-    setDrafts((prev) => {
-      if (!prev.has(id)) return prev
-      const m = new Map(prev)
-      m.delete(id)
-      return m
-    })
-  }
+  const drafts = useFilterDraftStore((s) => s.drafts)
+  const setDraftFor = useFilterDraftStore((s) => s.setDraft)
+  const clearDraftFor = useFilterDraftStore((s) => s.clearDraft)
 
   // Merge any in-progress draft into a filter so the sidebar reflects
   // edits (name + pattern count) before the user saves. `enabled` is

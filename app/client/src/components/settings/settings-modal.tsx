@@ -9,7 +9,18 @@ import { GeneralSettings } from './general-settings'
 import { KeyboardSettings } from './keyboard-settings'
 import { FiltersTab } from './filters-tab'
 import { useUIStore } from '@/stores/ui-store'
+import { useFilterDraftStore } from '@/stores/filter-draft-store'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { getServerHealth } from '@/lib/server-health'
 import { useDbStats } from '@/hooks/use-db-stats'
 import { formatBytes } from '@/lib/format-bytes'
@@ -31,8 +42,19 @@ export function SettingsModal() {
   const [serverInfo, setServerInfo] = useState<ServerInfo | null>(null)
   const dbStats = useDbStats(open)
 
+  const draftCount = useFilterDraftStore((s) => s.drafts.size)
+  const clearAllDrafts = useFilterDraftStore((s) => s.clearAll)
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
+
   const onOpenChange = (o: boolean) => {
-    if (!o) closeSettings()
+    if (o) return
+    if (draftCount > 0) {
+      // Intercept the close — show the AlertDialog instead. The modal
+      // stays open until the user picks Discard or Cancel.
+      setConfirmDiscardOpen(true)
+      return
+    }
+    closeSettings()
   }
 
   useEffect(() => {
@@ -136,6 +158,35 @@ export function SettingsModal() {
           </div>
         )}
       </DialogContent>
+
+      <AlertDialog open={confirmDiscardOpen} onOpenChange={setConfirmDiscardOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Discard unsaved changes to {draftCount} filter
+              {draftCount === 1 ? '' : 's'}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              You have in-progress edits that haven&apos;t been saved. Closing the modal will
+              discard them. To keep the edits, click Cancel, then Save on each filter.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={(e) => {
+                e.preventDefault()
+                clearAllDrafts()
+                setConfirmDiscardOpen(false)
+                closeSettings()
+              }}
+            >
+              Discard &amp; close
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }
