@@ -30,7 +30,7 @@ const FAKE: Filter = {
 
 describe('filter-store', () => {
   beforeEach(() => {
-    useFilterStore.setState({ filters: [], compiled: [], loaded: false })
+    useFilterStore.setState({ filters: [], compiled: [], loaded: false, dirty: false })
     vi.mocked(api.listFilters).mockReset()
     vi.mocked(api.createFilter).mockReset()
     vi.mocked(api.deleteFilter).mockReset()

@@ -31,7 +31,7 @@ function renderWithQuery(ui: React.ReactNode) {
 
 describe('FiltersTab', () => {
   beforeEach(() => {
-    useFilterStore.setState({ filters: [], compiled: [], loaded: false })
+    useFilterStore.setState({ filters: [], compiled: [], loaded: false, dirty: false })
   })
 
   test('clicking + New filter creates a user filter and selects it', async () => {

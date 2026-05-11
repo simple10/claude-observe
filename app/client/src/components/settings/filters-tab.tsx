@@ -19,7 +19,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
-import { Loader2 } from 'lucide-react'
 
 type DisplayTab = 'primary' | 'secondary'
 
@@ -282,15 +281,8 @@ function FilterEditor({
   const setDraft = (patch: Partial<Draft>) => onDraftChange({ ...current, ...patch })
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
-  // Tracks the in-flight server op so we can render the overlay AND
-  // disable the buttons. Save/Delete/Duplicate all do an HTTP round-trip
-  // plus a full-event reprocess client-side, which can stutter on large
-  // sessions — the overlay tells the user the panel is intentionally
-  // unresponsive.
-  const [busy, setBusy] = useState<null | 'saving' | 'deleting' | 'duplicating'>(null)
   useEffect(() => {
     setConfirmDeleteOpen(false)
-    setBusy(null)
   }, [filter.id])
 
   const invalidPattern = useMemo(() => {
@@ -304,41 +296,26 @@ function FilterEditor({
     return null
   }, [patterns])
 
+  // Save/Delete/Duplicate are fast now: they POST/PATCH/DELETE to the
+  // server, then mark filter-store.dirty so SettingsModal prompts a
+  // refresh on close. No event-pipeline re-pass happens, so the UI
+  // stays responsive even on large sessions.
   async function onSave() {
     if (!isUser) return
     if (invalidPattern) return
     if (!hasDraft) return
-    if (busy) return
-    setBusy('saving')
-    try {
-      await update(filter.id, { name, pillName, display, combinator, patterns })
-      onDiscard() // clears the draft once committed
-    } finally {
-      setBusy(null)
-    }
+    await update(filter.id, { name, pillName, display, combinator, patterns })
+    onDiscard() // clears the draft once committed
   }
   async function onDelete() {
-    if (busy) return
-    setBusy('deleting')
-    try {
-      await remove(filter.id)
-    } finally {
-      setBusy(null)
-    }
+    await remove(filter.id)
   }
   async function onDuplicate() {
-    if (busy) return
-    setBusy('duplicating')
-    try {
-      await duplicate(filter.id)
-    } finally {
-      setBusy(null)
-    }
+    await duplicate(filter.id)
   }
 
   return (
-    <div className="relative h-full">
-      <div className="border rounded-lg p-4 h-full flex flex-col" aria-busy={busy !== null}>
+    <div className="border rounded-lg p-4 h-full flex flex-col">
       <div className="flex items-center gap-2 mb-3">
         <span
           className={cn(
@@ -366,7 +343,7 @@ function FilterEditor({
           </span>
         ) : null}
         <div className="flex-1" />
-        <Button size="sm" variant="outline" disabled={busy !== null} onClick={onDuplicate}>
+        <Button size="sm" variant="outline" onClick={onDuplicate}>
           Duplicate
         </Button>
         {isUser ? (
@@ -374,7 +351,6 @@ function FilterEditor({
             size="sm"
             variant="outline"
             className="text-red-600 border-red-300"
-            disabled={busy !== null}
             onClick={() => setConfirmDeleteOpen(true)}
           >
             Delete
@@ -547,38 +523,17 @@ function FilterEditor({
 
       {isUser ? (
         <div className="mt-4 flex gap-2 justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!hasDraft || busy !== null}
-            onClick={onDiscard}
-          >
+          <Button variant="outline" size="sm" disabled={!hasDraft} onClick={onDiscard}>
             Discard
           </Button>
           <Button
             variant="outline"
             size="sm"
-            disabled={!hasDraft || !!invalidPattern || busy !== null}
+            disabled={!hasDraft || !!invalidPattern}
             onClick={onSave}
           >
             Save
           </Button>
-        </div>
-      ) : null}
-      </div>
-
-      {busy ? (
-        <div
-          className="absolute inset-0 z-10 flex items-center justify-center gap-3 rounded-lg bg-background/70 backdrop-blur-sm"
-          role="status"
-          aria-live="polite"
-        >
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">
-            {busy === 'saving' && 'Saving filter and re-evaluating events…'}
-            {busy === 'deleting' && 'Deleting filter and re-evaluating events…'}
-            {busy === 'duplicating' && 'Duplicating filter…'}
-          </span>
         </div>
       ) : null}
     </div>

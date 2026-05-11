@@ -9,6 +9,7 @@ import { GeneralSettings } from './general-settings'
 import { KeyboardSettings } from './keyboard-settings'
 import { FiltersTab } from './filters-tab'
 import { useUIStore } from '@/stores/ui-store'
+import { useFilterStore } from '@/stores/filter-store'
 import { useFilterDraftStore } from '@/stores/filter-draft-store'
 import { Button } from '@/components/ui/button'
 import {
@@ -44,7 +45,9 @@ export function SettingsModal() {
 
   const draftCount = useFilterDraftStore((s) => s.drafts.size)
   const clearAllDrafts = useFilterDraftStore((s) => s.clearAll)
+  const filtersDirty = useFilterStore((s) => s.dirty)
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
+  const [confirmRefreshOpen, setConfirmRefreshOpen] = useState(false)
 
   const onOpenChange = (o: boolean) => {
     if (o) return
@@ -52,6 +55,13 @@ export function SettingsModal() {
       // Intercept the close — show the AlertDialog instead. The modal
       // stays open until the user picks Discard or Cancel.
       setConfirmDiscardOpen(true)
+      return
+    }
+    if (filtersDirty) {
+      // Filter set has changed since page load. Running event pipeline
+      // pins the compiled filters from page-load time, so changes only
+      // take effect after refresh. Prompt the user.
+      setConfirmRefreshOpen(true)
       return
     }
     closeSettings()
@@ -179,10 +189,47 @@ export function SettingsModal() {
                 e.preventDefault()
                 clearAllDrafts()
                 setConfirmDiscardOpen(false)
-                closeSettings()
+                if (filtersDirty) {
+                  setConfirmRefreshOpen(true)
+                } else {
+                  closeSettings()
+                }
               }}
             >
               Discard &amp; close
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmRefreshOpen} onOpenChange={setConfirmRefreshOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Refresh page to apply filter changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Filter changes have been saved but won&apos;t affect the events shown in this session
+              until the page is refreshed. Created filters won&apos;t show pills yet, and
+              enable/disable toggles won&apos;t take effect.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                // "Close anyway" — just shut the modal; changes stay
+                // queued for the next refresh. dirty remains true.
+                setConfirmRefreshOpen(false)
+                closeSettings()
+              }}
+            >
+              Close anyway
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                window.location.reload()
+              }}
+            >
+              Refresh now
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
