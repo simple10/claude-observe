@@ -821,6 +821,20 @@ export class SqliteAdapter implements EventStore {
     return this.db.prepare(`SELECT * FROM agents WHERE id = ?`).get(agentId) || null
   }
 
+  async listFilters(): Promise<Filter[]> {
+    const rows = this.db
+      .prepare('SELECT * FROM filters ORDER BY kind, name')
+      .all() as FilterRow[]
+    return rows.map((r) => this.rowToFilter(r))
+  }
+
+  async getFilterById(id: string): Promise<Filter | null> {
+    const row = this.db.prepare('SELECT * FROM filters WHERE id = ?').get(id) as
+      | FilterRow
+      | undefined
+    return row ? this.rowToFilter(row) : null
+  }
+
   async getAgentsForSession(sessionId: string): Promise<any[]> {
     // Agents are no longer linked directly to sessions — derive the set
     // from events for this session.

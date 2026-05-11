@@ -1440,3 +1440,19 @@ describe('SqliteAdapter — repairOrphans', () => {
     expect(found.project_id).toBeNull()
   })
 })
+
+// ---------------------------------------------------------------------------
+// Filters
+// ---------------------------------------------------------------------------
+describe('filters', () => {
+  test('listFilters returns empty array when none exist', async () => {
+    const adapter = new SqliteAdapter(':memory:')
+    const filters = await adapter.listFilters()
+    expect(filters).toEqual([])
+  })
+
+  test('getFilterById returns null for missing id', async () => {
+    const adapter = new SqliteAdapter(':memory:')
+    expect(await adapter.getFilterById('nope')).toBeNull()
+  })
+})
