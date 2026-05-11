@@ -158,5 +158,42 @@ export type WSMessage =
       type: 'activity'
       data: { sessionId: string; projectId: number | null; eventId: number; ts: number }
     }
+  | { type: 'filter:created'; filter: Filter }
+  | { type: 'filter:updated'; filter: Filter }
+  | { type: 'filter:deleted'; id: string }
+  | { type: 'filter:bulk-changed' }
 
 export type WSClientMessage = { type: 'subscribe'; sessionId: string } | { type: 'unsubscribe' }
+
+// === Filters (mirror server shape) ===
+
+export type {
+  FilterTarget,
+  FilterDisplay,
+  FilterCombinator,
+  FilterKind,
+} from '@/lib/filters/types'
+import type {
+  FilterTarget,
+  FilterDisplay,
+  FilterCombinator,
+  FilterKind,
+} from '@/lib/filters/types'
+
+export interface FilterPattern {
+  target: FilterTarget
+  regex: string
+}
+
+export interface Filter {
+  id: string
+  name: string
+  pillName: string
+  display: FilterDisplay
+  combinator: FilterCombinator
+  patterns: FilterPattern[]
+  kind: FilterKind
+  enabled: boolean
+  createdAt: number
+  updatedAt: number
+}
