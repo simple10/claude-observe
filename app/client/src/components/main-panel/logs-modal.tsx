@@ -157,10 +157,12 @@ const LogsRow = memo(function LogsRow({
     <div
       data-has-match={hasMatch || undefined}
       className={cn(
-        'px-4 py-2 hover:bg-muted/30 border-l-2 transition-colors',
-        hasMatch
-          ? 'border-yellow-500/70 bg-yellow-500/[0.06] dark:bg-yellow-400/[0.04]'
-          : 'border-transparent',
+        // border-l-2 + per-side color (border-l-*) keeps the column
+        // reserved without overriding the parent's `divide-y` top
+        // border color — using the shorthand `border-*` would inherit
+        // yellow onto the divider between rows.
+        'px-4 py-2 hover:bg-muted/30 border-l-2 border-l-transparent transition-colors',
+        hasMatch && 'border-l-yellow-500/70 bg-yellow-500/[0.06] dark:bg-yellow-400/[0.04]',
       )}
     >
       <div className="flex items-center gap-2 mb-1">
