@@ -1052,3 +1052,57 @@ describe('LogsModal — Enter / Shift+Enter', () => {
     expect(screen.getByText('2/2')).toBeInTheDocument()
   })
 })
+
+describe('LogsModal — matched-row indicator', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('marks rows that contain a match with data-has-match', async () => {
+    setMockEvents([
+      makeEvent(1, { tool_name: 'Bash' }),
+      makeEvent(2, { tool_name: 'Read' }),
+      makeEvent(3, { tool_name: 'Bash' }),
+    ])
+    renderWithProviders(<LogsModal />)
+    await act(async () => {
+      fireEvent.click(screen.getByTitle(/view raw event logs/i))
+      vi.runAllTimers()
+    })
+
+    const input = screen.getByPlaceholderText(/search payloads/i)
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Bash' } })
+    })
+    await flushTimers(1100)
+
+    // Two rows contain "Bash" in their payload, one doesn't.
+    const matched = document.querySelectorAll('[data-has-match]')
+    expect(matched.length).toBe(2)
+  })
+
+  it('clears the indicator when the query is cleared', async () => {
+    setMockEvents([makeEvent(1, { tool_name: 'Bash' })])
+    renderWithProviders(<LogsModal />)
+    await act(async () => {
+      fireEvent.click(screen.getByTitle(/view raw event logs/i))
+      vi.runAllTimers()
+    })
+
+    const input = screen.getByPlaceholderText(/search payloads/i) as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Bash' } })
+    })
+    await flushTimers(1100)
+    expect(document.querySelectorAll('[data-has-match]').length).toBe(1)
+
+    await act(async () => {
+      fireEvent.change(input, { target: { value: '' } })
+    })
+    await flushTimers(0)
+    expect(document.querySelectorAll('[data-has-match]').length).toBe(0)
+  })
+})

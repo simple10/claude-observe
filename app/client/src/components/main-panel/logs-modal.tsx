@@ -113,11 +113,18 @@ function scrollMatchIntoView(range: Range, outer: HTMLElement | null) {
 type LogsRowProps = {
   event: ParsedEvent
   isCopied: boolean
+  hasMatch: boolean
   onCopy: (id: number, payload: Record<string, unknown>) => void
   registerPre: (id: number, el: HTMLPreElement | null) => void
 }
 
-const LogsRow = memo(function LogsRow({ event, isCopied, onCopy, registerPre }: LogsRowProps) {
+const LogsRow = memo(function LogsRow({
+  event,
+  isCopied,
+  hasMatch,
+  onCopy,
+  registerPre,
+}: LogsRowProps) {
   const ePayload = event.payload as Record<string, unknown> | undefined
   const toolName =
     typeof ePayload?.tool_name === 'string' ? (ePayload.tool_name as string) : null
@@ -147,7 +154,15 @@ const LogsRow = memo(function LogsRow({ event, isCopied, onCopy, registerPre }: 
   )
 
   return (
-    <div className="px-4 py-2 hover:bg-muted/30">
+    <div
+      data-has-match={hasMatch || undefined}
+      className={cn(
+        'px-4 py-2 hover:bg-muted/30 border-l-2 transition-colors',
+        hasMatch
+          ? 'border-yellow-500/70 bg-yellow-500/[0.06] dark:bg-yellow-400/[0.04]'
+          : 'border-transparent',
+      )}
+    >
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs font-mono font-medium text-primary">{event.hookName}</span>
         {toolName && (
@@ -174,6 +189,7 @@ const LogsRow = memo(function LogsRow({ event, isCopied, onCopy, registerPre }: 
           'text-[10px] font-mono leading-relaxed text-muted-foreground',
           'overflow-x-auto max-h-60 overflow-y-auto',
           'rounded bg-muted/40 p-2',
+          hasMatch && 'ring-1 ring-yellow-500/40',
         )}
       >
         {payloadJson}
@@ -204,6 +220,10 @@ export function LogsModal() {
   const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
   const [matchCount, setMatchCount] = useState(0)
   const [rebuildEpoch, setRebuildEpoch] = useState(0)
+  // Set of event ids that contain at least one match. Recomputed in
+  // Effect A. Used to tint matched rows so users can spot a match even
+  // when its text is hidden inside the <pre>'s horizontal scroll.
+  const [matchedEventIds, setMatchedEventIds] = useState<Set<number>>(() => new Set())
   const matchesRef = useRef<Match[]>([])
   const lastBuiltQueryRef = useRef('')
   const scrollOnNextPaintRef = useRef(false)
@@ -260,6 +280,7 @@ export function LogsModal() {
       setMatchCount(0)
       setCurrentMatchIndex(0)
       setRebuildEpoch((e) => e + 1)
+      setMatchedEventIds((prev) => (prev.size === 0 ? prev : new Set()))
       lastBuiltQueryRef.current = ''
       return
     }
@@ -275,6 +296,12 @@ export function LogsModal() {
         // trigger Effect B. Effect B reads matchesRef.current.
         matchesRef.current = matches
         lastBuiltQueryRef.current = committedQuery
+
+        // Set of event ids that have at least one match — drives the
+        // per-row visual indicator. Set identity changes here, but
+        // individual booleans passed to memoized rows only flip for
+        // rows whose match-presence actually changed.
+        setMatchedEventIds(new Set(matches.map((m) => m.eventId)))
 
         setMatchCount(matches.length)
         setRebuildEpoch((e) => e + 1)
@@ -590,6 +617,7 @@ export function LogsModal() {
                   key={event.id}
                   event={event}
                   isCopied={copiedId === event.id}
+                  hasMatch={matchedEventIds.has(event.id)}
                   onCopy={handleCopy}
                   registerPre={registerPre}
                 />
