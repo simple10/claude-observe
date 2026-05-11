@@ -43,14 +43,20 @@ export function FiltersTab() {
           <Button
             size="sm"
             variant={displayTab === 'primary' ? 'default' : 'ghost'}
-            onClick={() => setDisplayTab('primary')}
+            onClick={() => {
+              setDisplayTab('primary')
+              setSelectedId(null)
+            }}
           >
             Primary
           </Button>
           <Button
             size="sm"
             variant={displayTab === 'secondary' ? 'default' : 'ghost'}
-            onClick={() => setDisplayTab('secondary')}
+            onClick={() => {
+              setDisplayTab('secondary')
+              setSelectedId(null)
+            }}
           >
             Secondary
           </Button>
