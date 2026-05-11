@@ -174,6 +174,191 @@ function EmptyState() {
 }
 
 function FilterEditor({ filter }: { filter: Filter }) {
-  // Implemented in Task 7.3
-  return <pre className="text-xs">{JSON.stringify(filter, null, 2)}</pre>
+  const { update, remove, duplicate } = useFilterStore()
+  const isUser = filter.kind === 'user'
+
+  // Local form state — initialized from the filter, syncs back on save.
+  const [name, setName] = useState(filter.name)
+  const [pillName, setPillName] = useState(filter.pillName)
+  const [display, setDisplay] = useState(filter.display)
+  const [combinator, setCombinator] = useState(filter.combinator)
+  const [patterns, setPatterns] = useState(filter.patterns)
+  // Re-initialize when a different filter is selected.
+  useEffect(() => {
+    setName(filter.name)
+    setPillName(filter.pillName)
+    setDisplay(filter.display)
+    setCombinator(filter.combinator)
+    setPatterns(filter.patterns)
+  }, [filter.id])
+
+  const invalidPattern = useMemo(() => {
+    for (const p of patterns) {
+      try {
+        new RegExp(p.regex)
+      } catch (e) {
+        return (e as Error).message
+      }
+    }
+    return null
+  }, [patterns])
+
+  async function onSave() {
+    if (!isUser) return
+    if (invalidPattern) return
+    await update(filter.id, { name, pillName, display, combinator, patterns })
+  }
+
+  return (
+    <div className="border rounded-lg p-4 max-w-2xl">
+      <div className="flex items-center gap-2 mb-3">
+        <span
+          className={cn(
+            'text-[10px] font-mono px-2 py-0.5 rounded',
+            isUser ? 'bg-violet-500/20 text-violet-600' : 'bg-muted text-muted-foreground',
+          )}
+        >
+          {isUser ? 'USER' : 'DEFAULT · READ-ONLY'}
+        </span>
+        <div className="flex-1" />
+        <Button size="sm" variant="outline" onClick={() => void duplicate(filter.id)}>
+          Duplicate
+        </Button>
+        {isUser ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-red-600 border-red-300"
+            onClick={() => void remove(filter.id)}
+          >
+            Delete
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="text-xs uppercase text-muted-foreground">Filter name</label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} disabled={!isUser} />
+        </div>
+        <div>
+          <label className="text-xs uppercase text-muted-foreground">Pill name</label>
+          <Input
+            value={pillName}
+            onChange={(e) => setPillName(e.target.value)}
+            disabled={!isUser}
+            className="font-mono text-xs"
+          />
+          <div className="text-[10px] text-muted-foreground mt-1">
+            Vars: <code>{'{hookName}'}</code> <code>{'{toolName}'}</code>{' '}
+            <code>{'{bashCommand}'}</code>
+          </div>
+        </div>
+        <div>
+          <label className="text-xs uppercase text-muted-foreground">Display</label>
+          <div className="flex border rounded text-xs overflow-hidden">
+            {(['primary', 'secondary'] as const).map((d) => (
+              <button
+                key={d}
+                disabled={!isUser}
+                onClick={() => setDisplay(d)}
+                className={cn(
+                  'px-3 py-1 flex-1',
+                  display === d ? 'bg-violet-500 text-white' : 'bg-transparent',
+                )}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-3">
+        <label className="text-xs uppercase text-muted-foreground">Patterns</label>
+        <span className="text-xs text-muted-foreground">·</span>
+        <span className="text-xs text-muted-foreground">combine with:</span>
+        <div className="flex border rounded text-[10px] overflow-hidden">
+          {(['and', 'or'] as const).map((c) => (
+            <button
+              key={c}
+              disabled={!isUser}
+              onClick={() => setCombinator(c)}
+              className={cn(
+                'px-2 py-1',
+                combinator === c ? 'bg-muted-foreground text-background' : 'bg-transparent',
+              )}
+            >
+              {c.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 mt-2">
+        {patterns.map((p, i) => (
+          <div key={i} className="flex gap-2 items-center border rounded p-2">
+            <div className="flex border rounded text-[10px] overflow-hidden">
+              {(['hook', 'tool', 'payload'] as const).map((t) => (
+                <button
+                  key={t}
+                  disabled={!isUser}
+                  onClick={() =>
+                    setPatterns(patterns.map((pp, ii) => (ii === i ? { ...pp, target: t } : pp)))
+                  }
+                  className={cn(
+                    'px-2 py-1 capitalize',
+                    p.target === t ? 'bg-muted-foreground text-background' : 'bg-transparent',
+                  )}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            <Input
+              value={p.regex}
+              disabled={!isUser}
+              onChange={(e) =>
+                setPatterns(patterns.map((pp, ii) => (ii === i ? { ...pp, regex: e.target.value } : pp)))
+              }
+              className="font-mono text-xs flex-1"
+            />
+            {isUser ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-red-600"
+                onClick={() => setPatterns(patterns.filter((_, ii) => ii !== i))}
+              >
+                ×
+              </Button>
+            ) : null}
+          </div>
+        ))}
+      </div>
+
+      {isUser ? (
+        <Button
+          size="sm"
+          variant="outline"
+          className="mt-2"
+          onClick={() => setPatterns([...patterns, { target: 'hook', regex: '' }])}
+        >
+          + Add pattern
+        </Button>
+      ) : null}
+
+      {invalidPattern ? (
+        <div className="mt-3 text-xs text-red-600">Invalid regex: {invalidPattern}</div>
+      ) : null}
+
+      {isUser ? (
+        <div className="mt-4 flex gap-2 justify-end">
+          <Button variant="outline" size="sm" disabled={!!invalidPattern} onClick={onSave}>
+            Save
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  )
 }
