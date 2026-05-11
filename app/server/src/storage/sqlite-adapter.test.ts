@@ -1483,4 +1483,35 @@ describe('filters', () => {
     await adapter.deleteFilter(f.id)
     expect(await adapter.listFilters()).toEqual([])
   })
+
+  test('updateFilter patches selected fields', async () => {
+    const adapter = new SqliteAdapter(':memory:')
+    const f = await adapter.createFilter({
+      name: 'x',
+      pillName: 'x',
+      display: 'primary',
+      combinator: 'and',
+      patterns: [{ target: 'hook', regex: '.' }],
+    })
+    const updated = await adapter.updateFilter(f.id, { name: 'renamed', enabled: false })
+    expect(updated.name).toBe('renamed')
+    expect(updated.enabled).toBe(false)
+    expect(updated.pillName).toBe('x') // untouched
+  })
+
+  test('duplicateFilter creates an independent user copy with "(copy)" suffix', async () => {
+    const adapter = new SqliteAdapter(':memory:')
+    const orig = await adapter.createFilter({
+      name: 'orig',
+      pillName: 'orig',
+      display: 'primary',
+      combinator: 'and',
+      patterns: [{ target: 'hook', regex: '.' }],
+    })
+    const dup = await adapter.duplicateFilter(orig.id)
+    expect(dup.id).not.toBe(orig.id)
+    expect(dup.name).toBe('orig (copy)')
+    expect(dup.pillName).toBe('orig')
+    expect(dup.kind).toBe('user')
+  })
 })

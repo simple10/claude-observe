@@ -866,6 +866,58 @@ export class SqliteAdapter implements EventStore {
     this.db.prepare('DELETE FROM filters WHERE id = ?').run(id)
   }
 
+  async updateFilter(
+    id: string,
+    patch: Partial<{
+      name: string
+      pillName: string
+      display: 'primary' | 'secondary'
+      combinator: 'and' | 'or'
+      patterns: FilterPattern[]
+      enabled: boolean
+    }>,
+  ): Promise<Filter> {
+    const existing = await this.getFilterById(id)
+    if (!existing) throw new Error(`filter ${id} not found`)
+    const merged = {
+      name: patch.name ?? existing.name,
+      pillName: patch.pillName ?? existing.pillName,
+      display: patch.display ?? existing.display,
+      combinator: patch.combinator ?? existing.combinator,
+      patterns: patch.patterns ?? existing.patterns,
+      enabled: patch.enabled ?? existing.enabled,
+    }
+    this.db
+      .prepare(
+        `UPDATE filters
+         SET name = ?, pill_name = ?, display = ?, combinator = ?, patterns = ?, enabled = ?, updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(
+        merged.name,
+        merged.pillName,
+        merged.display,
+        merged.combinator,
+        JSON.stringify(merged.patterns),
+        merged.enabled ? 1 : 0,
+        Date.now(),
+        id,
+      )
+    return (await this.getFilterById(id)) as Filter
+  }
+
+  async duplicateFilter(id: string): Promise<Filter> {
+    const orig = await this.getFilterById(id)
+    if (!orig) throw new Error(`filter ${id} not found`)
+    return await this.createFilter({
+      name: `${orig.name} (copy)`,
+      pillName: orig.pillName,
+      display: orig.display,
+      combinator: orig.combinator,
+      patterns: orig.patterns,
+    })
+  }
+
   async getAgentsForSession(sessionId: string): Promise<any[]> {
     // Agents are no longer linked directly to sessions — derive the set
     // from events for this session.
