@@ -295,9 +295,24 @@ export function processEvent(
 
         const newStatus = hookName === 'PostToolUseFailure' ? 'failed' : 'completed'
         const resultText = extractResultText(p.tool_response)
+        // Re-evaluate filters for the merged-displayed Pre event using a
+        // synthesized raw event that includes the Post's payload (e.g.,
+        // `is_error`, `error`, `tool_response`). Without this, the Errors
+        // default — which matches on payload — never fires for tool
+        // failures because the Pre event's own payload has no error markers
+        // and the Post event is hidden via displayEventStream=false.
+        const mergedRaw: RawEvent = {
+          id: preEvent.id,
+          agentId: preEvent.agentId,
+          hookName: preEvent.hookName,
+          timestamp: preEvent.timestamp,
+          payload: { ...preEvent.payload, ...p },
+        }
+        const refreshedFilters = applyFilters(mergedRaw, preEvent.toolName, ctx.compiledFilters)
         ctx.updateEvent(preEvent.id, {
           status: newStatus,
           searchText: preEvent.searchText + ' ' + (resultText?.toLowerCase() ?? ''),
+          filters: refreshedFilters,
         })
       }
     }

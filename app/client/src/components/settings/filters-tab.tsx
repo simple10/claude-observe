@@ -247,7 +247,11 @@ function FilterEditor({ filter }: { filter: Filter }) {
             size="sm"
             variant="outline"
             className="text-red-600 border-red-300"
-            onClick={() => void remove(filter.id)}
+            onClick={() => {
+              if (window.confirm(`Delete filter "${filter.name}"? This cannot be undone.`)) {
+                void remove(filter.id)
+              }
+            }}
           >
             Delete
           </Button>

@@ -53,8 +53,9 @@ export const useFilterStore = create<FilterStore>((set, get) => ({
 
   create: async (input) => {
     const f = await api.createFilter(input)
-    // Server broadcast will land via WS; but apply locally now for snappy UX.
-    set((s) => setFilters(s, [...s.filters, f]))
+    // Use the same upsert-by-id path as the WS broadcast handler so a
+    // racing `filter:created` broadcast can't double-insert.
+    get().upsertFromBroadcast(f)
     return f
   },
 
@@ -81,7 +82,8 @@ export const useFilterStore = create<FilterStore>((set, get) => ({
 
   duplicate: async (id) => {
     const f = await api.duplicateFilter(id)
-    set((s) => setFilters(s, [...s.filters, f]))
+    // Same dedup reasoning as `create` above.
+    get().upsertFromBroadcast(f)
     return f
   },
 

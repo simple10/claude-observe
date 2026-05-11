@@ -100,3 +100,13 @@
   background-color: rgb(249 115 22 / 0.75);
   color: black;
 }
+
+/* Pointer cursor on the interactive bits the user can click/toggle.
+   - `[data-filter-pill]` matches both filter-bar pill rows.
+   - Checkboxes and the All button (which sets type="button" implicitly)
+     pick up via `input[type='checkbox']` + `button:not([disabled])`. */
+[data-filter-pill],
+button:not([disabled]):not([data-no-pointer]),
+input[type='checkbox']:not([disabled]) {
+  cursor: pointer;
+}
