@@ -5,18 +5,24 @@ import type { CompiledFilter, CompiledPattern } from './types'
  * Wrap a user-authored regex source so it's anchored at the start with
  * a non-greedy "skip" prefix. Critical because the matcher runs against
  * JSON-stringified events (kilobytes long), and an unanchored pattern
- * like `.*h` makes V8 retry at every start position and backtrack
- * catastrophically — O(N^2) per call.
+ * like `h` would make V8 retry at every start position — O(N^2) per
+ * call.
  *
  * The wrap preserves "matches anywhere in the string" semantics:
  *   user regex `is_error`        →  `^.*?(?:is_error)`
  *   user regex `foo|bar`         →  `^.*?(?:foo|bar)`  (alternation scoped)
  *
- * If the user explicitly anchored with `^`, leave it alone — they want
- * "starts with" semantics and we shouldn't second-guess them.
+ * Two cases skip the wrap:
+ *  - User explicitly anchored with `^` — respect their intent.
+ *  - User's pattern already starts with `.*`, `.+`, `.*?`, or `.+?`.
+ *    They've expressed "match anywhere at start" themselves; wrapping
+ *    with another `.*?` would create a doubly-backtracking prefix
+ *    (e.g. `^.*?(?:.*Test)`) and trigger O(N^2) on payloads that don't
+ *    contain the target literal. Just anchor it directly with `^`.
  */
 export function wrapWithAnchor(source: string): string {
   if (source.startsWith('^')) return source
+  if (/^\.[*+]\??/.test(source)) return `^${source}`
   return `^.*?(?:${source})`
 }
 

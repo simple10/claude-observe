@@ -53,6 +53,15 @@ describe('compileFilters', () => {
     expect(wrapWithAnchor('^(PreToolUse|PostToolUse)$')).toBe('^(PreToolUse|PostToolUse)$')
   })
 
+  test('avoids double-backtracking prefix when user starts with .*/.+', () => {
+    // Without this guard, `.*Test` would wrap to `^.*?(?:.*Test)`, where
+    // V8 would backtrack catastrophically on no-match strings.
+    expect(wrapWithAnchor('.*Test')).toBe('^.*Test')
+    expect(wrapWithAnchor('.+word')).toBe('^.+word')
+    expect(wrapWithAnchor('.*?lazy')).toBe('^.*?lazy')
+    expect(wrapWithAnchor('.+?lazy')).toBe('^.+?lazy')
+  })
+
   test('compiled regex preserves "matches anywhere" semantics after wrap', () => {
     const out = compileFilters([f({ patterns: [{ target: 'payload', regex: 'is_error' }] })])
     expect(out[0].patterns[0].regex.test('{"foo":1,"is_error":true}')).toBe(true)
