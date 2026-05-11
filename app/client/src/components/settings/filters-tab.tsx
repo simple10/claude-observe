@@ -218,7 +218,7 @@ function FilterEditor({ filter }: { filter: Filter }) {
   }
 
   return (
-    <div className="border rounded-lg p-4 max-w-2xl">
+    <div className="border rounded-lg p-4 h-full flex flex-col">
       <div className="flex items-center gap-2 mb-3">
         <span
           className={cn(
