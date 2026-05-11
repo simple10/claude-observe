@@ -118,14 +118,8 @@ export class EventStore {
    * one applyFilters call per event, no agent-class re-derivation, no
    * dedup pairing. Merged events use their stored `mergedPayload` so
    * filter matches stay consistent with the merge-time computation.
-   *
-   * Events whose .filters arrays come out identical to before are left
-   * with their existing object reference, and if NO event changed at
-   * all we don't even reset the top-level array — so a New-Filter click
-   * with an inert regex (`^$`) costs N regex tests and zero re-renders.
    */
   private reapplyFiltersInPlace(): void {
-    let anyChanged = false
     for (let i = 0; i < this.events.length; i++) {
       const e = this.events[i]
       const synthRaw: RawEvent = {
@@ -136,10 +130,6 @@ export class EventStore {
         payload: e.mergedPayload ?? e.payload,
       }
       const next = applyFilters(synthRaw, e.toolName, this.compiledFilters)
-      if (sameNames(e.filters.primary, next.primary) && sameNames(e.filters.secondary, next.secondary)) {
-        continue
-      }
-      anyChanged = true
       const updated = { ...e, filters: next }
       this.events[i] = updated
       this.eventById.set(e.id, updated)
@@ -147,9 +137,8 @@ export class EventStore {
       this.updateIndexReference(this.turnIndex, e.turnId, e, updated)
       this.updateIndexReference(this.agentIndex, e.agentId, e, updated)
     }
-    if (anyChanged) {
-      this.events = [...this.events]
-    }
+    // New top-level array reference so React detects the change.
+    this.events = [...this.events]
   }
 
   /**
@@ -282,11 +271,4 @@ export class EventStore {
     this.pendingUpdates = []
     this.lastProcessedCount = 0
   }
-}
-
-function sameNames(a: readonly string[], b: readonly string[]): boolean {
-  if (a === b) return true
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
-  return true
 }
