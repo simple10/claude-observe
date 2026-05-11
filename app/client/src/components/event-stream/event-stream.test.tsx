@@ -4,7 +4,9 @@ import { renderWithProviders } from '@/test/test-utils'
 import { EventStream } from './event-stream'
 import { EventProcessingProvider } from '@/agents/event-processing-context'
 import { useUIStore } from '@/stores/ui-store'
-import type { ParsedEvent, Agent } from '@/types'
+import { useFilterStore } from '@/stores/filter-store'
+import { compileFilters } from '@/lib/filters/compile'
+import type { ParsedEvent, Agent, Filter } from '@/types'
 
 // Register agent classes (must happen before any rendering)
 import '@/agents/init'
@@ -41,6 +43,46 @@ function setMockEvents(events: ParsedEvent[]) {
 function setMockAgents(agents: Agent[]) {
   mockAgents.length = 0
   mockAgents.push(...agents)
+}
+
+/**
+ * Initialize filter store with seed filters so that applyFilters can populate
+ * event.filters.primary and event.filters.secondary during event processing.
+ */
+function initializeFilterStore() {
+  const seedFilters: Filter[] = [
+    {
+      id: 'default-dynamic-tool-name',
+      name: 'Dynamic tool name',
+      pillName: '{toolName}',
+      display: 'secondary',
+      combinator: 'and',
+      patterns: [
+        { target: 'hook', regex: '^(PreToolUse|PostToolUse|PostToolUseFailure|PostToolBatch)$' },
+      ],
+      kind: 'default',
+      enabled: true,
+      createdAt: 0,
+      updatedAt: 0,
+    },
+    {
+      id: 'default-prompts',
+      name: 'Prompts',
+      pillName: 'Prompts',
+      display: 'primary',
+      combinator: 'and',
+      patterns: [{ target: 'hook', regex: '^(UserPromptSubmit|UserPromptExpansion)$' }],
+      kind: 'default',
+      enabled: true,
+      createdAt: 0,
+      updatedAt: 0,
+    },
+  ]
+  useFilterStore.setState({
+    filters: seedFilters,
+    compiled: compileFilters(seedFilters),
+    loaded: true,
+  })
 }
 
 /**
@@ -114,6 +156,7 @@ function renderEventStream() {
 beforeEach(() => {
   setMockEvents([])
   setMockAgents([])
+  initializeFilterStore()
 
   // Reset UI store
   useUIStore.setState({
