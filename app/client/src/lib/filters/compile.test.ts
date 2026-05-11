@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest'
-import { compileFilters } from './compile'
+import { compileFilters, wrapWithAnchor } from './compile'
 import type { Filter } from '@/types'
 
 function f(opts: Partial<Filter>): Filter {
@@ -41,5 +41,28 @@ describe('compileFilters', () => {
     const b = f({ id: 'b', name: 'b' })
     const out = compileFilters([a, b])
     expect(out.map((c) => c.id)).toEqual(['a', 'b'])
+  })
+
+  test('auto-anchors unanchored user regexes for safety', () => {
+    expect(wrapWithAnchor('is_error')).toBe('^.*?(?:is_error)')
+    expect(wrapWithAnchor('foo|bar')).toBe('^.*?(?:foo|bar)')
+  })
+
+  test('preserves explicit ^-anchored patterns verbatim', () => {
+    expect(wrapWithAnchor('^Stop$')).toBe('^Stop$')
+    expect(wrapWithAnchor('^(PreToolUse|PostToolUse)$')).toBe('^(PreToolUse|PostToolUse)$')
+  })
+
+  test('compiled regex preserves "matches anywhere" semantics after wrap', () => {
+    const out = compileFilters([f({ patterns: [{ target: 'payload', regex: 'is_error' }] })])
+    expect(out[0].patterns[0].regex.test('{"foo":1,"is_error":true}')).toBe(true)
+    expect(out[0].patterns[0].regex.test('{"foo":1}')).toBe(false)
+  })
+
+  test('compiled regex from alternation correctly groups', () => {
+    const out = compileFilters([f({ patterns: [{ target: 'tool', regex: 'Bash|Read' }] })])
+    expect(out[0].patterns[0].regex.test('Bash')).toBe(true)
+    expect(out[0].patterns[0].regex.test('Read')).toBe(true)
+    expect(out[0].patterns[0].regex.test('Edit')).toBe(false)
   })
 })

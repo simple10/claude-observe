@@ -4,6 +4,7 @@ import { useFilterStore } from '@/stores/filter-store'
 import { useFilterDraftStore, type FilterDraft } from '@/stores/filter-draft-store'
 import { useUIStore } from '@/stores/ui-store'
 import { applyFilters } from '@/lib/filters/matcher'
+import { wrapWithAnchor } from '@/lib/filters/compile'
 import type { CompiledFilter } from '@/lib/filters/types'
 import type { Filter, ParsedEvent } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -316,7 +317,7 @@ function FilterEditor({
 
   return (
     <div className="border rounded-lg p-4 h-full flex flex-col">
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
         <span
           className={cn(
             'text-[10px] font-mono px-2 py-0.5 rounded',
@@ -343,6 +344,21 @@ function FilterEditor({
           </span>
         ) : null}
         <div className="flex-1" />
+        {isUser && hasDraft ? (
+          <Button variant="outline" size="sm" onClick={onDiscard}>
+            Discard
+          </Button>
+        ) : null}
+        {isUser ? (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!hasDraft || !!invalidPattern}
+            onClick={onSave}
+          >
+            Save
+          </Button>
+        ) : null}
         <Button size="sm" variant="outline" onClick={onDuplicate}>
           Duplicate
         </Button>
@@ -383,6 +399,7 @@ function FilterEditor({
         </AlertDialogContent>
       </AlertDialog>
 
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
       <div className="grid grid-cols-3 gap-3">
         <div>
           <label className="text-xs uppercase text-muted-foreground">Filter name</label>
@@ -520,22 +537,7 @@ function FilterEditor({
       {invalidPattern ? (
         <div className="mt-3 text-xs text-red-600">Invalid regex: {invalidPattern}</div>
       ) : null}
-
-      {isUser ? (
-        <div className="mt-4 flex gap-2 justify-end">
-          <Button variant="outline" size="sm" disabled={!hasDraft} onClick={onDiscard}>
-            Discard
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!hasDraft || !!invalidPattern}
-            onClick={onSave}
-          >
-            Save
-          </Button>
-        </div>
-      ) : null}
+      </div>
     </div>
   )
 }
@@ -553,16 +555,31 @@ function LivePreview({
 }) {
   const queryClient = useQueryClient()
   const sessionId = useUIStore((s) => s.selectedSessionId)
+  const [enabled, setEnabled] = useState(true)
   const [debounced, setDebounced] = useState({ pillName, display, combinator, patterns })
 
+  // 500ms debounce on input changes — only fires when preview is on.
   useEffect(() => {
-    const id = setTimeout(() => setDebounced({ pillName, display, combinator, patterns }), 300)
+    if (!enabled) return
+    const id = setTimeout(() => setDebounced({ pillName, display, combinator, patterns }), 500)
     return () => clearTimeout(id)
-  }, [pillName, display, combinator, patterns])
+  }, [enabled, pillName, display, combinator, patterns])
+
+  // Pre-cache the stringified events. Rebuilds only when the events
+  // array reference changes (new event arrived), not on every keystroke.
+  // This avoids paying JSON.stringify for the full event list on each
+  // test run.
+  const events = useMemo(
+    () => (sessionId ? (queryClient.getQueryData<ParsedEvent[]>(['events', sessionId]) ?? []) : []),
+    [queryClient, sessionId],
+  )
+  const eventStrings = useMemo(() => {
+    if (!enabled) return null
+    return events.map((e) => JSON.stringify(e))
+  }, [events, enabled])
 
   const count = useMemo(() => {
-    if (!sessionId) return null
-    const events = queryClient.getQueryData<ParsedEvent[]>(['events', sessionId]) ?? []
+    if (!enabled || !sessionId || !eventStrings) return null
     let compiled: CompiledFilter
     try {
       compiled = {
@@ -573,36 +590,48 @@ function LivePreview({
         combinator: debounced.combinator,
         patterns: debounced.patterns.map((p) => ({
           target: p.target,
-          regex: new RegExp(p.regex),
+          regex: new RegExp(wrapWithAnchor(p.regex)),
         })),
       }
     } catch {
       return null
     }
     let total = 0
-    for (const e of events) {
+    for (let i = 0; i < events.length; i++) {
+      const e = events[i]
       // We're outside the agent-class pipeline, so derive toolName from
-      // payload.tool_name (matches claude-code's deriveToolName behavior
-      // for the live-preview common case).
+      // payload.tool_name (matches claude-code's deriveToolName for the
+      // live-preview common case).
       const p = e.payload as Record<string, unknown> | undefined
       const tn = p?.tool_name
       const toolName = typeof tn === 'string' ? tn : null
-      const out = applyFilters(e, toolName, [compiled])
+      const out = applyFilters(e, toolName, [compiled], eventStrings[i])
       total += out.primary.length + out.secondary.length
     }
     return total
-  }, [queryClient, sessionId, debounced])
+  }, [enabled, events, eventStrings, sessionId, debounced])
 
-  if (count === null) {
-    return (
-      <div className="mt-3 p-2 rounded text-xs bg-muted text-muted-foreground">
-        Open a session to see live match counts
-      </div>
-    )
-  }
+  const label = !enabled
+    ? 'Preview disabled'
+    : !sessionId
+      ? 'Preview: open a session to count matches'
+      : count == null
+        ? 'Preview: invalid regex'
+        : `Preview: ${count} matches across loaded events`
+
+  const boxClass = enabled
+    ? 'mt-3 p-2 rounded text-xs bg-green-500/10 border border-green-500/30 text-green-700 dark:text-green-400'
+    : 'mt-3 p-2 rounded text-xs bg-muted text-muted-foreground'
+
   return (
-    <div className="mt-3 p-2 rounded text-xs bg-green-500/10 border border-green-500/30 text-green-700 dark:text-green-400">
-      <span className="font-semibold">{count} matches</span> across loaded events
-    </div>
+    <label className={cn(boxClass, 'flex items-center gap-2 cursor-pointer')}>
+      <input
+        type="checkbox"
+        checked={enabled}
+        onChange={(e) => setEnabled(e.target.checked)}
+        className="h-3 w-3"
+      />
+      <span>{label}</span>
+    </label>
   )
 }

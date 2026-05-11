@@ -39,10 +39,19 @@ export function applyFilters(
   raw: RawEvent,
   toolName: string | null,
   compiled: readonly CompiledFilter[],
+  /**
+   * Optional pre-stringified version of `raw`. When provided, the
+   * matcher uses it for payload-target regex tests instead of running
+   * `JSON.stringify(raw)` here. Caller is responsible for using a
+   * stable, semantically-equivalent stringification — typically a
+   * cached `JSON.stringify(event)` from upstream. Lets LivePreview
+   * stringify once per session and reuse across many test runs.
+   */
+  prestringified?: string,
 ): { primary: string[]; secondary: string[] } {
   if (compiled.length === 0) return { primary: [], secondary: [] }
 
-  let payloadText: string | null = null
+  let payloadText: string | null = prestringified ?? null
   const getPayload = () => payloadText ?? (payloadText = JSON.stringify(raw))
 
   const primary: string[] = []
