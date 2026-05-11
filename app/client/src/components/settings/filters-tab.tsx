@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useFilterStore } from '@/stores/filter-store'
-import type { Filter } from '@/types'
+import { useUIStore } from '@/stores/ui-store'
+import { applyFilters } from '@/lib/filters/matcher'
+import type { CompiledFilter } from '@/lib/filters/types'
+import type { Filter, ParsedEvent } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -95,8 +99,15 @@ export function FiltersTab() {
           <Button
             size="sm"
             className="w-full"
-            onClick={() => {
-              /* TODO Task 7.4 */
+            onClick={async () => {
+              const f = await useFilterStore.getState().create({
+                name: 'New filter',
+                pillName: 'New filter',
+                display: displayTab,
+                combinator: 'and',
+                patterns: [{ target: 'hook', regex: '.+' }],
+              })
+              setSelectedId(f.id)
             }}
           >
             + New filter
@@ -348,6 +359,13 @@ function FilterEditor({ filter }: { filter: Filter }) {
         </Button>
       ) : null}
 
+      <LivePreview
+        pillName={pillName}
+        display={display}
+        combinator={combinator}
+        patterns={patterns}
+      />
+
       {invalidPattern ? (
         <div className="mt-3 text-xs text-red-600">Invalid regex: {invalidPattern}</div>
       ) : null}
@@ -359,6 +377,73 @@ function FilterEditor({ filter }: { filter: Filter }) {
           </Button>
         </div>
       ) : null}
+    </div>
+  )
+}
+
+function LivePreview({
+  pillName,
+  display,
+  combinator,
+  patterns,
+}: {
+  pillName: string
+  display: 'primary' | 'secondary'
+  combinator: 'and' | 'or'
+  patterns: { target: 'hook' | 'tool' | 'payload'; regex: string }[]
+}) {
+  const queryClient = useQueryClient()
+  const sessionId = useUIStore((s) => s.selectedSessionId)
+  const [debounced, setDebounced] = useState({ pillName, display, combinator, patterns })
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced({ pillName, display, combinator, patterns }), 300)
+    return () => clearTimeout(id)
+  }, [pillName, display, combinator, patterns])
+
+  const count = useMemo(() => {
+    if (!sessionId) return null
+    const events = queryClient.getQueryData<ParsedEvent[]>(['events', sessionId]) ?? []
+    let compiled: CompiledFilter
+    try {
+      compiled = {
+        id: 'preview',
+        name: 'preview',
+        pillName: debounced.pillName,
+        display: debounced.display,
+        combinator: debounced.combinator,
+        patterns: debounced.patterns.map((p) => ({
+          target: p.target,
+          regex: new RegExp(p.regex),
+        })),
+      }
+    } catch {
+      return null
+    }
+    let total = 0
+    for (const e of events) {
+      // We're outside the agent-class pipeline, so derive toolName from
+      // payload.tool_name (matches claude-code's deriveToolName behavior
+      // for the live-preview common case).
+      const p = e.payload as Record<string, unknown> | undefined
+      const tn = p?.tool_name
+      const toolName = typeof tn === 'string' ? tn : null
+      const out = applyFilters(e, toolName, [compiled])
+      total += out.primary.length + out.secondary.length
+    }
+    return total
+  }, [queryClient, sessionId, debounced])
+
+  if (count === null) {
+    return (
+      <div className="mt-3 p-2 rounded text-xs bg-muted text-muted-foreground">
+        Open a session to see live match counts
+      </div>
+    )
+  }
+  return (
+    <div className="mt-3 p-2 rounded text-xs bg-green-500/10 border border-green-500/30 text-green-700 dark:text-green-400">
+      <span className="font-semibold">{count} matches</span> across loaded events
     </div>
   )
 }
