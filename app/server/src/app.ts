@@ -8,6 +8,7 @@ import type { EventStore } from './storage/types'
 import { config } from './config'
 
 import eventsRouter from './routes/events'
+import filtersRouter from './routes/filters'
 import projectsRouter from './routes/projects'
 import sessionsRouter from './routes/sessions'
 import agentsRouter from './routes/agents'
@@ -56,6 +57,7 @@ export function createApp(
   app.route('/api', callbacksRouter)
   app.route('/api', notificationsRouter)
   app.route('/api', changelogRouter)
+  app.route('/api', filtersRouter)
 
   // Global error handler — catches any uncaught exception from a route
   // handler and returns a JSON error response so the UI can surface it
