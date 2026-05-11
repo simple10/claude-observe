@@ -11,6 +11,8 @@ import type {
   StoredEvent,
   OrphanRepairResult,
 } from './types'
+import type { Filter, FilterRow, FilterPattern } from '../types'
+import { randomUUID } from 'node:crypto'
 
 export class SqliteAdapter implements EventStore {
   private db: Database.Database
@@ -363,6 +365,21 @@ export class SqliteAdapter implements EventStore {
         PRAGMA foreign_keys=ON;
       `)
     }
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS filters (
+        id          TEXT PRIMARY KEY,
+        name        TEXT NOT NULL,
+        pill_name   TEXT NOT NULL,
+        display     TEXT NOT NULL CHECK(display IN ('primary','secondary')),
+        combinator  TEXT NOT NULL CHECK(combinator IN ('and','or')) DEFAULT 'and',
+        patterns    TEXT NOT NULL,
+        kind        TEXT NOT NULL CHECK(kind IN ('default','user')),
+        enabled     INTEGER NOT NULL DEFAULT 1,
+        created_at  INTEGER NOT NULL,
+        updated_at  INTEGER NOT NULL
+      )
+    `)
 
     // Create indexes
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug)')
@@ -1162,6 +1179,21 @@ export class SqliteAdapter implements EventStore {
       return { ok: true }
     } catch (err: any) {
       return { ok: false, error: err.message || 'Unknown database error' }
+    }
+  }
+
+  private rowToFilter(row: FilterRow): Filter {
+    return {
+      id: row.id,
+      name: row.name,
+      pillName: row.pill_name,
+      display: row.display as 'primary' | 'secondary',
+      combinator: row.combinator as 'and' | 'or',
+      patterns: JSON.parse(row.patterns),
+      kind: row.kind as 'default' | 'user',
+      enabled: row.enabled === 1,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
     }
   }
 }
