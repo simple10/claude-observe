@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.9.3 — Searchable logs, three-layer contract refactor, worktree-aware projects, and performance improvements
+
+This release paves the way for adding full support for other agents like Codex and OpenClaw/Hermes.
+
+Release includes a major three-layer architectural refactor that cleanly separates the wire envelope, server, and client. Worktree sessions now automatically route into their parent project, and a wave of client-side fetch deduping noticeably reduces network chatter and improves performance.
+
+### Features
+
+- New Setup and PostToolBatch claude hook events
+- Added search to the raw event logs modal
+- Worktree sessions are now routed into their existing parent project
+- Added a global event icon registry with per-event customization
+- Added an Unassigned bucket in the sidebar for sessions without a project
+- Sidebar now shows live activity pings via broadcast pulse animation
+- Stop and SubagentStop events display runtime in both the row summary and detail pane, with date tooltips on rows
+- Settings modal UX cleanup with a new db-size footer
+
+### Fixes
+
+- Sidebar Unassigned bucket now refreshes after session mutations
+- Event count now displays on non-active sidebar session rows
+- Fixed nested-button HTML when a SessionRow had a notification
+- Errors and Config static filters now work correctly
+- Agent parent/child relationships are now derived from events
+- Tooltips no longer re-open on tab reactivation
+- Resolved API call regressions including a lazy-fetch storm and cache thrash
+- Skipped no-op agent metadata PATCHes and removed unnecessary polling on session/project queries
+
+### Other
+
+- Refactor: completed the three-layer contract migration across schema, server, and client (Phases 1–8), including rewritten hook libs for default/claude-code/codex agents, locked envelope types, and trimmed wire shapes
+- Docs and cleanup: added three-layer contract spec and plan, graduated implemented designs, removed dead endpoints and DB columns, and re-flowed whitespace via prettier
+
 ## v0.9.2 — Keyboard navigation, Settings overhaul, and timeline perf
 
 This release significantly enhances CPU usage, adds keyboard navigation, and adds a rebuilt Settings experience featuring Projects, Labels, and Sessions management tabs. Session view gains region-jump shortcuts, arrow-key navigation in the sidebar and filter pills, and a smoother rewind-mode transition experience.
