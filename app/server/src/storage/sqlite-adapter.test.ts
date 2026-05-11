@@ -1445,12 +1445,6 @@ describe('SqliteAdapter — repairOrphans', () => {
 // Filters
 // ---------------------------------------------------------------------------
 describe('filters', () => {
-  test('listFilters returns empty array when none exist', async () => {
-    const adapter = new SqliteAdapter(':memory:')
-    const filters = await adapter.listFilters()
-    expect(filters).toEqual([])
-  })
-
   test('getFilterById returns null for missing id', async () => {
     const adapter = new SqliteAdapter(':memory:')
     expect(await adapter.getFilterById('nope')).toBeNull()
@@ -1468,7 +1462,8 @@ describe('filters', () => {
     expect(f.kind).toBe('user')
     expect(f.enabled).toBe(true)
     expect(f.id).toMatch(/^[0-9a-f-]{36}$/) // UUID
-    expect((await adapter.listFilters()).length).toBe(1)
+    const userFilters = (await adapter.listFilters()).filter((x) => x.kind === 'user')
+    expect(userFilters.length).toBe(1)
   })
 
   test('deleteFilter removes the row', async () => {
@@ -1481,7 +1476,8 @@ describe('filters', () => {
       patterns: [{ target: 'hook', regex: '.' }],
     })
     await adapter.deleteFilter(f.id)
-    expect(await adapter.listFilters()).toEqual([])
+    const userFilters = (await adapter.listFilters()).filter((x) => x.kind === 'user')
+    expect(userFilters).toEqual([])
   })
 
   test('updateFilter patches selected fields', async () => {

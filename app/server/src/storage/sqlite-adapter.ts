@@ -405,6 +405,8 @@ export class SqliteAdapter implements EventStore {
     this.db.exec(
       'CREATE INDEX IF NOT EXISTS idx_sessions_transcript_path ON sessions(transcript_path)',
     )
+
+    this.runSeedDefaults()
   }
 
   async createProject(slug: string, name: string): Promise<number> {
@@ -919,7 +921,7 @@ export class SqliteAdapter implements EventStore {
     })
   }
 
-  async seedDefaultFilters(): Promise<void> {
+  private runSeedDefaults(): void {
     const insert = this.db.prepare(
       `INSERT INTO filters (id, name, pill_name, display, combinator, patterns, kind, enabled, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, 'default', 1, ?, ?)
@@ -947,6 +949,10 @@ export class SqliteAdapter implements EventStore {
       }
     })
     tx()
+  }
+
+  async seedDefaultFilters(): Promise<void> {
+    this.runSeedDefaults()
   }
 
   async resetDefaultFilters(): Promise<Filter[]> {
