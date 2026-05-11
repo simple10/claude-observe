@@ -7,6 +7,16 @@ import type { CompiledFilter } from '@/lib/filters/types'
 import type { Filter, ParsedEvent } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 
 type DisplayTab = 'primary' | 'secondary'
@@ -200,6 +210,7 @@ function FilterEditor({ filter }: { filter: Filter }) {
   const [display, setDisplay] = useState(filter.display)
   const [combinator, setCombinator] = useState(filter.combinator)
   const [patterns, setPatterns] = useState(filter.patterns)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   // Re-initialize when a different filter is selected.
   useEffect(() => {
     setName(filter.name)
@@ -208,6 +219,7 @@ function FilterEditor({ filter }: { filter: Filter }) {
     setDisplay(filter.display)
     setCombinator(filter.combinator)
     setPatterns(filter.patterns)
+    setConfirmDeleteOpen(false)
   }, [filter.id])
 
   const invalidPattern = useMemo(() => {
@@ -247,16 +259,37 @@ function FilterEditor({ filter }: { filter: Filter }) {
             size="sm"
             variant="outline"
             className="text-red-600 border-red-300"
-            onClick={() => {
-              if (window.confirm(`Delete filter "${filter.name}"? This cannot be undone.`)) {
-                void remove(filter.id)
-              }
-            }}
+            onClick={() => setConfirmDeleteOpen(true)}
           >
             Delete
           </Button>
         ) : null}
       </div>
+
+      <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete filter “{filter.name}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the filter. Events that currently match it will lose their
+              “{filter.pillName}” pill. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={(e) => {
+                e.preventDefault()
+                void remove(filter.id)
+                setConfirmDeleteOpen(false)
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="grid grid-cols-3 gap-3">
         <div>
