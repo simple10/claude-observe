@@ -25,6 +25,9 @@ function pickIconId(hookName: string, toolName: string | null): string {
     }
     return map[toolName ?? ''] ?? 'ToolDefault'
   }
+  // PostToolBatch isn't tied to a single tool, but it lives in the Tools
+  // group in the icon UI — map the hookName to the Tool-prefixed id.
+  if (hookName === 'PostToolBatch') return 'ToolBatch'
   return EVENT_ICON_REGISTRY[hookName] ? hookName : 'Default'
 }
 
@@ -46,10 +49,12 @@ const LABELS: Record<string, string> = {
   PreToolUse: 'Tool',
   PostToolUse: 'Tool',
   PostToolUseFailure: 'Tool',
+  PostToolBatch: 'Batch',
   UserPromptSubmit: 'Prompt',
   UserPromptExpansion: 'PromptExp',
   Stop: 'Stop',
   StopFailure: 'Stop',
+  Setup: 'Setup',
   SessionStart: 'Session',
   SessionEnd: 'Session',
   SubagentStart: 'SubStart',
@@ -107,7 +112,8 @@ function getFilterTags(
     return { static: 'Agents', dynamic: [] }
   if (hookName === 'TaskCreated' || hookName === 'TaskCompleted')
     return { static: 'Tasks', dynamic: [] }
-  if (hookName === 'SessionStart' || hookName === 'SessionEnd')
+  if (hookName === 'PostToolBatch') return { static: 'Tools', dynamic: [] }
+  if (hookName === 'Setup' || hookName === 'SessionStart' || hookName === 'SessionEnd')
     return { static: 'Session', dynamic: [] }
   if (
     hookName === 'Stop' ||

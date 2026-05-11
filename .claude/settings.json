@@ -7,6 +7,28 @@
     "AGENTS_OBSERVE_NOTIFICATION_ON_EVENTS": "Stop,Notification"
   },
   "hooks": {
+    "Setup": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PROJECT_DIR/hooks/scripts/hook.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolBatch": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PROJECT_DIR/hooks/scripts/hook.sh"
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "",

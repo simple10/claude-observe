@@ -84,6 +84,10 @@ export function getEventSummary(
       if (name) return args ? `/${name} ${oneLine(args)}` : `/${name}`
       return oneLine(p.prompt || '')
     }
+    case 'Setup': {
+      const trigger = typeof p.trigger === 'string' ? p.trigger : null
+      return trigger ? `Setup (${trigger})` : 'Setup'
+    }
     case 'SessionStart':
       return p.source ? `Session ${p.source}` : 'New session'
     case 'SessionEnd':
@@ -107,6 +111,17 @@ export function getEventSummary(
       return getToolSummary(toolName, p.tool_input, cwd)
     case 'PostToolUseFailure':
       return oneLine(p.error || getToolSummary(toolName, p.tool_input, cwd) || 'Tool failed')
+    case 'PostToolBatch': {
+      const uses = Array.isArray(p.tool_uses) ? (p.tool_uses as Array<Record<string, any>>) : []
+      if (uses.length === 0) return 'Tool batch'
+      const names = uses.map((u) => u?.tool_name).filter((n): n is string => typeof n === 'string')
+      const failed = uses.filter((u) => u?.status === 'failure').length
+      const head =
+        names.length <= 3
+          ? names.join(', ')
+          : `${names.slice(0, 3).join(', ')} +${names.length - 3}`
+      return failed > 0 ? `${head} (${failed} failed)` : head
+    }
     case 'PermissionRequest': {
       const tool = p.tool_name as string | undefined
       const desc = p.tool_input?.description as string | undefined

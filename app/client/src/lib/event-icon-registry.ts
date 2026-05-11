@@ -31,6 +31,8 @@ import {
   Trash,
   Pin,
   Plug,
+  Hammer,
+  Layers,
 } from 'lucide-react'
 import { resolveIconName } from '@/lib/dynamic-icon'
 import { getIconCustomization, COLOR_PRESETS } from '@/hooks/use-icon-customizations'
@@ -143,8 +145,22 @@ export const EVENT_ICON_REGISTRY: Record<string, EventIconEntry> = {
     icon: Wrench,
     defaultColor: BLUE,
   },
+  ToolBatch: {
+    id: 'ToolBatch',
+    name: 'Tool Batch',
+    group: 'Tools',
+    icon: Layers,
+    defaultColor: BLUE,
+  },
 
   // ---- Session lifecycle ----------------------------------------------
+  Setup: {
+    id: 'Setup',
+    name: 'Setup',
+    group: 'Session',
+    icon: Hammer,
+    defaultColor: YELLOW,
+  },
   SessionStart: {
     id: 'SessionStart',
     name: 'Session Start',
