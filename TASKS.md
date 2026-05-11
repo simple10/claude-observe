@@ -2,20 +2,8 @@
 
 ## QUEUED TASKS
 
-(empty)
-
-## COMPLETED TASKS
-
-- [x] Tweak pinned sessions UI: right-align events pill, hide cwd (tooltip/click only)
-- [x] Remove project highlighting from sidebar (folder chevron is enough)
-- [x] Add session edit modal (sidebar pencil + scope-bar pencil open modal with details, rename, delete, move, clear logs)
-- [x] Replace ScopeBar delete button with edit icon (opens session edit modal)
-- [x] Add transcript_path to agents table
-- [x] Enhance events stream expanded summaries (description + Read file.content)
-- [x] Show SubagentStop with the Stop filter
-- [x] Add AGENTS_OBSERVE_SHUTDOWN_DELAY_MS env var, refactor isDev to config
-- [x] Audit editable data auto-update (pinned sessions, breadcrumb, project names)
-- [x] Guard against orphaned sessions (FK auto-repair + startup orphan repair)
+- [ ] Add support for setting session slug to session_title whenever session_title is in the payload and slug is empty
+  - Might be best as UI only?
 
 ---
 
