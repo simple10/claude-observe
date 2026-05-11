@@ -1455,4 +1455,32 @@ describe('filters', () => {
     const adapter = new SqliteAdapter(':memory:')
     expect(await adapter.getFilterById('nope')).toBeNull()
   })
+
+  test('createFilter inserts a user-kind row with a generated UUID', async () => {
+    const adapter = new SqliteAdapter(':memory:')
+    const f = await adapter.createFilter({
+      name: 'task_completed',
+      pillName: 'task_completed',
+      display: 'primary',
+      combinator: 'and',
+      patterns: [{ target: 'hook', regex: '^Stop$' }],
+    })
+    expect(f.kind).toBe('user')
+    expect(f.enabled).toBe(true)
+    expect(f.id).toMatch(/^[0-9a-f-]{36}$/) // UUID
+    expect((await adapter.listFilters()).length).toBe(1)
+  })
+
+  test('deleteFilter removes the row', async () => {
+    const adapter = new SqliteAdapter(':memory:')
+    const f = await adapter.createFilter({
+      name: 'x',
+      pillName: 'x',
+      display: 'primary',
+      combinator: 'and',
+      patterns: [{ target: 'hook', regex: '.' }],
+    })
+    await adapter.deleteFilter(f.id)
+    expect(await adapter.listFilters()).toEqual([])
+  })
 })

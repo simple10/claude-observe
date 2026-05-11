@@ -835,6 +835,37 @@ export class SqliteAdapter implements EventStore {
     return row ? this.rowToFilter(row) : null
   }
 
+  async createFilter(input: {
+    name: string
+    pillName: string
+    display: 'primary' | 'secondary'
+    combinator: 'and' | 'or'
+    patterns: FilterPattern[]
+  }): Promise<Filter> {
+    const id = randomUUID()
+    const now = Date.now()
+    this.db
+      .prepare(
+        `INSERT INTO filters (id, name, pill_name, display, combinator, patterns, kind, enabled, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'user', 1, ?, ?)`,
+      )
+      .run(
+        id,
+        input.name,
+        input.pillName,
+        input.display,
+        input.combinator,
+        JSON.stringify(input.patterns),
+        now,
+        now,
+      )
+    return (await this.getFilterById(id)) as Filter
+  }
+
+  async deleteFilter(id: string): Promise<void> {
+    this.db.prepare('DELETE FROM filters WHERE id = ?').run(id)
+  }
+
   async getAgentsForSession(sessionId: string): Promise<any[]> {
     // Agents are no longer linked directly to sessions — derive the set
     // from events for this session.
