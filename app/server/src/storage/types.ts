@@ -1,5 +1,7 @@
 // app/server/src/storage/types.ts
 
+import type { Filter } from '../types'
+
 export interface InsertEventParams {
   agentId: string
   sessionId: string
@@ -139,6 +141,32 @@ export interface EventStore {
    * Returns a summary of what was repaired.
    */
   repairOrphans(): Promise<OrphanRepairResult>
+  // === Filters ===
+  listFilters(): Promise<Filter[]>
+  getFilterById(id: string): Promise<Filter | null>
+  createFilter(input: {
+    name: string
+    pillName: string
+    display: 'primary' | 'secondary'
+    combinator: 'and' | 'or'
+    patterns: { target: 'hook' | 'tool' | 'payload'; regex: string }[]
+  }): Promise<Filter>
+  updateFilter(
+    id: string,
+    patch: Partial<{
+      name: string
+      pillName: string
+      display: 'primary' | 'secondary'
+      combinator: 'and' | 'or'
+      patterns: { target: 'hook' | 'tool' | 'payload'; regex: string }[]
+      enabled: boolean
+    }>,
+  ): Promise<Filter>
+  deleteFilter(id: string): Promise<void>
+  duplicateFilter(id: string): Promise<Filter>
+  resetDefaultFilters(): Promise<Filter[]>
+  /** Idempotent. Inserts missing defaults; updates name/pill_name/display/combinator/patterns of existing rows; never touches enabled. */
+  seedDefaultFilters(): Promise<void>
 }
 
 export interface OrphanRepairResult {
