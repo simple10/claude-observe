@@ -301,17 +301,22 @@ export function processEvent(
         // default — which matches on payload — never fires for tool
         // failures because the Pre event's own payload has no error markers
         // and the Post event is hidden via displayEventStream=false.
+        // Also store the merged payload on the Pre event so a later
+        // filter-only re-pass (e.g. user saves a new filter rule) can
+        // reproduce the same match without needing to re-walk the pair.
+        const mergedPayload = { ...preEvent.payload, ...p }
         const mergedRaw: RawEvent = {
           id: preEvent.id,
           agentId: preEvent.agentId,
           hookName: preEvent.hookName,
           timestamp: preEvent.timestamp,
-          payload: { ...preEvent.payload, ...p },
+          payload: mergedPayload,
         }
         const refreshedFilters = applyFilters(mergedRaw, preEvent.toolName, ctx.compiledFilters)
         ctx.updateEvent(preEvent.id, {
           status: newStatus,
           searchText: preEvent.searchText + ' ' + (resultText?.toLowerCase() ?? ''),
+          mergedPayload,
           filters: refreshedFilters,
         })
       }

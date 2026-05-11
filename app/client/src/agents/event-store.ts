@@ -1,5 +1,7 @@
 import type { Agent } from '@/types'
 import type { EnrichedEvent, RawEvent, ProcessingContext, FrameworkDataApi } from './types'
+import type { CompiledFilter } from '@/lib/filters/types'
+import { applyFilters } from '@/lib/filters/matcher'
 import { AgentRegistry } from './registry'
 
 /**
@@ -45,18 +47,35 @@ export class EventStore {
   // Track what we've already processed to enable incremental updates
   private lastProcessedCount = 0
   private lastDedupEnabled = true
+  private lastRawEvents: RawEvent[] | null = null
 
   /**
    * Process raw events. Automatically detects whether to do a full
-   * reprocess or incremental append based on what changed.
+   * reprocess, a filter-only reapply, an incremental append, or a no-op.
    */
   process(
     rawEvents: RawEvent[],
     dedupEnabled: boolean,
-    compiledFilters: readonly import('@/lib/filters/types').CompiledFilter[],
+    compiledFilters: readonly CompiledFilter[],
   ): EnrichedEvent[] {
-    // Full reprocess needed if any of: dedup toggled, compiled filter
-    // set changed reference, events were replaced (not appended).
+    // Fast path: only `compiledFilters` changed. Re-run applyFilters on
+    // each enriched event in place — skipping the entire agent-class
+    // enrichment pipeline (toolName derivation, dedup pairing, slot
+    // computation, summary, etc.) which is what makes full reprocesses
+    // expensive on large sessions.
+    const onlyFiltersChanged =
+      rawEvents === this.lastRawEvents &&
+      dedupEnabled === this.lastDedupEnabled &&
+      compiledFilters !== this.lastCompiledFilters &&
+      this.events.length > 0
+
+    if (onlyFiltersChanged) {
+      this.compiledFilters = compiledFilters
+      this.lastCompiledFilters = compiledFilters
+      this.reapplyFiltersInPlace()
+      return this.events
+    }
+
     const needsFullReprocess =
       dedupEnabled !== this.lastDedupEnabled ||
       compiledFilters !== this.lastCompiledFilters ||
@@ -75,6 +94,7 @@ export class EventStore {
         this.processOne(raw)
       }
       this.lastProcessedCount = rawEvents.length
+      this.lastRawEvents = rawEvents
       return this.events
     }
 
@@ -87,8 +107,38 @@ export class EventStore {
       this.processOne(raw)
     }
     this.lastProcessedCount = rawEvents.length
+    this.lastRawEvents = rawEvents
     this.events = [...this.events]
     return this.events
+  }
+
+  /**
+   * Patch event.filters on every existing enriched event using the
+   * current compiledFilters set. Cheap relative to a full reprocess:
+   * one applyFilters call per event, no agent-class re-derivation, no
+   * dedup pairing. Merged events use their stored `mergedPayload` so
+   * filter matches stay consistent with the merge-time computation.
+   */
+  private reapplyFiltersInPlace(): void {
+    for (let i = 0; i < this.events.length; i++) {
+      const e = this.events[i]
+      const synthRaw: RawEvent = {
+        id: e.id,
+        agentId: e.agentId,
+        hookName: e.hookName,
+        timestamp: e.timestamp,
+        payload: e.mergedPayload ?? e.payload,
+      }
+      const next = applyFilters(synthRaw, e.toolName, this.compiledFilters)
+      const updated = { ...e, filters: next }
+      this.events[i] = updated
+      this.eventById.set(e.id, updated)
+      this.updateIndexReference(this.groupIndex, e.groupId, e, updated)
+      this.updateIndexReference(this.turnIndex, e.turnId, e, updated)
+      this.updateIndexReference(this.agentIndex, e.agentId, e, updated)
+    }
+    // New top-level array reference so React detects the change.
+    this.events = [...this.events]
   }
 
   /**

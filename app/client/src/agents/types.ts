@@ -51,6 +51,15 @@ export interface EnrichedEvent {
 
   // Original payload (same reference, no copy)
   payload: Record<string, unknown>
+
+  /** Optional payload override used by `applyFilters` when re-running
+   *  filters on an existing enriched event. Set by the agent class's
+   *  merge step (e.g. PreToolUse merged with PostToolUseFailure) so the
+   *  combined view of the pair stays visible to filters across rule
+   *  changes. Left undefined for unmerged events — reapply falls back
+   *  to `payload`. The detail view still renders `payload` so users see
+   *  the unmerged data. */
+  mergedPayload?: Record<string, unknown>
 }
 
 // ---------------------------------------------------------------------------
