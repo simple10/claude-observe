@@ -19,11 +19,7 @@ function resolveVar(name: string, raw: RawEvent, toolName: string | null): strin
   }
 }
 
-function resolvePillName(
-  template: string,
-  raw: RawEvent,
-  toolName: string | null,
-): string | null {
+function resolvePillName(template: string, raw: RawEvent, toolName: string | null): string | null {
   if (!template.includes('{')) return template
   let nullSeen = false
   const out = template.replace(VAR_RE, (_, key) => {
@@ -76,7 +72,6 @@ export function applyFilters(
 
     const pillName = resolvePillName(f.pillName, raw, toolName)
     if (pillName == null) continue
-
     ;(f.display === 'primary' ? primary : secondary).push(pillName)
   }
   return { primary, secondary }

@@ -145,15 +145,7 @@ function Section({
   )
 }
 
-function Row({
-  f,
-  selected,
-  onSelect,
-}: {
-  f: Filter
-  selected: boolean
-  onSelect: () => void
-}) {
+function Row({ f, selected, onSelect }: { f: Filter; selected: boolean; onSelect: () => void }) {
   const { update } = useFilterStore()
   return (
     <button
@@ -191,9 +183,7 @@ function FilterEditor({ filter }: { filter: Filter }) {
   // Local form state — initialized from the filter, syncs back on save.
   const [name, setName] = useState(filter.name)
   const [pillName, setPillName] = useState(filter.pillName)
-  const [pillNameAutoMirror, setPillNameAutoMirror] = useState(
-    filter.name === filter.pillName,
-  )
+  const [pillNameAutoMirror, setPillNameAutoMirror] = useState(filter.name === filter.pillName)
   const [display, setDisplay] = useState(filter.display)
   const [combinator, setCombinator] = useState(filter.combinator)
   const [patterns, setPatterns] = useState(filter.patterns)
@@ -345,7 +335,9 @@ function FilterEditor({ filter }: { filter: Filter }) {
               value={p.regex}
               disabled={!isUser}
               onChange={(e) =>
-                setPatterns(patterns.map((pp, ii) => (ii === i ? { ...pp, regex: e.target.value } : pp)))
+                setPatterns(
+                  patterns.map((pp, ii) => (ii === i ? { ...pp, regex: e.target.value } : pp)),
+                )
               }
               className="font-mono text-xs flex-1"
             />

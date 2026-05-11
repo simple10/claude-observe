@@ -225,6 +225,5 @@ export const api = {
     fetchVoid(`/filters/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   duplicateFilter: (id: string) =>
     fetchJson<Filter>(`/filters/${encodeURIComponent(id)}/duplicate`, { method: 'POST' }),
-  resetDefaultFilters: () =>
-    fetchJson<Filter[]>(`/filters/defaults/reset`, { method: 'POST' }),
+  resetDefaultFilters: () => fetchJson<Filter[]>(`/filters/defaults/reset`, { method: 'POST' }),
 }

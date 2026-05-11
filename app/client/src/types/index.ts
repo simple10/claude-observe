@@ -167,18 +167,8 @@ export type WSClientMessage = { type: 'subscribe'; sessionId: string } | { type:
 
 // === Filters (mirror server shape) ===
 
-export type {
-  FilterTarget,
-  FilterDisplay,
-  FilterCombinator,
-  FilterKind,
-} from '@/lib/filters/types'
-import type {
-  FilterTarget,
-  FilterDisplay,
-  FilterCombinator,
-  FilterKind,
-} from '@/lib/filters/types'
+export type { FilterTarget, FilterDisplay, FilterCombinator, FilterKind } from '@/lib/filters/types'
+import type { FilterTarget, FilterDisplay, FilterCombinator, FilterKind } from '@/lib/filters/types'
 
 export interface FilterPattern {
   target: FilterTarget

@@ -60,13 +60,23 @@ export const useFilterStore = create<FilterStore>((set, get) => ({
 
   update: async (id, patch) => {
     const f = await api.updateFilter(id, patch)
-    set((s) => setFilters(s, s.filters.map((x) => (x.id === id ? f : x))))
+    set((s) =>
+      setFilters(
+        s,
+        s.filters.map((x) => (x.id === id ? f : x)),
+      ),
+    )
     return f
   },
 
   remove: async (id) => {
     await api.deleteFilter(id)
-    set((s) => setFilters(s, s.filters.filter((x) => x.id !== id)))
+    set((s) =>
+      setFilters(
+        s,
+        s.filters.filter((x) => x.id !== id),
+      ),
+    )
   },
 
   duplicate: async (id) => {
@@ -87,16 +97,18 @@ export const useFilterStore = create<FilterStore>((set, get) => ({
   upsertFromBroadcast: (f) => {
     set((s) => {
       const idx = s.filters.findIndex((x) => x.id === f.id)
-      const next =
-        idx === -1
-          ? [...s.filters, f]
-          : s.filters.map((x, i) => (i === idx ? f : x))
+      const next = idx === -1 ? [...s.filters, f] : s.filters.map((x, i) => (i === idx ? f : x))
       return setFilters(s, next)
     })
   },
 
   removeFromBroadcast: (id) => {
-    set((s) => setFilters(s, s.filters.filter((x) => x.id !== id)))
+    set((s) =>
+      setFilters(
+        s,
+        s.filters.filter((x) => x.id !== id),
+      ),
+    )
   },
 
   bulkChangedFromBroadcast: async () => {
