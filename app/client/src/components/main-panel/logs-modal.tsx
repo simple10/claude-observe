@@ -129,8 +129,7 @@ const LogsRow = memo(function LogsRow({
   registerPre,
 }: LogsRowProps) {
   const ePayload = event.payload as Record<string, unknown> | undefined
-  const toolName =
-    typeof ePayload?.tool_name === 'string' ? (ePayload.tool_name as string) : null
+  const toolName = typeof ePayload?.tool_name === 'string' ? (ePayload.tool_name as string) : null
 
   const setPreRef = useCallback(
     (el: HTMLPreElement | null) => registerPre(event.id, el),
@@ -140,10 +139,7 @@ const LogsRow = memo(function LogsRow({
   // JSON.stringify dominates the per-render cost on large sessions.
   // Memoize per event so LogsModal re-renders (typing, etc.) don't
   // re-serialize.
-  const payloadJson = useMemo(
-    () => JSON.stringify(event.payload, null, 2),
-    [event.payload],
-  )
+  const payloadJson = useMemo(() => JSON.stringify(event.payload, null, 2), [event.payload])
 
   const timeStr = useMemo(
     () =>
@@ -189,11 +185,7 @@ const LogsRow = memo(function LogsRow({
           onClick={() => onCopy(event.id, event.payload as Record<string, unknown>)}
           title="Copy payload"
         >
-          {isCopied ? (
-            <Check className="h-3 w-3 text-green-500" />
-          ) : (
-            <Copy className="h-3 w-3" />
-          )}
+          {isCopied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
         </button>
       </div>
       <pre

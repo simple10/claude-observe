@@ -825,9 +825,7 @@ export class SqliteAdapter implements EventStore {
   }
 
   async listFilters(): Promise<Filter[]> {
-    const rows = this.db
-      .prepare('SELECT * FROM filters ORDER BY kind, name')
-      .all() as FilterRow[]
+    const rows = this.db.prepare('SELECT * FROM filters ORDER BY kind, name').all() as FilterRow[]
     return rows.map((r) => this.rowToFilter(r))
   }
 

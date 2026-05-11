@@ -1117,10 +1117,7 @@ describe('LogsModal — jump-to-event', () => {
   })
 
   it('closes the modal and sets scrollToEventId when the link icon is clicked', async () => {
-    setMockEvents([
-      makeEvent(1, { tool_name: 'Bash' }),
-      makeEvent(2, { tool_name: 'Read' }),
-    ])
+    setMockEvents([makeEvent(1, { tool_name: 'Bash' }), makeEvent(2, { tool_name: 'Read' })])
     renderWithProviders(<LogsModal />)
     await act(async () => {
       fireEvent.click(screen.getByTitle(/view raw event logs/i))
