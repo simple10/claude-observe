@@ -22,6 +22,7 @@ import {
   Search,
   ChevronUp,
   ChevronDown,
+  ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ParsedEvent } from '@/types'
@@ -115,6 +116,7 @@ type LogsRowProps = {
   isCopied: boolean
   hasMatch: boolean
   onCopy: (id: number, payload: Record<string, unknown>) => void
+  onJump: (id: number) => void
   registerPre: (id: number, el: HTMLPreElement | null) => void
 }
 
@@ -123,6 +125,7 @@ const LogsRow = memo(function LogsRow({
   isCopied,
   hasMatch,
   onCopy,
+  onJump,
   registerPre,
 }: LogsRowProps) {
   const ePayload = event.payload as Record<string, unknown> | undefined
@@ -167,6 +170,14 @@ const LogsRow = memo(function LogsRow({
     >
       <div className="flex items-center gap-2 mb-1">
         <span className="text-xs font-mono font-medium text-primary">{event.hookName}</span>
+        <button
+          className="text-muted-foreground/70 dark:text-muted-foreground/50 hover:text-foreground transition-colors cursor-pointer"
+          onClick={() => onJump(event.id)}
+          title="Jump to this event in the stream"
+          aria-label="Jump to this event in the stream"
+        >
+          <ExternalLink className="h-3 w-3" />
+        </button>
         {toolName && (
           <span className="text-xs font-mono text-blue-700 dark:text-blue-400">{toolName}</span>
         )}
@@ -174,7 +185,7 @@ const LogsRow = memo(function LogsRow({
           {timeStr}
         </span>
         <button
-          className="text-muted-foreground/70 dark:text-muted-foreground/50 hover:text-foreground transition-colors"
+          className="text-muted-foreground/70 dark:text-muted-foreground/50 hover:text-foreground transition-colors cursor-pointer"
           onClick={() => onCopy(event.id, event.payload as Record<string, unknown>)}
           title="Copy payload"
         >
@@ -202,6 +213,7 @@ const LogsRow = memo(function LogsRow({
 
 export function LogsModal() {
   const { selectedSessionId } = useUIStore()
+  const setScrollToEventId = useUIStore((s) => s.setScrollToEventId)
   const { data: events } = useEvents(selectedSessionId)
   const [copiedId, setCopiedId] = useState<number | null>(null)
   const [copiedAll, setCopiedAll] = useState(false)
@@ -242,6 +254,17 @@ export function LogsModal() {
     if (el) preRefs.current.set(id, el)
     else preRefs.current.delete(id)
   }, [])
+
+  // Close the modal and ask the event-stream view to scroll the given
+  // event into view. Stable identity so the memoized row doesn't
+  // re-render on every parent re-render.
+  const handleJump = useCallback(
+    (id: number) => {
+      setScrollToEventId(id)
+      setOpen(false)
+    },
+    [setScrollToEventId],
+  )
 
   // On first open, defer the heavy event list into a transition so
   // the modal shell (with spinner) paints immediately.
@@ -621,6 +644,7 @@ export function LogsModal() {
                   isCopied={copiedId === event.id}
                   hasMatch={matchedEventIds.has(event.id)}
                   onCopy={handleCopy}
+                  onJump={handleJump}
                   registerPre={registerPre}
                 />
               ))}

@@ -1106,3 +1106,39 @@ describe('LogsModal — matched-row indicator', () => {
     expect(document.querySelectorAll('[data-has-match]').length).toBe(0)
   })
 })
+
+describe('LogsModal — jump-to-event', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    useUIStore.setState({ selectedSessionId: 'sess-1', scrollToEventId: null })
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('closes the modal and sets scrollToEventId when the link icon is clicked', async () => {
+    setMockEvents([
+      makeEvent(1, { tool_name: 'Bash' }),
+      makeEvent(2, { tool_name: 'Read' }),
+    ])
+    renderWithProviders(<LogsModal />)
+    await act(async () => {
+      fireEvent.click(screen.getByTitle(/view raw event logs/i))
+      vi.runAllTimers()
+    })
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    // Two rows = two jump buttons. Click the second one.
+    const jumpButtons = screen.getAllByTitle(/jump to this event in the stream/i)
+    expect(jumpButtons.length).toBe(2)
+    await act(async () => {
+      fireEvent.click(jumpButtons[1])
+      vi.runAllTimers()
+    })
+
+    // Modal closed
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // Store updated to the clicked event's id
+    expect(useUIStore.getState().scrollToEventId).toBe(2)
+  })
+})
