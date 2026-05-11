@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import type { ParsedEvent, Agent } from '@/types'
+import type { CompiledFilter } from '@/lib/filters/types'
 
 // ---------------------------------------------------------------------------
 // Raw event — what the server returns (unchanged)
@@ -39,6 +40,11 @@ export interface EnrichedEvent {
     static: string | null // category: 'Prompts', 'Tools', 'Agents', etc. (null if hidden)
     dynamic: string[] // specific filters: ['Bash'], ['Read'], etc.
   }
+  /** Pill names (deduped) for primary and secondary filter rows. */
+  filters: {
+    primary: string[]
+    secondary: string[]
+  }
   searchText: string
 
   // Whether this event was processed with dedup enabled
@@ -57,6 +63,8 @@ export interface EnrichedEvent {
 export interface ProcessingContext {
   // Settings
   dedupEnabled: boolean
+  /** User + default filters compiled into RegExp form, ready for applyFilters. */
+  compiledFilters: readonly CompiledFilter[]
 
   // Read
   /** Look up the canonical Agent row by id. Returns undefined if the
