@@ -6,6 +6,7 @@ import type {
   ServerAgent,
   ParsedEvent,
   NotificationPayload,
+  Filter,
 } from '@/types'
 
 /**
@@ -191,4 +192,39 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionIds }),
     }),
+  listFilters: () => fetchJson<Filter[]>('/filters'),
+  createFilter: (input: {
+    name: string
+    pillName: string
+    display: 'primary' | 'secondary'
+    combinator: 'and' | 'or'
+    patterns: { target: 'hook' | 'tool' | 'payload'; regex: string }[]
+  }) =>
+    fetchJson<Filter>('/filters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    }),
+  updateFilter: (
+    id: string,
+    patch: Partial<{
+      name: string
+      pillName: string
+      display: 'primary' | 'secondary'
+      combinator: 'and' | 'or'
+      patterns: { target: 'hook' | 'tool' | 'payload'; regex: string }[]
+      enabled: boolean
+    }>,
+  ) =>
+    fetchJson<Filter>(`/filters/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    }),
+  deleteFilter: (id: string) =>
+    fetchVoid(`/filters/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  duplicateFilter: (id: string) =>
+    fetchJson<Filter>(`/filters/${encodeURIComponent(id)}/duplicate`, { method: 'POST' }),
+  resetDefaultFilters: () =>
+    fetchJson<Filter[]>(`/filters/defaults/reset`, { method: 'POST' }),
 }
