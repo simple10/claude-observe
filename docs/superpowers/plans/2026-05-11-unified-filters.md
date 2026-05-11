@@ -1797,7 +1797,7 @@ import type {
 
 - [ ] **Step 2: Append filter methods inside the `api` object**
 
-The existing `bulkDeleteSessions: …` entry (around line 193) currently ends with `})` (no trailing comma) followed by the closing `}` of the `api` object on the next line. Add a trailing comma after the `})` so the new entries can be appended cleanly, then insert the new entries before the closing `}`:
+The existing `bulkDeleteSessions: …` entry (around line 193) already ends with `}),` (closing `)` of `fetchJson` + closing `}` of its options object + trailing comma) followed by the closing `}` of the `api` object on the next line. Insert the new entries between the trailing `,` of `bulkDeleteSessions` and the closing `}`:
 
 ```ts
   // ↑ existing bulkDeleteSessions: …}),
@@ -2130,19 +2130,29 @@ End state: `processEvent` populates `event.filters` via `applyFilters`. Existing
 
 - [ ] **Step 1: Add the field next to filterTags**
 
-Find the `EnrichedEvent` interface (line 16). The existing `filterTags` block has inline comments — preserve them exactly. **Add** the new `filters` field directly below `filterTags` (don't delete `filterTags` yet — Phase 5/6 does that). Use the `Edit` tool with old_string matching the existing block including comments:
+Find the `EnrichedEvent` interface (line 16). The existing `filterTags` block has inline comments — preserve them exactly. **Add** the new `filters` field directly below `filterTags` (don't delete `filterTags` yet — Phase 5/6 does that).
 
-```ts
-  filterTags: {
-    static: string | null // category: 'Prompts', 'Tools', 'Agents', etc. (null if hidden)
-    dynamic: string[] // specific filters: ['Bash'], ['Read'], etc.
-  }
-  /** Pill names (deduped) for primary and secondary filter rows. */
-  filters: {
-    primary: string[]
-    secondary: string[]
-  }
-```
+Use the `Edit` tool with:
+
+- `old_string`: the exact 4 lines of the existing `filterTags` block:
+  ```ts
+    filterTags: {
+      static: string | null // category: 'Prompts', 'Tools', 'Agents', etc. (null if hidden)
+      dynamic: string[] // specific filters: ['Bash'], ['Read'], etc.
+    }
+  ```
+- `new_string`: those same 4 lines followed by the new `filters` block:
+  ```ts
+    filterTags: {
+      static: string | null // category: 'Prompts', 'Tools', 'Agents', etc. (null if hidden)
+      dynamic: string[] // specific filters: ['Bash'], ['Read'], etc.
+    }
+    /** Pill names (deduped) for primary and secondary filter rows. */
+    filters: {
+      primary: string[]
+      secondary: string[]
+    }
+  ```
 
 - [ ] **Step 2: Add `compiledFilters` to `ProcessingContext`**
 
@@ -2167,7 +2177,7 @@ import type { CompiledFilter } from '@/lib/filters/types'
 cd app/client && npx tsc --noEmit 2>&1 | head -20
 ```
 
-Expected: errors in `default/index.tsx`, `claude-code/process-event.ts`, `codex/...`, and `event-store.ts` — they don't yet set `filters` or use `compiledFilters`. Fixed in the next tasks.
+Expected: errors in `default/index.tsx`, `claude-code/process-event.ts`, and `event-store.ts` — they don't yet set `filters` or use `compiledFilters`. Fixed in the next tasks.
 
 - [ ] **Step 4: Commit**
 
@@ -2200,7 +2210,7 @@ In `app/client/src/agents/event-store.ts`, find the existing private-field block
   private dedupEnabled = true
 ```
 
-Add two new private fields immediately below `private dedupEnabled = true`:
+Add two new private fields immediately after the `private dedupEnabled = true` line (before the comment block that follows):
 
 ```ts
   private compiledFilters: readonly import('@/lib/filters/types').CompiledFilter[] = []
@@ -2415,7 +2425,7 @@ Use the `Edit` tool with `old_string` set to the single existing `filterTags: ge
 cd app/client && npx tsc --noEmit 2>&1 | head -10
 ```
 
-Expected: errors only in `default/index.tsx` and `codex/process-event.ts`.
+Expected: errors only in `default/index.tsx` (which Task 4.5 fixes).
 
 - [ ] **Step 4: Commit**
 
@@ -3520,6 +3530,7 @@ git commit -m "feat: auto-mirror filter name to pill name until user edits pill 
 ```tsx
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { FiltersTab } from './filters-tab'
 import { useFilterStore } from '@/stores/filter-store'
 
@@ -3541,10 +3552,12 @@ vi.mock('@/lib/api-client', () => ({
   },
 }))
 
-// Stub the processing context provider for the LivePreview component.
-vi.mock('@/agents/event-processing-context', () => ({
-  useProcessedEvents: () => ({ events: [] }),
-}))
+// FiltersTab renders LivePreview, which calls useQueryClient(). Wrap the
+// render in a QueryClientProvider so the hook resolves to a real client.
+function renderWithQuery(ui: React.ReactNode) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>)
+}
 
 describe('FiltersTab', () => {
   beforeEach(() => {
@@ -3552,7 +3565,7 @@ describe('FiltersTab', () => {
   })
 
   test('clicking + New filter creates a user filter and selects it', async () => {
-    render(<FiltersTab />)
+    renderWithQuery(<FiltersTab />)
     // Wait for load() to complete (mocked empty list).
     await act(async () => {})
 
