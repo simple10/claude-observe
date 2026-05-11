@@ -9,10 +9,10 @@ import { focusSiblingMatching } from '@/lib/keyboard-nav'
 
 export function EventFilterBar() {
   const {
-    activeStaticFilters,
-    activeToolFilters,
-    toggleStaticFilter,
-    toggleToolFilter,
+    activePrimaryFilters,
+    activeSecondaryFilters,
+    togglePrimaryFilter,
+    toggleSecondaryFilter,
     clearAllFilters,
     searchQuery,
     setSearchQuery,
@@ -85,7 +85,7 @@ export function EventFilterBar() {
     return m
   }, [filters])
 
-  const hasAnyFilter = activeStaticFilters.length > 0 || activeToolFilters.length > 0
+  const hasAnyFilter = activePrimaryFilters.length > 0 || activeSecondaryFilters.length > 0
 
   return (
     <div
@@ -143,7 +143,7 @@ export function EventFilterBar() {
             All
           </button>
           {primaryNames.map((category) => {
-            const isActive = activeStaticFilters.includes(category)
+            const isActive = activePrimaryFilters.includes(category)
             const isUser = pillKindByName.get(category) === 'user'
             return (
               <button
@@ -160,7 +160,7 @@ export function EventFilterBar() {
                       ? 'bg-secondary text-secondary-foreground border-violet-500/40 hover:bg-accent'
                       : 'bg-secondary text-secondary-foreground border-primary/40 hover:bg-accent',
                 )}
-                onClick={() => toggleStaticFilter(category)}
+                onClick={() => togglePrimaryFilter(category)}
               >
                 {category}
               </button>
@@ -207,7 +207,7 @@ export function EventFilterBar() {
       {secondaryNames.length > 0 && (
         <div className="flex items-center gap-1 flex-wrap">
           {secondaryNames.map((name) => {
-            const isActive = activeToolFilters.includes(name)
+            const isActive = activeSecondaryFilters.includes(name)
             const isUser = pillKindByName.get(name) === 'user'
             return (
               <button
@@ -224,7 +224,7 @@ export function EventFilterBar() {
                       ? 'border-blue-500 bg-blue-500/15 text-blue-700 dark:text-blue-400'
                       : 'border-border text-muted-foreground hover:border-blue-500/50 hover:text-foreground',
                 )}
-                onClick={() => toggleToolFilter(name)}
+                onClick={() => toggleSecondaryFilter(name)}
               >
                 {name}
               </button>

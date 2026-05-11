@@ -163,8 +163,8 @@ beforeEach(() => {
     selectedProjectId: 1,
     selectedSessionId: 'sess-1',
     selectedAgentIds: [],
-    activeStaticFilters: [],
-    activeToolFilters: [],
+    activePrimaryFilters: [],
+    activeSecondaryFilters: [],
     searchQuery: '',
     autoFollow: true,
     expandedEventIds: new Set(),
@@ -351,7 +351,7 @@ describe('EventStream', () => {
 
   // ── Static/tool filter application ────────────────────────
 
-  it('should apply static filters to events', () => {
+  it('should apply primary filters to events', () => {
     setMockEvents([
       makeEvent({
         id: 1,
@@ -369,7 +369,7 @@ describe('EventStream', () => {
     setMockAgents([makeAgent({ id: 'agent-1' })])
 
     // Only show Prompts
-    useUIStore.setState({ activeStaticFilters: ['Prompts'] })
+    useUIStore.setState({ activePrimaryFilters: ['Prompts'] })
 
     renderEventStream()
 
@@ -377,7 +377,7 @@ describe('EventStream', () => {
     expect(screen.queryByText('Session cli')).not.toBeInTheDocument()
   })
 
-  it('should apply tool name filters to events', () => {
+  it('should apply secondary filters to events', () => {
     setMockEvents([
       makeEvent({
         id: 1,
@@ -397,7 +397,7 @@ describe('EventStream', () => {
     setMockAgents([makeAgent({ id: 'agent-1' })])
 
     // Only show Bash tools
-    useUIStore.setState({ activeToolFilters: ['Bash'] })
+    useUIStore.setState({ activeSecondaryFilters: ['Bash'] })
 
     renderEventStream()
 
@@ -428,7 +428,7 @@ describe('EventStream', () => {
     setMockAgents([makeAgent({ id: 'agent-1' })])
 
     // Filter to only Prompts (1 visible out of 2 raw)
-    useUIStore.setState({ activeStaticFilters: ['Prompts'] })
+    useUIStore.setState({ activePrimaryFilters: ['Prompts'] })
 
     renderEventStream()
 

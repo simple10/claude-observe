@@ -41,14 +41,14 @@ function updateHash(projectSlug: string | null, sessionId: string | null) {
 }
 
 interface SessionFilterState {
-  activeStaticFilters: string[]
-  activeToolFilters: string[]
+  activePrimaryFilters: string[]
+  activeSecondaryFilters: string[]
   searchQuery: string
 }
 
 const DEFAULT_FILTER_STATE: SessionFilterState = {
-  activeStaticFilters: [],
-  activeToolFilters: [],
+  activePrimaryFilters: [],
+  activeSecondaryFilters: [],
   searchQuery: '',
 }
 
@@ -69,12 +69,12 @@ interface UIState {
   toggleAgentId: (id: string) => void
   removeAgentId: (id: string) => void
 
-  activeStaticFilters: string[] // labels from STATIC_FILTERS
-  activeToolFilters: string[] // tool names from dynamic filters
+  activePrimaryFilters: string[] // labels from primary filters
+  activeSecondaryFilters: string[] // tool names from secondary filters
   searchQuery: string
   sessionFilterStates: Map<string, SessionFilterState> // per-session filter state
-  toggleStaticFilter: (label: string) => void
-  toggleToolFilter: (toolName: string) => void
+  togglePrimaryFilter: (label: string) => void
+  toggleSecondaryFilter: (toolName: string) => void
   clearAllFilters: () => void
   setSearchQuery: (query: string) => void
 
@@ -282,8 +282,8 @@ export const useUIStore = create<UIState>((set, get) => ({
     // Save current session's filter state before switching projects
     if (state.selectedSessionId) {
       nextFilterStates.set(state.selectedSessionId, {
-        activeStaticFilters: state.activeStaticFilters,
-        activeToolFilters: state.activeToolFilters,
+        activePrimaryFilters: state.activePrimaryFilters,
+        activeSecondaryFilters: state.activeSecondaryFilters,
         searchQuery: state.searchQuery,
       })
     }
@@ -299,8 +299,8 @@ export const useUIStore = create<UIState>((set, get) => ({
       selectedEventId: null,
       scrollToEventId: null,
       sessionFilterStates: nextFilterStates,
-      activeStaticFilters: DEFAULT_FILTER_STATE.activeStaticFilters,
-      activeToolFilters: DEFAULT_FILTER_STATE.activeToolFilters,
+      activePrimaryFilters: DEFAULT_FILTER_STATE.activePrimaryFilters,
+      activeSecondaryFilters: DEFAULT_FILTER_STATE.activeSecondaryFilters,
       searchQuery: DEFAULT_FILTER_STATE.searchQuery,
     })
     updateHash(newSlug, null)
@@ -312,8 +312,8 @@ export const useUIStore = create<UIState>((set, get) => ({
     // Save current session's filter state before switching
     if (state.selectedSessionId) {
       nextFilterStates.set(state.selectedSessionId, {
-        activeStaticFilters: state.activeStaticFilters,
-        activeToolFilters: state.activeToolFilters,
+        activePrimaryFilters: state.activePrimaryFilters,
+        activeSecondaryFilters: state.activeSecondaryFilters,
         searchQuery: state.searchQuery,
       })
     }
@@ -332,8 +332,8 @@ export const useUIStore = create<UIState>((set, get) => ({
       selectedEventId: null,
       scrollToEventId: null,
       sessionFilterStates: nextFilterStates,
-      activeStaticFilters: restored.activeStaticFilters,
-      activeToolFilters: restored.activeToolFilters,
+      activePrimaryFilters: restored.activePrimaryFilters,
+      activeSecondaryFilters: restored.activeSecondaryFilters,
       searchQuery: restored.searchQuery,
       ...(exitingRewind && {
         rewindMode: false,
@@ -358,23 +358,23 @@ export const useUIStore = create<UIState>((set, get) => ({
   removeAgentId: (id) =>
     set((s) => ({ selectedAgentIds: s.selectedAgentIds.filter((a) => a !== id) })),
 
-  activeStaticFilters: [],
-  activeToolFilters: [],
+  activePrimaryFilters: [],
+  activeSecondaryFilters: [],
   searchQuery: '',
   sessionFilterStates: new Map(),
-  toggleStaticFilter: (label) =>
+  togglePrimaryFilter: (label) =>
     set((s) => ({
-      activeStaticFilters: s.activeStaticFilters.includes(label)
-        ? s.activeStaticFilters.filter((l) => l !== label)
-        : [...s.activeStaticFilters, label],
+      activePrimaryFilters: s.activePrimaryFilters.includes(label)
+        ? s.activePrimaryFilters.filter((l) => l !== label)
+        : [...s.activePrimaryFilters, label],
     })),
-  toggleToolFilter: (toolName) =>
+  toggleSecondaryFilter: (toolName) =>
     set((s) => ({
-      activeToolFilters: s.activeToolFilters.includes(toolName)
-        ? s.activeToolFilters.filter((t) => t !== toolName)
-        : [...s.activeToolFilters, toolName],
+      activeSecondaryFilters: s.activeSecondaryFilters.includes(toolName)
+        ? s.activeSecondaryFilters.filter((t) => t !== toolName)
+        : [...s.activeSecondaryFilters, toolName],
     })),
-  clearAllFilters: () => set({ activeStaticFilters: [], activeToolFilters: [] }),
+  clearAllFilters: () => set({ activePrimaryFilters: [], activeSecondaryFilters: [] }),
   setSearchQuery: (query) => set({ searchQuery: query }),
 
   timelineHeight: 150,

@@ -36,8 +36,8 @@ beforeEach(() => {
     selectedProjectId: null,
     selectedSessionId: null,
     selectedAgentIds: [],
-    activeStaticFilters: [],
-    activeToolFilters: [],
+    activePrimaryFilters: [],
+    activeSecondaryFilters: [],
     searchQuery: '',
     sessionFilterStates: new Map(),
   })

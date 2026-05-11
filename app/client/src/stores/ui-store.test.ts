@@ -37,8 +37,8 @@ beforeEach(() => {
     selectedProjectId: null,
     selectedSessionId: null,
     selectedAgentIds: [],
-    activeStaticFilters: [],
-    activeToolFilters: [],
+    activePrimaryFilters: [],
+    activeSecondaryFilters: [],
     searchQuery: '',
     sessionFilterStates: new Map(),
     timelineHeight: 150,
@@ -136,35 +136,35 @@ describe('ui-store', () => {
       useUIStore.getState().setSelectedSessionId('sess-1')
 
       // Apply some filters in session 1
-      useUIStore.getState().toggleStaticFilter('Tools')
-      useUIStore.getState().toggleToolFilter('Bash')
-      expect(useUIStore.getState().activeStaticFilters).toEqual(['Tools'])
-      expect(useUIStore.getState().activeToolFilters).toEqual(['Bash'])
+      useUIStore.getState().togglePrimaryFilter('Tools')
+      useUIStore.getState().toggleSecondaryFilter('Bash')
+      expect(useUIStore.getState().activePrimaryFilters).toEqual(['Tools'])
+      expect(useUIStore.getState().activeSecondaryFilters).toEqual(['Bash'])
 
       // Switch to session 2 -- session 1 filters get saved
       useUIStore.getState().setSelectedSessionId('sess-2')
-      expect(useUIStore.getState().activeStaticFilters).toEqual([])
-      expect(useUIStore.getState().activeToolFilters).toEqual([])
+      expect(useUIStore.getState().activePrimaryFilters).toEqual([])
+      expect(useUIStore.getState().activeSecondaryFilters).toEqual([])
 
       // Switch back to session 1 -- filters should be restored
       useUIStore.getState().setSelectedSessionId('sess-1')
-      expect(useUIStore.getState().activeStaticFilters).toEqual(['Tools'])
-      expect(useUIStore.getState().activeToolFilters).toEqual(['Bash'])
+      expect(useUIStore.getState().activePrimaryFilters).toEqual(['Tools'])
+      expect(useUIStore.getState().activeSecondaryFilters).toEqual(['Bash'])
     })
 
     it('should save filter state when switching projects', () => {
       useUIStore.getState().setSelectedProject(1)
       useUIStore.getState().setSelectedSessionId('sess-1')
-      useUIStore.getState().toggleStaticFilter('Prompts')
+      useUIStore.getState().togglePrimaryFilter('Prompts')
 
       // Switch to a different project -- session filters saved
       useUIStore.getState().setSelectedProject(2)
-      expect(useUIStore.getState().activeStaticFilters).toEqual([])
+      expect(useUIStore.getState().activePrimaryFilters).toEqual([])
 
       // Come back to proj-1, sess-1
       useUIStore.getState().setSelectedProject(1)
       useUIStore.getState().setSelectedSessionId('sess-1')
-      expect(useUIStore.getState().activeStaticFilters).toEqual(['Prompts'])
+      expect(useUIStore.getState().activePrimaryFilters).toEqual(['Prompts'])
     })
 
     it('should save searchQuery per session', () => {
@@ -215,58 +215,58 @@ describe('ui-store', () => {
 
   // ── Static filter toggle ──────────────────────────────────
 
-  describe('static filter toggle', () => {
-    it('should add a static filter', () => {
-      useUIStore.getState().toggleStaticFilter('Tools')
-      expect(useUIStore.getState().activeStaticFilters).toEqual(['Tools'])
+  describe('primary filter toggle', () => {
+    it('should add a primary filter', () => {
+      useUIStore.getState().togglePrimaryFilter('Tools')
+      expect(useUIStore.getState().activePrimaryFilters).toEqual(['Tools'])
     })
 
-    it('should remove a static filter on second toggle', () => {
-      useUIStore.getState().toggleStaticFilter('Tools')
-      useUIStore.getState().toggleStaticFilter('Tools')
-      expect(useUIStore.getState().activeStaticFilters).toEqual([])
+    it('should remove a primary filter on second toggle', () => {
+      useUIStore.getState().togglePrimaryFilter('Tools')
+      useUIStore.getState().togglePrimaryFilter('Tools')
+      expect(useUIStore.getState().activePrimaryFilters).toEqual([])
     })
 
-    it('should support multiple static filters simultaneously', () => {
-      useUIStore.getState().toggleStaticFilter('Tools')
-      useUIStore.getState().toggleStaticFilter('Prompts')
-      expect(useUIStore.getState().activeStaticFilters).toContain('Tools')
-      expect(useUIStore.getState().activeStaticFilters).toContain('Prompts')
+    it('should support multiple primary filters simultaneously', () => {
+      useUIStore.getState().togglePrimaryFilter('Tools')
+      useUIStore.getState().togglePrimaryFilter('Prompts')
+      expect(useUIStore.getState().activePrimaryFilters).toContain('Tools')
+      expect(useUIStore.getState().activePrimaryFilters).toContain('Prompts')
     })
   })
 
   // ── Tool filter toggle ────────────────────────────────────
 
-  describe('tool filter toggle', () => {
-    it('should add a tool filter', () => {
-      useUIStore.getState().toggleToolFilter('Bash')
-      expect(useUIStore.getState().activeToolFilters).toEqual(['Bash'])
+  describe('secondary filter toggle', () => {
+    it('should add a secondary filter', () => {
+      useUIStore.getState().toggleSecondaryFilter('Bash')
+      expect(useUIStore.getState().activeSecondaryFilters).toEqual(['Bash'])
     })
 
-    it('should remove a tool filter on second toggle', () => {
-      useUIStore.getState().toggleToolFilter('Bash')
-      useUIStore.getState().toggleToolFilter('Bash')
-      expect(useUIStore.getState().activeToolFilters).toEqual([])
+    it('should remove a secondary filter on second toggle', () => {
+      useUIStore.getState().toggleSecondaryFilter('Bash')
+      useUIStore.getState().toggleSecondaryFilter('Bash')
+      expect(useUIStore.getState().activeSecondaryFilters).toEqual([])
     })
   })
 
   // ── Clear all filters ─────────────────────────────────────
 
   describe('clearAllFilters', () => {
-    it('should clear both static and tool filters', () => {
-      useUIStore.getState().toggleStaticFilter('Tools')
-      useUIStore.getState().toggleStaticFilter('Prompts')
-      useUIStore.getState().toggleToolFilter('Bash')
-      useUIStore.getState().toggleToolFilter('Read')
+    it('should clear both primary and secondary filters', () => {
+      useUIStore.getState().togglePrimaryFilter('Tools')
+      useUIStore.getState().togglePrimaryFilter('Prompts')
+      useUIStore.getState().toggleSecondaryFilter('Bash')
+      useUIStore.getState().toggleSecondaryFilter('Read')
 
       useUIStore.getState().clearAllFilters()
-      expect(useUIStore.getState().activeStaticFilters).toEqual([])
-      expect(useUIStore.getState().activeToolFilters).toEqual([])
+      expect(useUIStore.getState().activePrimaryFilters).toEqual([])
+      expect(useUIStore.getState().activeSecondaryFilters).toEqual([])
     })
 
     it('should not clear search query', () => {
       useUIStore.getState().setSearchQuery('test')
-      useUIStore.getState().toggleStaticFilter('Tools')
+      useUIStore.getState().togglePrimaryFilter('Tools')
       useUIStore.getState().clearAllFilters()
       expect(useUIStore.getState().searchQuery).toBe('test')
     })

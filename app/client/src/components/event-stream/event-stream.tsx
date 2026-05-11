@@ -19,8 +19,8 @@ export function EventStream() {
   const {
     selectedSessionId,
     selectedAgentIds,
-    activeStaticFilters,
-    activeToolFilters,
+    activePrimaryFilters,
+    activeSecondaryFilters,
     searchQuery,
     autoFollow,
     expandAllCounter,
@@ -30,8 +30,8 @@ export function EventStream() {
   } = useUIStore()
 
   // Defer filter values so the UI stays responsive during filter changes
-  const deferredStaticFilters = useDeferredValue(activeStaticFilters)
-  const deferredToolFilters = useDeferredValue(activeToolFilters)
+  const deferredPrimaryFilters = useDeferredValue(activePrimaryFilters)
+  const deferredSecondaryFilters = useDeferredValue(activeSecondaryFilters)
   const deferredSearchQuery = useDeferredValue(searchQuery)
 
   const eventsQuery = useEffectiveEvents(selectedSessionId)
@@ -84,22 +84,22 @@ export function EventStream() {
       filtered = filtered.filter((e) => selectedAgentIds.includes(e.agentId))
     }
 
-    // Static category filters (row 1: Prompts, Tools, Agents, etc.)
-    // Delegate to the shared STATIC_FILTERS config so events that
+    // Primary filters (row 1: Prompts, Tools, Agents, etc.)
+    // Delegate to the shared filter config so events that
     // belong to multiple categories (e.g. SubagentStop → Agents AND
     // Stop) match whichever filter the user picked. Previously we
     // filtered by the singular `filterTags.static`, which forced a
     // single category per event.
-    if (deferredStaticFilters.length > 0) {
+    if (deferredPrimaryFilters.length > 0) {
       filtered = filtered.filter((e) =>
-        deferredStaticFilters.some((name) => e.filters.primary.includes(name)),
+        deferredPrimaryFilters.some((name) => e.filters.primary.includes(name)),
       )
     }
 
-    // Dynamic tool filters (row 2: Bash, Read, Edit, etc.)
-    if (deferredToolFilters.length > 0) {
+    // Secondary filters (row 2: Bash, Read, Edit, etc.)
+    if (deferredSecondaryFilters.length > 0) {
       filtered = filtered.filter((e) =>
-        deferredToolFilters.some((name) => e.filters.secondary.includes(name)),
+        deferredSecondaryFilters.some((name) => e.filters.secondary.includes(name)),
       )
     }
 
@@ -113,8 +113,8 @@ export function EventStream() {
   }, [
     enrichedEvents,
     selectedAgentIds,
-    deferredStaticFilters,
-    deferredToolFilters,
+    deferredPrimaryFilters,
+    deferredSecondaryFilters,
     deferredSearchQuery,
   ])
 
@@ -149,7 +149,7 @@ export function EventStream() {
     const id = lastExpandedRef.current
     if (id == null) return
     setScrollToEventId(id)
-  }, [deferredStaticFilters, deferredToolFilters, deferredSearchQuery, setScrollToEventId])
+  }, [deferredPrimaryFilters, deferredSecondaryFilters, deferredSearchQuery, setScrollToEventId])
 
   const showAgentLabel = agents.length > 1
   const scrollRef = useRef<HTMLDivElement>(null)
