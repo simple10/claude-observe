@@ -3,6 +3,7 @@
 
 import { CircleDot } from 'lucide-react'
 import { AgentRegistry } from '../registry'
+import { applyFilters } from '@/lib/filters/matcher'
 import type {
   RawEvent,
   EnrichedEvent,
@@ -47,6 +48,7 @@ export function processEvent(raw: RawEvent, ctx: ProcessingContext): { event: En
     dedupMode: ctx.dedupEnabled,
     status: 'completed',
     filterTags: { static: null, dynamic: toolName ? [toolName] : [] },
+    filters: applyFilters(raw, toolName, ctx.compiledFilters),
     searchText: [hookName, toolName, JSON.stringify(raw.payload)]
       .filter(Boolean)
       .join(' ')
