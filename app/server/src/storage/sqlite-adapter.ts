@@ -13,6 +13,7 @@ import type {
 } from './types'
 import type { Filter, FilterRow, FilterPattern } from '../types'
 import { randomUUID } from 'node:crypto'
+import { SEED_FILTERS } from './seed-filters'
 
 export class SqliteAdapter implements EventStore {
   private db: Database.Database
@@ -916,6 +917,41 @@ export class SqliteAdapter implements EventStore {
       combinator: orig.combinator,
       patterns: orig.patterns,
     })
+  }
+
+  async seedDefaultFilters(): Promise<void> {
+    const insert = this.db.prepare(
+      `INSERT INTO filters (id, name, pill_name, display, combinator, patterns, kind, enabled, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'default', 1, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         name = excluded.name,
+         pill_name = excluded.pill_name,
+         display = excluded.display,
+         combinator = excluded.combinator,
+         patterns = excluded.patterns,
+         updated_at = excluded.updated_at`,
+    )
+    const now = Date.now()
+    const tx = this.db.transaction(() => {
+      for (const s of SEED_FILTERS) {
+        insert.run(
+          s.id,
+          s.name,
+          s.pillName,
+          s.display,
+          s.combinator,
+          JSON.stringify(s.patterns),
+          now,
+          now,
+        )
+      }
+    })
+    tx()
+  }
+
+  async resetDefaultFilters(): Promise<Filter[]> {
+    await this.seedDefaultFilters()
+    return (await this.listFilters()).filter((f) => f.kind === 'default')
   }
 
   async getAgentsForSession(sessionId: string): Promise<any[]> {

@@ -1514,4 +1514,33 @@ describe('filters', () => {
     expect(dup.pillName).toBe('orig')
     expect(dup.kind).toBe('user')
   })
+
+  test('seedDefaultFilters inserts all seeds and preserves enabled on subsequent runs', async () => {
+    const adapter = new SqliteAdapter(':memory:')
+    await adapter.seedDefaultFilters()
+    const first = await adapter.listFilters()
+    expect(first.length).toBeGreaterThan(5)
+    expect(first.every((f) => f.kind === 'default' && f.enabled === true)).toBe(true)
+
+    // Disable one
+    const target = first[0]
+    await adapter.updateFilter(target.id, { enabled: false })
+
+    // Re-run seed — should NOT re-enable
+    await adapter.seedDefaultFilters()
+    const second = await adapter.getFilterById(target.id)
+    expect(second?.enabled).toBe(false)
+  })
+
+  test('resetDefaultFilters reapplies seed content but preserves enabled', async () => {
+    const adapter = new SqliteAdapter(':memory:')
+    await adapter.seedDefaultFilters()
+    const before = (await adapter.listFilters())[0]
+    await adapter.updateFilter(before.id, { name: 'mutated', enabled: false })
+
+    await adapter.resetDefaultFilters()
+    const after = await adapter.getFilterById(before.id)
+    expect(after?.name).not.toBe('mutated') // seed name restored
+    expect(after?.enabled).toBe(false) // enabled preserved
+  })
 })
