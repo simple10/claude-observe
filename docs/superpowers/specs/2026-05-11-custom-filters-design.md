@@ -302,7 +302,7 @@ Defined in `app/server/src/storage/seed-filters.ts`:
 | Stop               | `Stop`       | primary  | and        | hook = `^(Stop|StopFailure|SubagentStop|stop_hook_summary)$` |
 | Compaction         | `Compaction` | primary  | and        | hook = `^(PreCompact|PostCompact)$` |
 | Config             | `Config`     | primary  | and        | hook = `^(InstructionsLoaded|ConfigChange|CwdChanged|FileChanged)$` |
-| Errors             | `Errors`     | primary  | or         | payload = `"is_error":true` OR payload = `"error":"[^"]+` |
+| Errors             | `Errors`     | primary  | or         | payload = `"is_error":\s*true` OR payload = `"error":\s*"[^"]+` |
 
 The "Dynamic tool name" filter collapses what was previously ~12 separate tool pills (Bash, Read, …) into one filter via the `{toolName}` variable.
 
@@ -347,7 +347,7 @@ Reads `compiled` from the filter store and passes it on `ProcessingContext.compi
 
 - Rename `activeStaticFilters` → `activePrimaryFilters`.
 - Rename `activeToolFilters` → `activeSecondaryFilters`.
-- One-time localStorage migration on read (preserve existing selections).
+- No localStorage migration required — the `sessionFilterStates` Map and the `activeStaticFilters`/`activeToolFilters` arrays are held in-memory only (verified at plan time).
 
 ### Event stream (`app/client/src/components/event-stream/event-stream.tsx`)
 
@@ -371,7 +371,7 @@ Layout (see mockup):
 
 1. Add the new `filters` table + seed-filters logic + REST routes server-side. Existing `EnrichedEvent` shape unchanged.
 2. Wire the matcher + store + processing-context on the client. `event.filters` field added alongside the still-present `event.filterTags`.
-3. Update the filter bar and event stream to read from `event.filters` instead of `event.filterTags`. Acceptance: open an existing session, every pill that appeared before still appears and toggles its events identically; the Errors pill still filters the same set of events (compare counts before/after).
+3. Update the filter bar and event stream to read from `event.filters` instead of `event.filterTags`. Acceptance: open an existing session, every pill that appeared before still appears and toggles its events identically. **Exception:** the Errors pill semantics shift from `event.status === 'failed'` (status-derived) to payload-content regex matching for `"is_error":true` or `"error":"…"`. Counts may differ slightly; this is expected and the new behavior is canonical.
 4. Remove `getFilterTags`, `STATIC_FILTERS`, `matchesStaticFilter`, `matchesDynamicFilter`, and all auto-tool-derivation logic. Remove `event.filterTags` from the type. Update UI store rename.
 
 This is roughly four small PRs that can each be reviewed and merged independently.

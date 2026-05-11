@@ -45,11 +45,10 @@
 - `app/client/src/types/index.ts` — add `Filter`/`FilterPattern` types; extend `WSMessage`
 - `app/client/src/lib/api-client.ts` — add filter API methods
 - `app/client/src/agents/types.ts` — rename `filterTags` → `filters`; add `compiledFilters` to `ProcessingContext`
-- `app/client/src/agents/event-store.ts` — pass `compiledFilters` in ctx; expose re-apply method
+- `app/client/src/agents/event-store.ts` — pass `compiledFilters` in ctx; detect rule changes
 - `app/client/src/agents/event-processing-context.tsx` — subscribe to filter store
 - `app/client/src/agents/claude-code/process-event.ts` — call `applyFilters` instead of `getFilterTags`
-- `app/client/src/agents/codex/process-event.ts` — same
-- `app/client/src/agents/default/index.tsx` — same
+- `app/client/src/agents/default/index.tsx` — same (codex re-exports this — no separate codex edit needed)
 - `app/client/src/components/main-panel/event-filter-bar.tsx` — read `event.filters`
 - `app/client/src/components/event-stream/event-stream.tsx` — filter against `event.filters`
 - `app/client/src/components/settings/settings-modal.tsx` — add Filters tab
@@ -347,7 +346,7 @@ git commit -m "feat: define default filter seed"
 
 - [ ] **Step 1: Add table creation**
 
-Find the block of `this.db.exec(`CREATE TABLE IF NOT EXISTS …`)` calls in the constructor (around line 30-280). After the last existing table creation block, add:
+Insert the new `CREATE TABLE filters` block in `app/server/src/storage/sqlite-adapter.ts` **immediately before** the `// Create indexes` comment (currently at line 367 — confirm with `grep -n "// Create indexes" app/server/src/storage/sqlite-adapter.ts`).
 
 ```ts
     this.db.exec(`
@@ -387,14 +386,12 @@ Inside the `SqliteAdapter` class (private method, near the bottom, before the cl
   }
 ```
 
-Also add the imports at the top of the file (find existing import lines):
+Also add two new imports at the top of `app/server/src/storage/sqlite-adapter.ts` (after the existing imports, in their own block):
 
 ```ts
 import type { Filter, FilterRow, FilterPattern } from '../types'
 import { randomUUID } from 'node:crypto'
 ```
-
-(Reuse existing import groups; don't duplicate `Filter`/`FilterRow` if there's already a shared types import.)
 
 - [ ] **Step 3: Run the build to make sure compilation passes**
 
@@ -824,46 +821,9 @@ git commit -m "feat: seed and reset default filters"
 **Files:**
 - Modify: `app/server/src/storage/sqlite-adapter.ts`
 
-- [ ] **Step 1: Call seed at end of constructor**
+- [ ] **Step 1: Add the `runSeedDefaults` private method and route `seedDefaultFilters` through it**
 
-Find the end of the `SqliteAdapter` constructor (after the last `this.db.exec(...)` for migrations). Add:
-
-```ts
-    // Seed default filters synchronously at startup. Idempotent.
-    // Uses the same code path as `seedDefaultFilters()` but called
-    // synchronously because the constructor isn't async.
-    const seedInsert = this.db.prepare(
-      `INSERT INTO filters (id, name, pill_name, display, combinator, patterns, kind, enabled, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'default', 1, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
-         name = excluded.name,
-         pill_name = excluded.pill_name,
-         display = excluded.display,
-         combinator = excluded.combinator,
-         patterns = excluded.patterns,
-         updated_at = excluded.updated_at`,
-    )
-    const seedNow = Date.now()
-    const seedTx = this.db.transaction(() => {
-      for (const s of SEED_FILTERS) {
-        seedInsert.run(
-          s.id,
-          s.name,
-          s.pillName,
-          s.display,
-          s.combinator,
-          JSON.stringify(s.patterns),
-          seedNow,
-          seedNow,
-        )
-      }
-    })
-    seedTx()
-```
-
-- [ ] **Step 2: Refactor: extract shared seed logic to a private method**
-
-Replace the inline block above with a call to a new private method `runSeedDefaults()`, and reuse it from `seedDefaultFilters()` to remove duplication:
+Inside the `SqliteAdapter` class (anywhere among the other methods), add:
 
 ```ts
   private runSeedDefaults(): void {
@@ -891,7 +851,7 @@ Replace the inline block above with a call to a new private method `runSeedDefau
   }
 ```
 
-Update `seedDefaultFilters()`:
+Then replace the existing `seedDefaultFilters()` body that Task 1.8 added with a one-liner:
 
 ```ts
   async seedDefaultFilters(): Promise<void> {
@@ -899,9 +859,12 @@ Update `seedDefaultFilters()`:
   }
 ```
 
-Replace the constructor block with:
+- [ ] **Step 2: Call `runSeedDefaults` at the end of the constructor**
+
+In the `SqliteAdapter` constructor, add `this.runSeedDefaults()` as the **very last statement before the closing `}`** of the constructor (after every `CREATE TABLE`, every migration block, and every `CREATE INDEX` statement). The constructor ends around line 390 — confirm with `grep -n "^  }" app/server/src/storage/sqlite-adapter.ts | head -3`.
 
 ```ts
+    // …at the very end of the constructor body…
     this.runSeedDefaults()
 ```
 
@@ -1371,7 +1334,7 @@ git commit -m "feat: client filter types"
 Create `app/client/src/lib/filters/matcher.test.ts`:
 
 ```ts
-import { describe, test, expect } from 'vitest'
+import { describe, test, expect, vi } from 'vitest'
 import { applyFilters } from './matcher'
 import type { CompiledFilter } from './types'
 
@@ -1445,13 +1408,11 @@ describe('applyFilters', () => {
 
   test('payload-target is skipped when no rule needs it', () => {
     const spy = vi.spyOn(JSON, 'stringify')
-    spy.mockClear()
     const f = compile({ name: 'Hook', patterns: [{ target: 'hook', regex: '.' }] })
+    const before = spy.mock.calls.length
     applyFilters(baseRaw, 'Bash', [f])
-    // JSON.stringify should not have been called by the matcher path.
-    // (Tests sometimes call JSON.stringify too — we only care that count
-    //  hasn't increased due to our matcher.)
-    expect(spy).not.toHaveBeenCalled()
+    const after = spy.mock.calls.length
+    expect(after).toBe(before)
     spy.mockRestore()
   })
 
@@ -1491,14 +1452,6 @@ describe('applyFilters', () => {
   })
 })
 ```
-
-Also add the import at the top of the test file:
-
-```ts
-import { vi } from 'vitest'
-```
-
-(Combine with the existing `import` line.)
 
 - [ ] **Step 2: Run the test to verify failure**
 
@@ -1844,10 +1797,10 @@ import type {
 
 - [ ] **Step 2: Append filter methods inside the `api` object**
 
-Just before the final `}` of the `export const api = { ... }` block (after `bulkDeleteSessions: …`):
+The existing `bulkDeleteSessions: …` entry (around line 193) currently ends with `})` (no trailing comma) followed by the closing `}` of the `api` object on the next line. Add a trailing comma after the `})` so the new entries can be appended cleanly, then insert the new entries before the closing `}`:
 
 ```ts
-,
+  // ↑ existing bulkDeleteSessions: …}),
   listFilters: () => fetchJson<Filter[]>('/filters'),
   createFilter: (input: {
     name: string
@@ -2177,12 +2130,12 @@ End state: `processEvent` populates `event.filters` via `applyFilters`. Existing
 
 - [ ] **Step 1: Add the field next to filterTags**
 
-Find the `EnrichedEvent` interface (line 16). Inside, **add** a `filters` field alongside `filterTags` (don't delete `filterTags` yet — Phase 5 does that):
+Find the `EnrichedEvent` interface (line 16). The existing `filterTags` block has inline comments — preserve them exactly. **Add** the new `filters` field directly below `filterTags` (don't delete `filterTags` yet — Phase 5/6 does that). Use the `Edit` tool with old_string matching the existing block including comments:
 
 ```ts
   filterTags: {
-    static: string | null
-    dynamic: string[]
+    static: string | null // category: 'Prompts', 'Tools', 'Agents', etc. (null if hidden)
+    dynamic: string[] // specific filters: ['Bash'], ['Read'], etc.
   }
   /** Pill names (deduped) for primary and secondary filter rows. */
   filters: {
@@ -2225,97 +2178,116 @@ git commit -m "feat: add filters field and compiledFilters ctx"
 
 ---
 
-### Task 4.2: Wire `compiledFilters` into `EventStore.createProcessingContext`
+### Task 4.2: Wire `compiledFilters` into `EventStore` (detect rule changes as a full-reprocess trigger)
 
 **Files:**
 - Modify: `app/client/src/agents/event-store.ts`
 
-- [ ] **Step 1: Accept compiledFilters in `process()` and stash it**
+- [ ] **Step 1: Add the `compiledFilters` field and tracking**
 
-Find the existing `process(rawEvents, dedupEnabled)` method (line ~51). Update its signature and the private field:
+In `app/client/src/agents/event-store.ts`, find the existing private-field block near the top of the class (currently lines 10-23):
 
 ```ts
+  private events: EnrichedEvent[] = []
+  private eventById = new Map<number, EnrichedEvent>()
+  private groupIndex = new Map<string, EnrichedEvent[]>()
+  private turnIndex = new Map<string, EnrichedEvent[]>()
+  private agentIndex = new Map<string, EnrichedEvent[]>()
+  private currentTurns = new Map<string, string>()
+  private pendingGroups = new Map<string, string>()
+  private pendingAgentMeta = new Map<string, { name: string | null; description: string | null }>()
+  private pendingUpdates: Array<{ eventId: number; changes: Partial<EnrichedEvent> }> = []
   private dedupEnabled = true
-  private compiledFilters: readonly import('@/lib/filters/types').CompiledFilter[] = []
 ```
 
-Then update `process`:
+Add two new private fields immediately below `private dedupEnabled = true`:
 
 ```ts
+  private compiledFilters: readonly import('@/lib/filters/types').CompiledFilter[] = []
+  private lastCompiledFilters: readonly import('@/lib/filters/types').CompiledFilter[] = []
+```
+
+And find the existing `private lastProcessedCount = 0` / `private lastDedupEnabled = true` lines (currently 44-45) — leave them as is.
+
+- [ ] **Step 2: Replace the `process()` method**
+
+Replace the entire existing `process(rawEvents, dedupEnabled)` method (currently lines 51-82) with this new version. The change adds a `compiledFilters` parameter, treats any change in its reference as a full-reprocess trigger, and stashes it on `this.compiledFilters` so `createProcessingContext()` can pass it through:
+
+```ts
+  /**
+   * Process raw events. Automatically detects whether to do a full
+   * reprocess or incremental append based on what changed.
+   */
   process(
     rawEvents: RawEvent[],
     dedupEnabled: boolean,
     compiledFilters: readonly import('@/lib/filters/types').CompiledFilter[],
   ): EnrichedEvent[] {
+    // Full reprocess needed if any of: dedup toggled, compiled filter
+    // set changed reference, events were replaced (not appended).
+    const needsFullReprocess =
+      dedupEnabled !== this.lastDedupEnabled ||
+      compiledFilters !== this.lastCompiledFilters ||
+      rawEvents.length < this.lastProcessedCount ||
+      (this.lastProcessedCount > 0 &&
+        rawEvents.length > 0 &&
+        rawEvents[0]?.id !== this.events[0]?.id)
+
+    if (needsFullReprocess) {
+      this.clear()
+      this.dedupEnabled = dedupEnabled
+      this.compiledFilters = compiledFilters
+      this.lastDedupEnabled = dedupEnabled
+      this.lastCompiledFilters = compiledFilters
+      for (const raw of rawEvents) {
+        this.processOne(raw)
+      }
+      this.lastProcessedCount = rawEvents.length
+      return this.events
+    }
+
+    // Incremental: only process newly appended events
+    this.dedupEnabled = dedupEnabled
     this.compiledFilters = compiledFilters
-    // …existing body unchanged…
+    const newEvents = rawEvents.slice(this.lastProcessedCount)
+    if (newEvents.length === 0) return this.events
+    for (const raw of newEvents) {
+      this.processOne(raw)
+    }
+    this.lastProcessedCount = rawEvents.length
+    this.events = [...this.events]
+    return this.events
   }
 ```
 
-Update `createProcessingContext()` to pass the field through:
+- [ ] **Step 3: Add `compiledFilters` to `createProcessingContext`**
+
+Find `createProcessingContext()` (currently around line 142). Add the new field at the top of the returned object (right after `dedupEnabled`):
 
 ```ts
   private createProcessingContext(): ProcessingContext {
     return {
       dedupEnabled: this.dedupEnabled,
       compiledFilters: this.compiledFilters,
-      // …existing fields…
-    }
-  }
+      getAgent: (agentId) => this.agentMap.get(agentId),
+      // …all existing fields below remain unchanged…
 ```
 
-- [ ] **Step 2: Add a public `reapplyFilters()` method** for use after rule edits
+Leave every other field of `createProcessingContext` exactly as is.
 
-Add a top-level import at the top of the file:
-
-```ts
-import { applyFilters } from '@/lib/filters/matcher'
-```
-
-Then append inside the class:
-
-```ts
-  /**
-   * Re-runs applyFilters against every in-memory event using the supplied
-   * compiled filter set. Patches only `event.filters` — no other fields
-   * are recomputed. Called by the processing context provider when the
-   * filter store reports a change.
-   */
-  reapplyFilters(
-    compiledFilters: readonly import('@/lib/filters/types').CompiledFilter[],
-  ): void {
-    this.compiledFilters = compiledFilters
-    for (let i = 0; i < this.events.length; i++) {
-      const e = this.events[i]
-      const raw: RawEvent = {
-        id: e.id,
-        agentId: e.agentId,
-        hookName: e.hookName,
-        timestamp: e.timestamp,
-        payload: e.payload,
-      } as RawEvent
-      const next = applyFilters(raw, e.toolName, compiledFilters)
-      this.events[i] = { ...e, filters: next }
-      this.eventById.set(e.id, this.events[i])
-    }
-    // Force a new array reference so React re-renders.
-    this.events = [...this.events]
-  }
-```
-
-- [ ] **Step 3: Build**
+- [ ] **Step 4: Build**
 
 ```bash
 cd app/client && npx tsc --noEmit 2>&1 | tail -20
 ```
 
-Expected: still errors in agent classes (next tasks); event-store itself compiles.
+Expected: errors only in the three `processEvent` implementations (Tasks 4.4–4.5 fix those) and `event-processing-context.tsx` (Task 4.3 fixes that). event-store itself compiles.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add app/client/src/agents/event-store.ts
-git commit -m "feat: thread compiledFilters through processing context"
+git commit -m "feat: thread compiledFilters through process() and processing context"
 ```
 
 ---
@@ -2325,12 +2297,16 @@ git commit -m "feat: thread compiledFilters through processing context"
 **Files:**
 - Modify: `app/client/src/agents/event-processing-context.tsx`
 
-- [ ] **Step 1: Pass compiled into `process` + subscribe for re-apply**
+- [ ] **Step 1: Add filter store subscription and pass compiled into `process`**
 
-Replace the body of `EventProcessingProvider` to read from the filter store and trigger reapply when `compiled` changes:
+Replace the entire body of `app/client/src/agents/event-processing-context.tsx` with this version. The only differences from the current file are: (a) a new `useFilterStore` subscription, (b) `compiledFilters` passed into `store.process(...)`, and (c) `compiledFilters` added to the useMemo deps. No `useEffect`/`reapplyFilters` is needed — `EventStore.process()` (Task 4.2) detects compiledFilters changes and re-runs full enrichment.
 
 ```tsx
-import { createContext, useContext, useEffect, useMemo, useRef } from 'react'
+// Shared event processing context.
+// Ensures a single EventStore processes events once, shared by
+// event-stream, activity-timeline, and any other consumers.
+
+import { createContext, useContext, useMemo, useRef } from 'react'
 import { useUIStore } from '@/stores/ui-store'
 import { useFilterStore } from '@/stores/filter-store'
 import { EventStore } from './event-store'
@@ -2364,16 +2340,6 @@ export function EventProcessingProvider({
   const storeRef = useRef<EventStore>(new EventStore())
   const dedupEnabled = useUIStore((s) => s.dedupEnabled)
   const compiledFilters = useFilterStore((s) => s.compiled)
-
-  // Track previous compiled reference so we can trigger a re-pass
-  // without doing a full processEvent walk.
-  const lastCompiledRef = useRef(compiledFilters)
-  useEffect(() => {
-    if (lastCompiledRef.current !== compiledFilters && rawEvents && rawEvents.length > 0) {
-      storeRef.current.reapplyFilters(compiledFilters)
-    }
-    lastCompiledRef.current = compiledFilters
-  }, [compiledFilters, rawEvents])
 
   const value = useMemo(() => {
     const store = storeRef.current
@@ -2434,14 +2400,14 @@ import { applyFilters } from '@/lib/filters/matcher'
 
 - [ ] **Step 2: Populate `filters` on the enriched event**
 
-Find the `enriched: ClaudeCodeEnrichedEvent = {` block (~line 398). After the `filterTags: getFilterTags(...)` field, add:
+Find the `enriched: ClaudeCodeEnrichedEvent = {` block (~line 398). It contains a single `filterTags: getFilterTags(hookName, toolName, displayEventStream),` line. **Insert a new line** directly below it (do NOT replace the existing one — both coexist until Phase 6):
 
 ```ts
     filterTags: getFilterTags(hookName, toolName, displayEventStream),
     filters: applyFilters(raw, toolName, ctx.compiledFilters),
 ```
 
-(Both fields coexist for now — Phase 5 removes `filterTags`.)
+Use the `Edit` tool with `old_string` set to the single existing `filterTags: getFilterTags(...)` line, and `new_string` set to both lines (the existing + the new). This avoids rewriting the surrounding literal.
 
 - [ ] **Step 3: Build**
 
@@ -2460,32 +2426,29 @@ git commit -m "feat: populate event.filters in claude-code processEvent"
 
 ---
 
-### Task 4.5: Update `default/index.tsx` and `codex/process-event.ts`
+### Task 4.5: Update `default/index.tsx` (codex inherits this automatically)
 
 **Files:**
 - Modify: `app/client/src/agents/default/index.tsx`
-- Modify: `app/client/src/agents/codex/process-event.ts`
+
+Note: `app/client/src/agents/codex/index.tsx` re-exports `processEvent` from `../default/index` (see codex `index.tsx:7`). No separate codex edit is required.
 
 - [ ] **Step 1: Patch the default agent**
 
-In `default/index.tsx`, add the import:
+In `app/client/src/agents/default/index.tsx`, add the import at the top of the file (alongside the existing agent imports):
 
 ```ts
 import { applyFilters } from '@/lib/filters/matcher'
 ```
 
-Find the enriched object literal (it currently sets `filterTags: { static: null, dynamic: toolName ? [toolName] : [] }`). Add the `filters` field next to it:
+Find the existing single line `filterTags: { static: null, dynamic: toolName ? [toolName] : [] },` (around line 49). Replace it with the same line followed by a new `filters` line — use `Edit` with `old_string` matching just that one line:
 
 ```ts
     filterTags: { static: null, dynamic: toolName ? [toolName] : [] },
     filters: applyFilters(raw, toolName, ctx.compiledFilters),
 ```
 
-- [ ] **Step 2: Patch the codex agent**
-
-Repeat the same change in `app/client/src/agents/codex/process-event.ts` — add the import and the `filters` field next to the existing `filterTags` line.
-
-- [ ] **Step 3: Build**
+- [ ] **Step 2: Build**
 
 ```bash
 cd app/client && npx tsc --noEmit 2>&1 | tail -5
@@ -2493,7 +2456,7 @@ cd app/client && npx tsc --noEmit 2>&1 | tail -5
 
 Expected: 0 errors.
 
-- [ ] **Step 4: Run all client tests**
+- [ ] **Step 3: Run all client tests**
 
 ```bash
 cd app/client && npm test 2>&1 | tail -10
@@ -2501,11 +2464,11 @@ cd app/client && npm test 2>&1 | tail -10
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add app/client/src/agents/default/index.tsx app/client/src/agents/codex/process-event.ts
-git commit -m "feat: populate event.filters in default and codex processEvent"
+git add app/client/src/agents/default/index.tsx
+git commit -m "feat: populate event.filters in default agent processEvent"
 ```
 
 ---
@@ -2519,12 +2482,20 @@ End state: filter bar renders pills from `event.filters`; event stream filters b
 **Files:**
 - Modify: `app/client/src/components/main-panel/event-filter-bar.tsx`
 
-- [ ] **Step 1: Read pill names from `event.filters`**
+This task rewrites the bar to render pill names from `event.filters` (now multi-valued), pulls kind metadata from `filter-store`, and removes the `STATIC_CATEGORIES`/`activeCategories`/`dynamicNames` dead code. Pills only render when at least one matching event exists, so the old `hasMatches` dimming branch is no longer reachable and is deleted.
 
-Replace the `activeCategories` and `dynamicNames` memos with reads against `event.filters`. The new top of the component body (around lines 73-92) becomes:
+- [ ] **Step 1: Add the filter-store import at the top of the file**
 
 ```tsx
-  // Which primary pill names appear in at least one displayed event
+import { useFilterStore } from '@/stores/filter-store'
+```
+
+- [ ] **Step 2: Replace the `activeCategories` and `dynamicNames` memos with `primaryNames`, `secondaryNames`, and `pillKindByName`**
+
+Delete the existing `activeCategories` memo (currently lines ~73-81) **and** the existing `dynamicNames` memo (currently lines ~84-92) in their entirety. Replace them with:
+
+```tsx
+  // Pill names that appear in at least one displayed event, by row.
   const primaryNames = useMemo(() => {
     const out = new Set<string>()
     for (const e of agentFilteredEvents) {
@@ -2540,51 +2511,12 @@ Replace the `activeCategories` and `dynamicNames` memos with reads against `even
     }
     return Array.from(out).sort()
   }, [agentFilteredEvents])
-```
 
-- [ ] **Step 2: Replace the hardcoded `STATIC_CATEGORIES` loop with `primaryNames`**
-
-Replace the `{STATIC_CATEGORIES.map((category) => …)}` block with:
-
-```tsx
-          {primaryNames.map((category) => {
-            const isActive = activeStaticFilters.includes(category)
-            return (
-              <button
-                key={category}
-                data-filter-pill=""
-                data-filter-row="0"
-                className={cn(
-                  'rounded-full px-2.5 py-0.5 text-xs transition-colors border',
-                  isActive
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-secondary text-secondary-foreground border-primary/40 hover:bg-accent',
-                )}
-                onClick={() => toggleStaticFilter(category)}
-              >
-                {category}
-              </button>
-            )
-          })}
-```
-
-(Note: `activeStaticFilters` / `toggleStaticFilter` still exist; they're renamed in Phase 6. Keep using them here for now.)
-
-- [ ] **Step 3: Replace `dynamicNames` reference with `secondaryNames`** in the second row
-
-Replace `dynamicNames` in the row-2 loop with `secondaryNames`.
-
-- [ ] **Step 4: Add user-vs-default styling**
-
-Above the JSX, read the filter store to determine each pill's kind:
-
-```tsx
-import { useFilterStore } from '@/stores/filter-store'
-
-// inside the component, after the existing hooks:
+  // Map pill name -> kind for styling. User filters win when multiple
+  // filters share the same pill name so user-customized pills are always
+  // visually distinguishable.
   const filters = useFilterStore((s) => s.filters)
   const pillKindByName = useMemo(() => {
-    // user style wins when multiple filters share the same pill name
     const m = new Map<string, 'user' | 'default'>()
     for (const f of filters) {
       const existing = m.get(f.pillName)
@@ -2595,40 +2527,89 @@ import { useFilterStore } from '@/stores/filter-store'
   }, [filters])
 ```
 
-In the row-2 loop, change the button's className from the existing dynamic styling to:
+- [ ] **Step 3: Delete the `STATIC_CATEGORIES` constant**
+
+Near the top of the file (currently lines ~10-23) there's a `const STATIC_CATEGORIES = [...]` array. Delete it entirely.
+
+- [ ] **Step 4: Replace the row-1 (primary) pill JSX**
+
+Find the JSX block that currently renders the row-1 pills — it iterates `STATIC_CATEGORIES.map((category) => …)` (currently lines ~151-172). Replace the entire `{STATIC_CATEGORIES.map(...)}` block (including the inner button) with:
 
 ```tsx
-              className={cn(
-                'rounded-full px-2.5 py-0.5 text-xs transition-colors border',
-                pillKindByName.get(name) === 'user'
-                  ? activeToolFilters.includes(name)
-                    ? 'border-violet-500 bg-violet-500/15 text-violet-700 dark:text-violet-400'
-                    : 'border-border text-muted-foreground hover:border-violet-500/50 hover:text-foreground'
-                  : activeToolFilters.includes(name)
-                    ? 'border-blue-500 bg-blue-500/15 text-blue-700 dark:text-blue-400'
-                    : 'border-border text-muted-foreground hover:border-blue-500/50 hover:text-foreground',
-              )}
+          {primaryNames.map((category) => {
+            const isActive = activeStaticFilters.includes(category)
+            const isUser = pillKindByName.get(category) === 'user'
+            return (
+              <button
+                key={category}
+                data-filter-pill=""
+                data-filter-row="0"
+                className={cn(
+                  'rounded-full px-2.5 py-0.5 text-xs transition-colors border',
+                  isActive
+                    ? isUser
+                      ? 'bg-violet-500 text-white border-violet-500'
+                      : 'bg-primary text-primary-foreground border-primary'
+                    : isUser
+                      ? 'bg-secondary text-secondary-foreground border-violet-500/40 hover:bg-accent'
+                      : 'bg-secondary text-secondary-foreground border-primary/40 hover:bg-accent',
+                )}
+                onClick={() => toggleStaticFilter(category)}
+              >
+                {category}
+              </button>
+            )
+          })}
 ```
 
-Repeat the same coloring approach for the row-1 primary pills.
+(Note: `activeStaticFilters` / `toggleStaticFilter` are renamed to `activePrimaryFilters` / `togglePrimaryFilter` in Phase 6. Keep them as-is here.)
 
-- [ ] **Step 5: Remove the `STATIC_CATEGORIES` top-level const**
+- [ ] **Step 5: Replace the row-2 (secondary) pill JSX**
 
-Delete the `STATIC_CATEGORIES = […]` array near the top of the file — it's no longer referenced.
+Find the JSX block that currently renders row-2 — it iterates `dynamicNames.map(...)` (currently lines ~213-228). Replace the entire `{dynamicNames.map(...)}` block (including the inner button) with:
 
-- [ ] **Step 6: Run tests**
+```tsx
+          {secondaryNames.map((name) => {
+            const isActive = activeToolFilters.includes(name)
+            const isUser = pillKindByName.get(name) === 'user'
+            return (
+              <button
+                key={name}
+                data-filter-pill=""
+                data-filter-row="1"
+                className={cn(
+                  'rounded-full px-2.5 py-0.5 text-xs transition-colors border',
+                  isUser
+                    ? isActive
+                      ? 'border-violet-500 bg-violet-500/15 text-violet-700 dark:text-violet-400'
+                      : 'border-border text-muted-foreground hover:border-violet-500/50 hover:text-foreground'
+                    : isActive
+                      ? 'border-blue-500 bg-blue-500/15 text-blue-700 dark:text-blue-400'
+                      : 'border-border text-muted-foreground hover:border-blue-500/50 hover:text-foreground',
+                )}
+                onClick={() => toggleToolFilter(name)}
+              >
+                {name}
+              </button>
+            )
+          })}
+```
+
+Also update the outer `{dynamicNames.length > 0 && (...)}` conditional to `{secondaryNames.length > 0 && (...)}`.
+
+- [ ] **Step 6: Run tests + typecheck**
 
 ```bash
-cd app/client && npm test 2>&1 | tail -10
+cd app/client && npx tsc --noEmit 2>&1 | tail -10 && npm test 2>&1 | tail -10
 ```
 
-Expected: PASS (no test imports STATIC_CATEGORIES; the bar isn't directly tested but downstream tests still pass).
+Expected: 0 type errors, PASS.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add app/client/src/components/main-panel/event-filter-bar.tsx
-git commit -m "feat: filter bar reads from event.filters"
+git commit -m "feat: filter bar reads pill names from event.filters with user/default styling"
 ```
 
 ---
@@ -2693,13 +2674,15 @@ cd app/client && npm test 2>&1 | tail -10
 
 Expected: PASS.
 
-- [ ] **Step 5: Visual parity check (manual)**
+- [ ] **Step 5: Visual parity check (manual, non-blocking)**
 
 ```bash
 just dev
 ```
 
-Open an existing session in the browser. Toggle Prompts / Tools / Errors / a tool pill. Verify the same set of events appears as before this change. Compare side-by-side counts if needed.
+Open an existing session in the browser. Toggle Prompts / Tools / a tool pill. Verify the same set of events appears as before this change.
+
+**Expected difference for Errors:** the old static "Errors" filter matched any event with `status === 'failed'`. The new "Errors" default matches events whose stringified payload contains `"is_error":true` or `"error":"…"`. For the vast majority of events the counts match; if any drift, that's expected and the new behavior is canonical (Errors is now payload-driven, not status-driven). No need to block on this difference.
 
 - [ ] **Step 6: Commit**
 
@@ -2742,7 +2725,14 @@ The current `sessionFilterStates` map lives in memory only — confirmed by `gre
 cd app/client && grep -rln "activeStaticFilters\|activeToolFilters\|toggleStaticFilter\|toggleToolFilter" src
 ```
 
-For each file in the output, run the same rename. Expected files: `event-filter-bar.tsx`, `event-stream.tsx`, `ui-store.test.ts`, possibly others.
+For each file in the output, run the same 4 `Edit` calls with `replace_all: true`:
+
+- `activeStaticFilters` → `activePrimaryFilters`
+- `activeToolFilters` → `activeSecondaryFilters`
+- `toggleStaticFilter` → `togglePrimaryFilter`
+- `toggleToolFilter` → `toggleSecondaryFilter`
+
+Expected files to touch: `event-filter-bar.tsx`, `event-stream.tsx`, `ui-store.test.ts`, and any others surfaced by the grep. The test file is part of the typecheck and test run in Step 4, so any miss will surface there.
 
 - [ ] **Step 4: Build + test**
 
@@ -2761,23 +2751,35 @@ git commit -m "refactor: rename activeStaticFilters → activePrimaryFilters and
 
 ---
 
-### Task 6.2: Remove `filterTags` from EnrichedEvent and all agent classes
+### Task 6.2: Remove `filterTags` from EnrichedEvent and the agent classes
 
 **Files:**
 - Modify: `app/client/src/agents/types.ts`
 - Modify: `app/client/src/agents/claude-code/process-event.ts`
-- Modify: `app/client/src/agents/codex/process-event.ts`
 - Modify: `app/client/src/agents/default/index.tsx`
+
+(Codex inherits `processEvent` from default — no separate codex edit needed.)
 
 - [ ] **Step 1: Drop the field from the type**
 
-In `agents/types.ts`, delete the `filterTags: { static: …; dynamic: … }` block from `EnrichedEvent`. Keep `filters`.
+In `app/client/src/agents/types.ts`, delete the entire `filterTags` block from `EnrichedEvent`, including the inline comments:
+
+```ts
+  filterTags: {
+    static: string | null // category: 'Prompts', 'Tools', 'Agents', etc. (null if hidden)
+    dynamic: string[] // specific filters: ['Bash'], ['Read'], etc.
+  }
+```
+
+Keep `filters`.
 
 - [ ] **Step 2: Drop assignments in each processEvent**
 
-In each of the three process-event files, remove the `filterTags: …` line from the enriched object literal. Keep `filters: applyFilters(…)`.
+In `app/client/src/agents/claude-code/process-event.ts`, remove the `filterTags: getFilterTags(hookName, toolName, displayEventStream),` line from the enriched object literal. Keep `filters: applyFilters(...)`.
 
-In `claude-code/process-event.ts`, also delete the now-unused `getFilterTags` helper function (lines ~82-140) and the `LABELS[hookName]`-only references that no longer need it.
+Also delete the now-unused `getFilterTags` helper function (currently lines ~82-140 — find via `grep -n "function getFilterTags" app/client/src/agents/claude-code/process-event.ts`). The `LABELS` map and `pickIconId` helpers remain.
+
+In `app/client/src/agents/default/index.tsx`, remove the `filterTags: { static: null, dynamic: toolName ? [toolName] : [] },` line. Keep `filters: applyFilters(...)`.
 
 - [ ] **Step 3: Build**
 
@@ -2875,14 +2877,14 @@ import { FiltersTab } from './filters-tab'
 
 (`filters-tab` will be created in the next task — file won't compile yet.)
 
-- [ ] **Step 3: Update the `settingsTab` type in `ui-store.ts`**
+- [ ] **Step 3: No type changes needed**
 
-Find the `setSettingsTab` setter and union type for `settingsTab`. Add `'filters'` to the allowed values.
+`settingsTab` is typed as `string` in `ui-store.ts` (see lines ~138 and ~140), not a union, so no type update is required to accept `'filters'`.
 
 - [ ] **Step 4: Commit (tab will fail until next task completes)**
 
 ```bash
-git add app/client/src/components/settings/settings-modal.tsx app/client/src/stores/ui-store.ts
+git add app/client/src/components/settings/settings-modal.tsx
 git commit -m "feat: add Filters tab placeholder to Settings"
 ```
 
@@ -3085,7 +3087,7 @@ cd app/client && npx tsc --noEmit 2>&1 | head -10
 
 Expected: 0 errors.
 
-- [ ] **Step 3: Smoke check in browser**
+- [ ] **Step 3: Smoke check in browser (non-blocking — skip under a headless agent)**
 
 ```bash
 just dev
@@ -3309,7 +3311,7 @@ cd app/client && npx tsc --noEmit && npm test 2>&1 | tail -10
 
 Expected: 0 errors, PASS.
 
-- [ ] **Step 3: Manual smoke**
+- [ ] **Step 3: Manual smoke (non-blocking — skip under a headless agent)**
 
 `just dev`, open Settings → Filters, select a default → verify fields are read-only with the "DEFAULT · READ-ONLY" badge; click Duplicate → new user filter selected, all fields editable; change the regex → Save persists → broadcast triggers a re-pass and pills update in the bar.
 
@@ -3357,13 +3359,21 @@ Inside `FilterEditor`, after the patterns list, add:
       />
 ```
 
-Define `LivePreview` at module scope:
+**Important context for the implementer:** `SettingsModal` is rendered inside `sidebar.tsx` (line ~167), which sits OUTSIDE `EventProcessingProvider` (rendered in `main-panel.tsx` line ~49). Reading from `useProcessedEvents()` here would return an empty default — so the preview must pull raw events from the React Query cache instead. That has the side benefit of working with or without the main panel being mounted.
+
+Add to the top-of-file imports in `filters-tab.tsx`:
 
 ```tsx
-import { useProcessedEvents } from '@/agents/event-processing-context'
+import { useQueryClient } from '@tanstack/react-query'
+import { useUIStore } from '@/stores/ui-store'
 import { applyFilters } from '@/lib/filters/matcher'
 import type { CompiledFilter } from '@/lib/filters/types'
+import type { ParsedEvent } from '@/types'
+```
 
+Define `LivePreview` at module scope (below `FilterEditor` is fine):
+
+```tsx
 function LivePreview({
   pillName,
   display,
@@ -3375,7 +3385,8 @@ function LivePreview({
   combinator: 'and' | 'or'
   patterns: { target: 'hook' | 'tool' | 'payload'; regex: string }[]
 }) {
-  const { events } = useProcessedEvents()
+  const queryClient = useQueryClient()
+  const sessionId = useUIStore((s) => s.selectedSessionId)
   const [debounced, setDebounced] = useState({ pillName, display, combinator, patterns })
 
   useEffect(() => {
@@ -3384,7 +3395,9 @@ function LivePreview({
   }, [pillName, display, combinator, patterns])
 
   const count = useMemo(() => {
-    let compiled: CompiledFilter | null = null
+    if (!sessionId) return null
+    const events = queryClient.getQueryData<ParsedEvent[]>(['events', sessionId]) ?? []
+    let compiled: CompiledFilter
     try {
       compiled = {
         id: 'preview',
@@ -3392,27 +3405,35 @@ function LivePreview({
         pillName: debounced.pillName,
         display: debounced.display,
         combinator: debounced.combinator,
-        patterns: debounced.patterns.map((p) => ({ target: p.target, regex: new RegExp(p.regex) })),
+        patterns: debounced.patterns.map((p) => ({
+          target: p.target,
+          regex: new RegExp(p.regex),
+        })),
       }
     } catch {
       return null
     }
     let total = 0
     for (const e of events) {
-      const raw = {
-        id: e.id,
-        agentId: e.agentId,
-        hookName: e.hookName,
-        timestamp: e.timestamp,
-        payload: e.payload,
-      } as unknown as Parameters<typeof applyFilters>[0]
-      const out = applyFilters(raw, e.toolName, [compiled])
+      // We're outside the agent-class pipeline, so derive toolName from
+      // payload.tool_name (matches claude-code's deriveToolName behavior
+      // for the live-preview common case).
+      const p = e.payload as Record<string, unknown> | undefined
+      const tn = p?.tool_name
+      const toolName = typeof tn === 'string' ? tn : null
+      const out = applyFilters(e, toolName, [compiled])
       total += out.primary.length + out.secondary.length
     }
     return total
-  }, [events, debounced])
+  }, [queryClient, sessionId, debounced])
 
-  if (count === null) return null
+  if (count === null) {
+    return (
+      <div className="mt-3 p-2 rounded text-xs bg-muted text-muted-foreground">
+        Open a session to see live match counts
+      </div>
+    )
+  }
   return (
     <div className="mt-3 p-2 rounded text-xs bg-green-500/10 border border-green-500/30 text-green-700 dark:text-green-400">
       <span className="font-semibold">{count} matches</span> across loaded events
@@ -3421,7 +3442,7 @@ function LivePreview({
 }
 ```
 
-- [ ] **Step 3: Manual smoke**
+- [ ] **Step 3: Manual smoke (non-blocking — skip under a headless agent)**
 
 `just dev` → Settings → Filters → New filter. Type a regex into a pattern; the count should update 300ms after typing stops. Save → pill appears in the bar.
 
@@ -3439,9 +3460,9 @@ git commit -m "feat: new filter button and live N-matches preview"
 **Files:**
 - Modify: `app/client/src/components/settings/filters-tab.tsx`
 
-- [ ] **Step 1: Track auto-mirror state in the editor**
+- [ ] **Step 1: Add auto-mirror tracking state**
 
-In `FilterEditor`, replace the `pillName` `useState` with a derived auto-mirror flag:
+In `FilterEditor`, **add** a new `pillNameAutoMirror` useState beside the existing `name` and `pillName` useStates (do NOT replace `pillName`). The block becomes:
 
 ```tsx
   const [name, setName] = useState(filter.name)
@@ -3476,7 +3497,7 @@ When switching filters (`useEffect([filter.id])`):
     setPillNameAutoMirror(filter.name === filter.pillName)
 ```
 
-- [ ] **Step 2: Manual smoke**
+- [ ] **Step 2: Manual smoke (non-blocking — skip under a headless agent)**
 
 `just dev` → Filters → New filter. Type into Name → Pill name mirrors. Then edit Pill name → mirroring stops.
 
@@ -3573,7 +3594,7 @@ just check
 
 Expected: all tests PASS, no formatter changes.
 
-- [ ] **Step 2: Manual end-to-end smoke**
+- [ ] **Step 2: Manual end-to-end smoke (non-blocking — skip if running under a headless agent)**
 
 ```bash
 just dev
