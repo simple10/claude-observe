@@ -4,7 +4,7 @@ import { useFilterStore } from '@/stores/filter-store'
 import { useUIStore } from '@/stores/ui-store'
 import { applyFilters } from '@/lib/filters/matcher'
 import type { CompiledFilter } from '@/lib/filters/types'
-import type { Filter, ParsedEvent } from '@/types'
+import type { Filter, FilterPattern, ParsedEvent } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -21,11 +21,52 @@ import { cn } from '@/lib/utils'
 
 type DisplayTab = 'primary' | 'secondary'
 
+// In-progress edits live here, keyed by filter id, so the user can
+// navigate between filters without losing work. Save / Discard removes
+// the entry; selecting a filter without an existing draft falls back to
+// the committed values on the filter itself.
+interface Draft {
+  name: string
+  pillName: string
+  pillNameAutoMirror: boolean
+  display: 'primary' | 'secondary'
+  combinator: 'and' | 'or'
+  patterns: FilterPattern[]
+}
+
+function draftFromFilter(f: Filter): Draft {
+  return {
+    name: f.name,
+    pillName: f.pillName,
+    pillNameAutoMirror: f.name === f.pillName,
+    display: f.display,
+    combinator: f.combinator,
+    patterns: f.patterns,
+  }
+}
+
 export function FiltersTab() {
   const { filters, loaded, load, resetDefaults } = useFilterStore()
   const [displayTab, setDisplayTab] = useState<DisplayTab>('primary')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [drafts, setDrafts] = useState<Map<string, Draft>>(new Map())
+
+  const setDraftFor = (id: string, next: Draft) => {
+    setDrafts((prev) => {
+      const m = new Map(prev)
+      m.set(id, next)
+      return m
+    })
+  }
+  const clearDraftFor = (id: string) => {
+    setDrafts((prev) => {
+      if (!prev.has(id)) return prev
+      const m = new Map(prev)
+      m.delete(id)
+      return m
+    })
+  }
 
   useEffect(() => {
     if (!loaded) void load()
@@ -89,6 +130,7 @@ export function FiltersTab() {
                   key={f.id}
                   f={f}
                   selected={selectedId === f.id}
+                  modified={drafts.has(f.id)}
                   onSelect={() => setSelectedId(f.id)}
                 />
               ))
@@ -110,6 +152,7 @@ export function FiltersTab() {
                 key={f.id}
                 f={f}
                 selected={selectedId === f.id}
+                modified={drafts.has(f.id)}
                 onSelect={() => setSelectedId(f.id)}
               />
             ))}
@@ -138,7 +181,16 @@ export function FiltersTab() {
         </div>
       </aside>
       <main className="flex-1 min-h-0 overflow-y-auto p-4">
-        {selected ? <FilterEditor filter={selected} /> : <EmptyState />}
+        {selected ? (
+          <FilterEditor
+            filter={selected}
+            draft={drafts.get(selected.id) ?? null}
+            onDraftChange={(d) => setDraftFor(selected.id, d)}
+            onDiscard={() => clearDraftFor(selected.id)}
+          />
+        ) : (
+          <EmptyState />
+        )}
       </main>
     </div>
   )
@@ -168,7 +220,17 @@ function Section({
   )
 }
 
-function Row({ f, selected, onSelect }: { f: Filter; selected: boolean; onSelect: () => void }) {
+function Row({
+  f,
+  selected,
+  modified,
+  onSelect,
+}: {
+  f: Filter
+  selected: boolean
+  modified: boolean
+  onSelect: () => void
+}) {
   const { update } = useFilterStore()
   return (
     <button
@@ -178,6 +240,12 @@ function Row({ f, selected, onSelect }: { f: Filter; selected: boolean; onSelect
         selected ? 'bg-primary/15' : 'hover:bg-accent',
       )}
     >
+      {modified ? (
+        <span
+          className="h-1.5 w-1.5 rounded-full bg-violet-500 shrink-0"
+          title="Unsaved changes"
+        />
+      ) : null}
       <span className="flex-1 truncate">{f.name}</span>
       <span className="font-mono text-[9px] bg-muted px-1 rounded">{f.patterns.length}</span>
       <input
@@ -199,26 +267,30 @@ function EmptyState() {
   )
 }
 
-function FilterEditor({ filter }: { filter: Filter }) {
+function FilterEditor({
+  filter,
+  draft,
+  onDraftChange,
+  onDiscard,
+}: {
+  filter: Filter
+  draft: Draft | null
+  onDraftChange: (next: Draft) => void
+  onDiscard: () => void
+}) {
   const { update, remove, duplicate } = useFilterStore()
   const isUser = filter.kind === 'user'
+  const hasDraft = draft !== null
+  // The form reads from the draft if one exists, otherwise from the
+  // committed filter. Any edit lifts a new draft (seeded from the filter)
+  // into the parent.
+  const current: Draft = draft ?? draftFromFilter(filter)
+  const { name, pillName, pillNameAutoMirror, display, combinator, patterns } = current
 
-  // Local form state — initialized from the filter, syncs back on save.
-  const [name, setName] = useState(filter.name)
-  const [pillName, setPillName] = useState(filter.pillName)
-  const [pillNameAutoMirror, setPillNameAutoMirror] = useState(filter.name === filter.pillName)
-  const [display, setDisplay] = useState(filter.display)
-  const [combinator, setCombinator] = useState(filter.combinator)
-  const [patterns, setPatterns] = useState(filter.patterns)
+  const setDraft = (patch: Partial<Draft>) => onDraftChange({ ...current, ...patch })
+
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
-  // Re-initialize when a different filter is selected.
   useEffect(() => {
-    setName(filter.name)
-    setPillName(filter.pillName)
-    setPillNameAutoMirror(filter.name === filter.pillName)
-    setDisplay(filter.display)
-    setCombinator(filter.combinator)
-    setPatterns(filter.patterns)
     setConfirmDeleteOpen(false)
   }, [filter.id])
 
@@ -236,7 +308,9 @@ function FilterEditor({ filter }: { filter: Filter }) {
   async function onSave() {
     if (!isUser) return
     if (invalidPattern) return
+    if (!hasDraft) return
     await update(filter.id, { name, pillName, display, combinator, patterns })
+    onDiscard() // clears the draft once committed
   }
 
   return (
@@ -250,6 +324,23 @@ function FilterEditor({ filter }: { filter: Filter }) {
         >
           {isUser ? 'USER' : 'DEFAULT · READ-ONLY'}
         </span>
+        <button
+          onClick={() => void update(filter.id, { enabled: !filter.enabled })}
+          className={cn(
+            'text-[10px] font-mono px-2 py-0.5 rounded border transition-colors',
+            filter.enabled
+              ? 'border-green-500/40 bg-green-500/15 text-green-700 dark:text-green-400'
+              : 'border-border text-muted-foreground hover:bg-accent',
+          )}
+          title="Click to toggle"
+        >
+          {filter.enabled ? 'ENABLED' : 'DISABLED'}
+        </button>
+        {hasDraft ? (
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-violet-500/20 text-violet-600">
+            UNSAVED
+          </span>
+        ) : null}
         <div className="flex-1" />
         <Button size="sm" variant="outline" onClick={() => void duplicate(filter.id)}>
           Duplicate
@@ -298,8 +389,7 @@ function FilterEditor({ filter }: { filter: Filter }) {
             value={name}
             onChange={(e) => {
               const v = e.target.value
-              setName(v)
-              if (pillNameAutoMirror) setPillName(v)
+              setDraft(pillNameAutoMirror ? { name: v, pillName: v } : { name: v })
             }}
             disabled={!isUser}
           />
@@ -308,10 +398,7 @@ function FilterEditor({ filter }: { filter: Filter }) {
           <label className="text-xs uppercase text-muted-foreground">Pill name</label>
           <Input
             value={pillName}
-            onChange={(e) => {
-              setPillName(e.target.value)
-              setPillNameAutoMirror(false)
-            }}
+            onChange={(e) => setDraft({ pillName: e.target.value, pillNameAutoMirror: false })}
             disabled={!isUser}
             className="font-mono text-xs"
           />
@@ -327,7 +414,7 @@ function FilterEditor({ filter }: { filter: Filter }) {
               <button
                 key={d}
                 disabled={!isUser}
-                onClick={() => setDisplay(d)}
+                onClick={() => setDraft({ display: d })}
                 className={cn(
                   'px-3 py-1 flex-1',
                   display === d ? 'bg-violet-500 text-white' : 'bg-transparent',
@@ -349,7 +436,7 @@ function FilterEditor({ filter }: { filter: Filter }) {
             <button
               key={c}
               disabled={!isUser}
-              onClick={() => setCombinator(c)}
+              onClick={() => setDraft({ combinator: c })}
               className={cn(
                 'px-2 py-1',
                 combinator === c ? 'bg-muted-foreground text-background' : 'bg-transparent',
@@ -370,7 +457,11 @@ function FilterEditor({ filter }: { filter: Filter }) {
                   key={t}
                   disabled={!isUser}
                   onClick={() =>
-                    setPatterns(patterns.map((pp, ii) => (ii === i ? { ...pp, target: t } : pp)))
+                    setDraft({
+                      patterns: patterns.map((pp, ii) =>
+                        ii === i ? { ...pp, target: t } : pp,
+                      ),
+                    })
                   }
                   className={cn(
                     'px-2 py-1 capitalize',
@@ -385,9 +476,11 @@ function FilterEditor({ filter }: { filter: Filter }) {
               value={p.regex}
               disabled={!isUser}
               onChange={(e) =>
-                setPatterns(
-                  patterns.map((pp, ii) => (ii === i ? { ...pp, regex: e.target.value } : pp)),
-                )
+                setDraft({
+                  patterns: patterns.map((pp, ii) =>
+                    ii === i ? { ...pp, regex: e.target.value } : pp,
+                  ),
+                })
               }
               className="font-mono text-xs flex-1"
             />
@@ -396,7 +489,7 @@ function FilterEditor({ filter }: { filter: Filter }) {
                 size="sm"
                 variant="ghost"
                 className="text-red-600"
-                onClick={() => setPatterns(patterns.filter((_, ii) => ii !== i))}
+                onClick={() => setDraft({ patterns: patterns.filter((_, ii) => ii !== i) })}
               >
                 ×
               </Button>
@@ -410,7 +503,7 @@ function FilterEditor({ filter }: { filter: Filter }) {
           size="sm"
           variant="outline"
           className="mt-2"
-          onClick={() => setPatterns([...patterns, { target: 'hook', regex: '' }])}
+          onClick={() => setDraft({ patterns: [...patterns, { target: 'hook', regex: '' }] })}
         >
           + Add pattern
         </Button>
@@ -429,7 +522,15 @@ function FilterEditor({ filter }: { filter: Filter }) {
 
       {isUser ? (
         <div className="mt-4 flex gap-2 justify-end">
-          <Button variant="outline" size="sm" disabled={!!invalidPattern} onClick={onSave}>
+          <Button variant="outline" size="sm" disabled={!hasDraft} onClick={onDiscard}>
+            Discard
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!hasDraft || !!invalidPattern}
+            onClick={onSave}
+          >
             Save
           </Button>
         </div>
