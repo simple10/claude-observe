@@ -4,6 +4,7 @@ import { getServerHealth } from '@/lib/server-health'
 import type { WSMessage, WSClientMessage, ParsedEvent, Session, RecentSession } from '@/types'
 import { pushNotification, clearNotification } from '@/components/sidebar/notification-indicator'
 import { useUIStore } from '@/stores/ui-store'
+import { useFilterStore } from '@/stores/filter-store'
 
 /** Patch the ['sessions', *] and ['recent-sessions', *] query caches so
  *  that any row matching sessionId with status='ended' flips to 'active'.
@@ -189,6 +190,14 @@ export function useWebSocket(sessionId: string | null) {
         // refetch re-syncs from the server, so this is client-side
         // only and non-destructive.
         markSessionActiveInCache(queryClient, sessionId)
+      } else if (msg.type === 'filter:created') {
+        useFilterStore.getState().upsertFromBroadcast(msg.filter)
+      } else if (msg.type === 'filter:updated') {
+        useFilterStore.getState().upsertFromBroadcast(msg.filter)
+      } else if (msg.type === 'filter:deleted') {
+        useFilterStore.getState().removeFromBroadcast(msg.id)
+      } else if (msg.type === 'filter:bulk-changed') {
+        void useFilterStore.getState().bulkChangedFromBroadcast()
       }
     },
     [queryClient],
@@ -244,6 +253,9 @@ export function useWebSocket(sessionId: string | null) {
         reconnectTimeoutRef.current = setTimeout(connectWs, 5000)
       }
     }
+
+    // Kick off initial filter load — independent of WS connection.
+    void useFilterStore.getState().load()
 
     connectWs()
 
