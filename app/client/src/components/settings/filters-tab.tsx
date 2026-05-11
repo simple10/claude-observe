@@ -191,6 +191,9 @@ function FilterEditor({ filter }: { filter: Filter }) {
   // Local form state — initialized from the filter, syncs back on save.
   const [name, setName] = useState(filter.name)
   const [pillName, setPillName] = useState(filter.pillName)
+  const [pillNameAutoMirror, setPillNameAutoMirror] = useState(
+    filter.name === filter.pillName,
+  )
   const [display, setDisplay] = useState(filter.display)
   const [combinator, setCombinator] = useState(filter.combinator)
   const [patterns, setPatterns] = useState(filter.patterns)
@@ -198,6 +201,7 @@ function FilterEditor({ filter }: { filter: Filter }) {
   useEffect(() => {
     setName(filter.name)
     setPillName(filter.pillName)
+    setPillNameAutoMirror(filter.name === filter.pillName)
     setDisplay(filter.display)
     setCombinator(filter.combinator)
     setPatterns(filter.patterns)
@@ -250,13 +254,24 @@ function FilterEditor({ filter }: { filter: Filter }) {
       <div className="grid grid-cols-3 gap-3">
         <div>
           <label className="text-xs uppercase text-muted-foreground">Filter name</label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} disabled={!isUser} />
+          <Input
+            value={name}
+            onChange={(e) => {
+              const v = e.target.value
+              setName(v)
+              if (pillNameAutoMirror) setPillName(v)
+            }}
+            disabled={!isUser}
+          />
         </div>
         <div>
           <label className="text-xs uppercase text-muted-foreground">Pill name</label>
           <Input
             value={pillName}
-            onChange={(e) => setPillName(e.target.value)}
+            onChange={(e) => {
+              setPillName(e.target.value)
+              setPillNameAutoMirror(false)
+            }}
             disabled={!isUser}
             className="font-mono text-xs"
           />
