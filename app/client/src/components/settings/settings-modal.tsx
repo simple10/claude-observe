@@ -7,6 +7,7 @@ import { LabelsModalBody } from '@/components/labels/labels-modal'
 import { IconSettings } from './icon-settings'
 import { GeneralSettings } from './general-settings'
 import { KeyboardSettings } from './keyboard-settings'
+import { FiltersTab } from './filters-tab'
 import { useUIStore } from '@/stores/ui-store'
 import { Button } from '@/components/ui/button'
 import { getServerHealth } from '@/lib/server-health'
@@ -72,6 +73,7 @@ export function SettingsModal() {
             <TabsList>
               <TabsTrigger value="settings">Display</TabsTrigger>
               <TabsTrigger value="icons">Icons</TabsTrigger>
+              <TabsTrigger value="filters">Filters</TabsTrigger>
               <TabsTrigger value="projects">Projects</TabsTrigger>
               <TabsTrigger value="labels">Labels</TabsTrigger>
               <TabsTrigger value="sessions">Sessions</TabsTrigger>
@@ -87,6 +89,9 @@ export function SettingsModal() {
             style={{ maxHeight: 'calc(80vh - 140px)' }}
           >
             <IconSettings />
+          </TabsContent>
+          <TabsContent value="filters" className="flex-1 min-h-0 flex flex-col">
+            <FiltersTab />
           </TabsContent>
           <TabsContent value="projects" className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-4">
             <ProjectsTab />
