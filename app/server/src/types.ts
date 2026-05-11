@@ -154,3 +154,41 @@ export type WSMessage =
 
 // Messages FROM clients
 export type WSClientMessage = { type: 'subscribe'; sessionId: string } | { type: 'unsubscribe' }
+
+// === Filter types ===
+
+export type FilterTarget = 'hook' | 'tool' | 'payload'
+export type FilterDisplay = 'primary' | 'secondary'
+export type FilterCombinator = 'and' | 'or'
+export type FilterKind = 'default' | 'user'
+
+export interface FilterPattern {
+  target: FilterTarget
+  regex: string
+}
+
+export interface Filter {
+  id: string
+  name: string
+  pillName: string
+  display: FilterDisplay
+  combinator: FilterCombinator
+  patterns: FilterPattern[]
+  kind: FilterKind
+  enabled: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+export interface FilterRow {
+  id: string
+  name: string
+  pill_name: string
+  display: string
+  combinator: string
+  patterns: string // JSON
+  kind: string
+  enabled: number // 0/1
+  created_at: number
+  updated_at: number
+}
