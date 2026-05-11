@@ -68,16 +68,27 @@ export function FiltersTab() {
     })
   }
 
+  // Merge any in-progress draft into a filter so the sidebar reflects
+  // edits (name + pattern count) before the user saves. `enabled` is
+  // not a draft field — it stays from the committed value.
+  const effective = (f: Filter): Filter => {
+    const d = drafts.get(f.id)
+    return d ? { ...f, name: d.name, patterns: d.patterns } : f
+  }
+
   useEffect(() => {
     if (!loaded) void load()
   }, [loaded, load])
 
   const filteredList = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return filters.filter(
-      (f) => f.display === displayTab && (q === '' || f.name.toLowerCase().includes(q)),
-    )
-  }, [filters, displayTab, search])
+    return filters.filter((f) => {
+      if (f.display !== displayTab) return false
+      if (q === '') return true
+      const displayName = drafts.get(f.id)?.name ?? f.name
+      return displayName.toLowerCase().includes(q)
+    })
+  }, [filters, displayTab, search, drafts])
 
   const userFilters = filteredList.filter((f) => f.kind === 'user').sort(byName)
   const defaultFilters = filteredList.filter((f) => f.kind === 'default').sort(byName)
@@ -128,7 +139,7 @@ export function FiltersTab() {
               userFilters.map((f) => (
                 <Row
                   key={f.id}
-                  f={f}
+                  f={effective(f)}
                   selected={selectedId === f.id}
                   modified={drafts.has(f.id)}
                   onSelect={() => setSelectedId(f.id)}
@@ -150,7 +161,7 @@ export function FiltersTab() {
             {defaultFilters.map((f) => (
               <Row
                 key={f.id}
-                f={f}
+                f={effective(f)}
                 selected={selectedId === f.id}
                 modified={drafts.has(f.id)}
                 onSelect={() => setSelectedId(f.id)}
