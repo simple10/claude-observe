@@ -17,6 +17,7 @@ function makeEvent(overrides: Partial<EnrichedEvent> & { timestamp: number }): E
     iconId: 'Default',
     status: 'pending',
     filterTags: { static: null, dynamic: [] },
+    filters: { primary: [], secondary: [] },
     searchText: '',
     dedupMode: false,
     summary: '',

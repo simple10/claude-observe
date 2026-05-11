@@ -18,6 +18,7 @@ function makeEvent(id: number): EnrichedEvent {
     labelTooltip: null,
     iconId: 'ToolBash',
     filterTags: { static: 'Tools', dynamic: ['Bash'] },
+    filters: { primary: [], secondary: [] },
     searchText: '',
     dedupMode: false,
     summary: '',

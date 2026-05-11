@@ -4,6 +4,7 @@ import { EVENT_ICON_REGISTRY } from '@/lib/event-icon-registry'
 import { getEventSummary, buildSearchText } from './helpers'
 import { deriveToolName } from './derivers'
 import { agentPatchDebouncer } from '@/lib/agent-patch-debouncer'
+import { applyFilters } from '@/lib/filters/matcher'
 
 /** Map (hookName, toolName) → registry icon id. Tool icons are prefixed
  *  `Tool` to disambiguate from hookName-shaped ids. */
@@ -415,6 +416,7 @@ export function processEvent(
     status:
       statusOverride ?? (isPayloadFailed(raw.payload) ? 'failed' : deriveLocalStatus(hookName)),
     filterTags: getFilterTags(hookName, toolName, displayEventStream),
+    filters: applyFilters(raw, toolName, ctx.compiledFilters),
     searchText: buildSearchText(raw, slots.summary, toolName),
     summary: slots.summary,
 
