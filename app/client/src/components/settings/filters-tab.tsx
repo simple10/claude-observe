@@ -105,7 +105,10 @@ export function FiltersTab() {
                 pillName: 'New filter',
                 display: displayTab,
                 combinator: 'and',
-                patterns: [{ target: 'hook', regex: '.+' }],
+                // Inert placeholder regex — user replaces this in the editor
+                // before the filter does anything visible. Avoids flooding the
+                // pill bar on first click.
+                patterns: [{ target: 'hook', regex: '^$' }],
               })
               setSelectedId(f.id)
             }}
