@@ -14,7 +14,6 @@ import { format } from 'timeago.js'
 import { buildAgentColorMap } from '@/lib/agent-utils'
 import { QueryBoundary } from '@/components/shared/query-boundary'
 import { EmptyState, Spinner } from '@/components/shared/loading-states'
-import type { Agent } from '@/types'
 
 export function EventStream() {
   const {
