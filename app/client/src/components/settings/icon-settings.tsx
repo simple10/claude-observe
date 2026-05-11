@@ -68,19 +68,22 @@ export function IconSettings() {
     )
   }, [filter])
 
-  // Group filtered entries by `group`, preserving the order they appear
-  // in the registry.
+  // Group filtered entries by `group`, preserving the order of first
+  // appearance in the registry. Uses a Map so a group whose entries are
+  // split across the registry (e.g. a trailing `System` entry after
+  // other groups) still gets aggregated into a single section — avoids
+  // duplicate React keys.
   const grouped = useMemo(() => {
-    const groups: { group: string; entries: ResolvedEntry[] }[] = []
-    let currentGroup = ''
+    const buckets = new Map<string, ResolvedEntry[]>()
     for (const entry of filteredEntries) {
-      if (entry.group !== currentGroup) {
-        currentGroup = entry.group
-        groups.push({ group: currentGroup, entries: [] })
+      let bucket = buckets.get(entry.group)
+      if (!bucket) {
+        bucket = []
+        buckets.set(entry.group, bucket)
       }
-      groups[groups.length - 1].entries.push(entry)
+      bucket.push(entry)
     }
-    return groups
+    return Array.from(buckets, ([group, entries]) => ({ group, entries }))
   }, [filteredEntries])
 
   return (
