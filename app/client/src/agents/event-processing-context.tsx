@@ -4,6 +4,7 @@
 
 import { createContext, useContext, useMemo, useRef } from 'react'
 import { useUIStore } from '@/stores/ui-store'
+import { useFilterStore } from '@/stores/filter-store'
 import { EventStore } from './event-store'
 import type { EnrichedEvent, FrameworkDataApi } from './types'
 import type { ParsedEvent, Agent } from '@/types'
@@ -34,6 +35,7 @@ export function EventProcessingProvider({
 }) {
   const storeRef = useRef<EventStore>(new EventStore())
   const dedupEnabled = useUIStore((s) => s.dedupEnabled)
+  const compiledFilters = useFilterStore((s) => s.compiled)
 
   const value = useMemo(() => {
     const store = storeRef.current
@@ -46,13 +48,13 @@ export function EventProcessingProvider({
       }
     }
 
-    const enriched = store.process(rawEvents, dedupEnabled)
+    const enriched = store.process(rawEvents, dedupEnabled, compiledFilters)
 
     return {
       events: enriched,
       dataApi: store.createDataApi(),
     }
-  }, [rawEvents, agents, dedupEnabled])
+  }, [rawEvents, agents, dedupEnabled, compiledFilters])
 
   return <EventProcessingContext.Provider value={value}>{children}</EventProcessingContext.Provider>
 }
