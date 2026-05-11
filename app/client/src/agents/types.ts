@@ -36,10 +36,6 @@ export interface EnrichedEvent {
    *  Renderers resolve to a Lucide component + colors at render time
    *  via `resolveEventIcon` / `resolveEventColor`. */
   iconId: string
-  filterTags: {
-    static: string | null // category: 'Prompts', 'Tools', 'Agents', etc. (null if hidden)
-    dynamic: string[] // specific filters: ['Bash'], ['Read'], etc.
-  }
   /** Pill names (deduped) for primary and secondary filter rows. */
   filters: {
     primary: string[]

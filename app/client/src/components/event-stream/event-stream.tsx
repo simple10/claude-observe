@@ -85,11 +85,9 @@ export function EventStream() {
     }
 
     // Primary filters (row 1: Prompts, Tools, Agents, etc.)
-    // Delegate to the shared filter config so events that
-    // belong to multiple categories (e.g. SubagentStop → Agents AND
-    // Stop) match whichever filter the user picked. Previously we
-    // filtered by the singular `filterTags.static`, which forced a
-    // single category per event.
+    // Events can belong to multiple categories (e.g. SubagentStop →
+    // Agents AND Stop), so we match against the deduped `filters.primary`
+    // list that `applyFilters` produces during event processing.
     if (deferredPrimaryFilters.length > 0) {
       filtered = filtered.filter((e) =>
         deferredPrimaryFilters.some((name) => e.filters.primary.includes(name)),

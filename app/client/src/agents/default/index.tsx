@@ -47,7 +47,6 @@ export function processEvent(raw: RawEvent, ctx: ProcessingContext): { event: En
     iconId: 'Default',
     dedupMode: ctx.dedupEnabled,
     status: 'completed',
-    filterTags: { static: null, dynamic: toolName ? [toolName] : [] },
     filters: applyFilters(raw, toolName, ctx.compiledFilters),
     searchText: [hookName, toolName, JSON.stringify(raw.payload)]
       .filter(Boolean)

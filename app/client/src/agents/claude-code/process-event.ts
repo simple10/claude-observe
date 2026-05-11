@@ -79,67 +79,6 @@ const LABELS: Record<string, string> = {
   stop_hook_summary: 'Stop',
 }
 
-/** Map event to filter categories. Returns null for hidden events. */
-function getFilterTags(
-  hookName: string,
-  toolName: string | null,
-  display: boolean,
-): ClaudeCodeEnrichedEvent['filterTags'] {
-  if (!display) return { static: null, dynamic: [] }
-
-  const isTool =
-    hookName === 'PreToolUse' || hookName === 'PostToolUse' || hookName === 'PostToolUseFailure'
-
-  if (isTool) {
-    const dynamic: string[] = []
-    if (toolName) {
-      // Normalize MCP tool names: mcp__chrome-devtools__click → mcp__chrome-devtools
-      if (toolName.startsWith('mcp__')) {
-        const match = toolName.match(/^(mcp__[^_]+(?:_[^_]+)*?)__/)
-        dynamic.push(match ? match[1] : toolName)
-      } else {
-        dynamic.push(toolName)
-      }
-    }
-    if (toolName?.startsWith('mcp__')) return { static: 'MCP', dynamic }
-    if (toolName === 'Agent') return { static: 'Agents', dynamic }
-    if (toolName === 'TaskCreate' || toolName === 'TaskUpdate') return { static: 'Tasks', dynamic }
-    return { static: 'Tools', dynamic }
-  }
-
-  if (hookName === 'UserPromptSubmit' || hookName === 'UserPromptExpansion')
-    return { static: 'Prompts', dynamic: [] }
-  if (hookName === 'SubagentStart' || hookName === 'TeammateIdle')
-    return { static: 'Agents', dynamic: [] }
-  if (hookName === 'TaskCreated' || hookName === 'TaskCompleted')
-    return { static: 'Tasks', dynamic: [] }
-  if (hookName === 'PostToolBatch') return { static: 'Tools', dynamic: [] }
-  if (hookName === 'Setup' || hookName === 'SessionStart' || hookName === 'SessionEnd')
-    return { static: 'Session', dynamic: [] }
-  if (
-    hookName === 'Stop' ||
-    hookName === 'StopFailure' ||
-    hookName === 'SubagentStop' ||
-    hookName === 'stop_hook_summary'
-  )
-    return { static: 'Stop', dynamic: [] }
-  if (hookName === 'PermissionRequest') return { static: 'Permissions', dynamic: [] }
-  if (hookName === 'Notification') return { static: 'Notifications', dynamic: [] }
-  if (hookName === 'Elicitation' || hookName === 'ElicitationResult')
-    return { static: 'MCP', dynamic: [] }
-  if (hookName === 'PreCompact' || hookName === 'PostCompact')
-    return { static: 'Compaction', dynamic: [] }
-  if (
-    hookName === 'InstructionsLoaded' ||
-    hookName === 'ConfigChange' ||
-    hookName === 'CwdChanged' ||
-    hookName === 'FileChanged'
-  )
-    return { static: 'Config', dynamic: [hookName] }
-
-  return { static: null, dynamic: hookName ? [hookName] : [] }
-}
-
 /**
  * Build the minimal `AgentPatch` that would actually change the canonical
  * agent row, given the values discovered in an event.
@@ -415,7 +354,6 @@ export function processEvent(
     dedupMode: dedup,
     status:
       statusOverride ?? (isPayloadFailed(raw.payload) ? 'failed' : deriveLocalStatus(hookName)),
-    filterTags: getFilterTags(hookName, toolName, displayEventStream),
     filters: applyFilters(raw, toolName, ctx.compiledFilters),
     searchText: buildSearchText(raw, slots.summary, toolName),
     summary: slots.summary,
