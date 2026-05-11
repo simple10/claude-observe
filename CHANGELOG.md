@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.9.4 — Improved logs modal search navigation
+
+This release enhances the logs modal search experience by visually highlighting rows that match the search query and enabling quick navigation from a matched row directly to the corresponding event in the stream.
+
+### Features
+
+- Highlight rows in the logs modal that contain a search match for easier visual scanning
+- Jump from a logs-modal row directly to the matching event in the stream
+
 ## v0.9.3 — Searchable logs, three-layer contract refactor, worktree-aware projects, and performance improvements
 
 This release paves the way for adding full support for other agents like Codex and OpenClaw/Hermes.
