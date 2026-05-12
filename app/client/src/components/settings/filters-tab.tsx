@@ -490,7 +490,7 @@ function FilterEditor({
                   value={p.regex}
                   disabled={!isUser}
                   onChange={(e) => updatePattern({ regex: e.target.value })}
-                  className="font-mono text-xs flex-1"
+                  className="font-mono text-xs flex-1 border-muted-foreground/50 dark:border-muted-foreground/50"
                 />
                 <button
                   type="button"
