@@ -47,7 +47,16 @@ function draftFromFilter(f: Filter): Draft {
 
 export function FiltersTab() {
   const { filters, loaded, load } = useFilterStore()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const lastFilterId = useUIStore((s) => s.lastFilterId)
+  const setLastFilterId = useUIStore((s) => s.setLastFilterId)
+  // Seed selection from the persisted last-viewed filter so reopening
+  // the modal lands on the same filter. The post-load effect below
+  // takes over once filters actually exist.
+  const [selectedId, setSelectedIdRaw] = useState<string | null>(lastFilterId)
+  const setSelectedId = (id: string | null) => {
+    setSelectedIdRaw(id)
+    setLastFilterId(id)
+  }
   const [search, setSearch] = useState('')
   const drafts = useFilterDraftStore((s) => s.drafts)
   const setDraftFor = useFilterDraftStore((s) => s.setDraft)
@@ -64,6 +73,24 @@ export function FiltersTab() {
   useEffect(() => {
     if (!loaded) void load()
   }, [loaded, load])
+
+  // Once filters are loaded, make sure we have a valid selection.
+  // Priority: keep the current selection if it still exists; otherwise
+  // restore the persisted last-viewed filter if it's still around;
+  // otherwise fall back to the first user filter (then first default).
+  useEffect(() => {
+    if (!loaded || filters.length === 0) return
+    if (selectedId && filters.some((f) => f.id === selectedId)) return
+    const fallbackId =
+      (lastFilterId && filters.some((f) => f.id === lastFilterId) ? lastFilterId : null) ??
+      filters.find((f) => f.kind === 'user')?.id ??
+      filters[0]?.id ??
+      null
+    if (fallbackId && fallbackId !== selectedId) setSelectedId(fallbackId)
+    // setSelectedId is a stable reference here (closes over the persisted
+    // setter from ui-store) and intentionally omitted from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, filters, selectedId, lastFilterId])
 
   const filteredList = useMemo(() => {
     const q = search.trim().toLowerCase()

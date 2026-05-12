@@ -139,6 +139,10 @@ interface UIState {
   openSettings: (tab?: string) => void
   setSettingsTab: (tab: string) => void
   closeSettings: () => void
+  // Last filter id viewed in the Filters tab — persisted so reopening
+  // the modal lands on the same filter the user was last editing.
+  lastFilterId: string | null
+  setLastFilterId: (id: string | null) => void
 
   // Auto-follow
   autoFollow: boolean
@@ -447,6 +451,13 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ settingsTab: tab })
   },
   closeSettings: () => set({ settingsOpen: false }),
+
+  lastFilterId: localStorage.getItem('agents-observe-last-filter-id') || null,
+  setLastFilterId: (id) => {
+    if (id) localStorage.setItem('agents-observe-last-filter-id', id)
+    else localStorage.removeItem('agents-observe-last-filter-id')
+    set({ lastFilterId: id })
+  },
 
   autoFollow: true,
   setAutoFollow: (enabled) =>
