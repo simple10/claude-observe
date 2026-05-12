@@ -84,20 +84,16 @@ export function EventStream() {
       filtered = filtered.filter((e) => selectedAgentIds.includes(e.agentId))
     }
 
-    // Primary filters (row 1: Prompts, Tools, Agents, etc.)
-    // Events can belong to multiple categories (e.g. SubagentStop →
-    // Agents AND Stop), so we match against the deduped `filters.primary`
-    // list that `applyFilters` produces during event processing.
-    if (deferredPrimaryFilters.length > 0) {
-      filtered = filtered.filter((e) =>
-        deferredPrimaryFilters.some((name) => e.filters.primary.includes(name)),
-      )
-    }
-
-    // Secondary filters (row 2: Bash, Read, Edit, etc.)
-    if (deferredSecondaryFilters.length > 0) {
-      filtered = filtered.filter((e) =>
-        deferredSecondaryFilters.some((name) => e.filters.secondary.includes(name)),
+    // Pill filters across both rows behave as a union: an event passes
+    // if it matches ANY active pill, regardless of which row that pill
+    // lives in. Used to be intersection between rows, which surprised
+    // users (toggling a secondary pill would hide events that already
+    // matched a primary pill).
+    if (deferredPrimaryFilters.length > 0 || deferredSecondaryFilters.length > 0) {
+      filtered = filtered.filter(
+        (e) =>
+          deferredPrimaryFilters.some((name) => e.filters.primary.includes(name)) ||
+          deferredSecondaryFilters.some((name) => e.filters.secondary.includes(name)),
       )
     }
 
