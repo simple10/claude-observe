@@ -152,6 +152,7 @@ export function FiltersTab() {
             draft={drafts.get(selected.id) ?? null}
             onDraftChange={(d) => setDraftFor(selected.id, d)}
             onDiscard={() => clearDraftFor(selected.id)}
+            onSelect={setSelectedId}
           />
         ) : (
           <EmptyState />
@@ -293,11 +294,13 @@ function FilterEditor({
   draft,
   onDraftChange,
   onDiscard,
+  onSelect,
 }: {
   filter: Filter
   draft: Draft | null
   onDraftChange: (next: Draft) => void
   onDiscard: () => void
+  onSelect: (id: string) => void
 }) {
   const { update, remove, duplicate } = useFilterStore()
   const isUser = filter.kind === 'user'
@@ -354,7 +357,8 @@ function FilterEditor({
     await remove(filter.id)
   }
   async function onDuplicate() {
-    await duplicate(filter.id)
+    const created = await duplicate(filter.id)
+    onSelect(created.id)
   }
 
   return (
