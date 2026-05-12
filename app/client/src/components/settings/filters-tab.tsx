@@ -272,7 +272,7 @@ function CssColorPicker({
         placeholder="#3b82f6"
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className="font-mono text-xs flex-1"
+        className="font-mono text-xs w-32"
       />
       {disabled ? null : (
         <ColorPicker
@@ -461,7 +461,7 @@ function FilterEditor({
         </AlertDialog>
 
         <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-3 items-end">
             <div>
               <label className="text-xs uppercase text-muted-foreground">Pill name</label>
               <Input
@@ -470,14 +470,10 @@ function FilterEditor({
                 disabled={!isUser}
                 className="font-mono text-xs"
               />
-              <div className="text-[10px] text-muted-foreground mt-1">
-                Vars: <code>{'{hookName}'}</code> <code>{'{toolName}'}</code>{' '}
-                <code>{'{bashCommand}'}</code>
-              </div>
             </div>
             <div>
               <label className="text-xs uppercase text-muted-foreground">Display</label>
-              <div className="flex border rounded text-xs overflow-hidden">
+              <div className="flex h-9 border rounded text-xs overflow-hidden">
                 {(['primary', 'secondary'] as const).map((d) => {
                   const isActive = display === d
                   const activeClass =
@@ -489,7 +485,10 @@ function FilterEditor({
                       key={d}
                       disabled={!isUser}
                       onClick={() => setDraft({ display: d })}
-                      className={cn('px-3 py-1 flex-1', isActive ? activeClass : 'bg-transparent')}
+                      className={cn(
+                        'flex-1 flex items-center justify-center px-3',
+                        isActive ? activeClass : 'bg-transparent',
+                      )}
                     >
                       {d === 'primary' ? 'Primary' : 'Secondary'}
                     </button>
@@ -500,11 +499,20 @@ function FilterEditor({
             <div>
               <label className="text-xs uppercase text-muted-foreground">Color</label>
               <CssColorPicker value={colorValue} onChange={setColor} disabled={!isUser} />
-              <div className="text-[10px] text-muted-foreground mt-1">
-                Any CSS color (e.g. <code>#ea580c</code>, <code>red</code>,{' '}
-                <code>rgb(255,0,0)</code>)
-              </div>
             </div>
+          </div>
+          {/* Help text spans the full row below all three columns so neither
+              caption wraps. Vars hint is left-aligned under Pill name; the
+              CSS-color hint is right-aligned so it lines up under Color. */}
+          <div className="mt-1 flex justify-between gap-3 text-[10px] text-muted-foreground">
+            <span>
+              Vars: <code>{'{hookName}'}</code> <code>{'{toolName}'}</code>{' '}
+              <code>{'{bashCommand}'}</code>
+            </span>
+            <span>
+              Any CSS color (e.g. <code>#ea580c</code>, <code>red</code>,{' '}
+              <code>rgb(255,0,0)</code>)
+            </span>
           </div>
 
           <div className="mt-4 flex items-center gap-3">
