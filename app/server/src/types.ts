@@ -173,6 +173,13 @@ export interface FilterPattern {
    * Default is false / absent.
    */
   negate?: boolean
+  /**
+   * Regex flags as a string. Subset that both JS RegExp and RE2
+   * support: `i` (case-insensitive), `m` (multiline), `s` (dot matches
+   * newline). Today we pass these as `new RegExp(source, flags)`; on
+   * the RE2 backend we'll inject as inline `(?flags)` prefix.
+   */
+  flags?: string
 }
 
 export interface Filter {

@@ -20,6 +20,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 
 // In-progress edits live in filter-draft-store so the SettingsModal
 // close handler can detect them. Save / Discard removes the entry;
@@ -257,8 +258,13 @@ function FilterEditor({
   const setDraft = (patch: Partial<Draft>) => onDraftChange({ ...current, ...patch })
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  // Which pattern rows have their "Advanced" panel expanded. Stored by
+  // index — patterns don't have stable ids and the array is short, so
+  // this is fine even when rows are added/removed.
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set())
   useEffect(() => {
     setConfirmDeleteOpen(false)
+    setExpandedRows(new Set())
   }, [filter.id])
 
   const invalidPattern = useMemo(() => {
@@ -446,54 +452,120 @@ function FilterEditor({
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 mt-2">
-        {patterns.map((p, i) => (
-          <div key={i} className="flex gap-2 items-center border rounded p-2">
-            <div className="flex border rounded text-[10px] overflow-hidden">
-              {(['hook', 'tool', 'payload'] as const).map((t) => (
-                <button
-                  key={t}
+      <div className="flex flex-col gap-3 mt-2">
+        {patterns.map((p, i) => {
+          const expanded = expandedRows.has(i)
+          const caseInsensitive = (p.flags ?? '').includes('i')
+          const hasAdvanced = !!p.negate || caseInsensitive
+          const toggleExpanded = () =>
+            setExpandedRows((prev) => {
+              const next = new Set(prev)
+              if (next.has(i)) next.delete(i)
+              else next.add(i)
+              return next
+            })
+          const updatePattern = (changes: Partial<(typeof patterns)[number]>) =>
+            setDraft({
+              patterns: patterns.map((pp, ii) => (ii === i ? { ...pp, ...changes } : pp)),
+            })
+          return (
+            <div key={i} className="flex flex-col gap-1">
+              <div className="flex gap-2 items-center">
+                <div className="flex border rounded text-[10px] overflow-hidden">
+                  {(['hook', 'tool', 'payload'] as const).map((t) => (
+                    <button
+                      key={t}
+                      disabled={!isUser}
+                      onClick={() => updatePattern({ target: t })}
+                      className={cn(
+                        'px-2 py-1 capitalize',
+                        p.target === t ? 'bg-muted-foreground text-background' : 'bg-transparent',
+                      )}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+                <Input
+                  value={p.regex}
                   disabled={!isUser}
-                  onClick={() =>
-                    setDraft({
-                      patterns: patterns.map((pp, ii) =>
-                        ii === i ? { ...pp, target: t } : pp,
-                      ),
-                    })
-                  }
+                  onChange={(e) => updatePattern({ regex: e.target.value })}
+                  className="font-mono text-xs flex-1"
+                />
+                <button
+                  type="button"
+                  title="Advanced"
+                  onClick={toggleExpanded}
                   className={cn(
-                    'px-2 py-1 capitalize',
-                    p.target === t ? 'bg-muted-foreground text-background' : 'bg-transparent',
+                    'h-7 w-7 flex items-center justify-center rounded border transition-colors',
+                    hasAdvanced
+                      ? 'border-green-500/40 bg-green-500/15 text-green-700 dark:text-green-400'
+                      : 'border-border text-muted-foreground hover:bg-accent',
                   )}
                 >
-                  {t}
+                  {expanded ? (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  )}
                 </button>
-              ))}
+                {isUser ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-red-600"
+                    onClick={() => setDraft({ patterns: patterns.filter((_, ii) => ii !== i) })}
+                  >
+                    ×
+                  </Button>
+                ) : null}
+              </div>
+              {expanded ? (
+                <div className="flex gap-4 px-1 py-1 text-xs text-muted-foreground">
+                  <label
+                    className={cn(
+                      'flex items-center gap-1.5',
+                      isUser ? 'cursor-pointer' : 'cursor-default',
+                    )}
+                    title="When checked, the pattern matches events whose target does NOT match the regex"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!p.negate}
+                      disabled={!isUser}
+                      onChange={(e) => updatePattern({ negate: e.target.checked || undefined })}
+                      className="h-3 w-3"
+                    />
+                    Invert match
+                  </label>
+                  <label
+                    className={cn(
+                      'flex items-center gap-1.5',
+                      isUser ? 'cursor-pointer' : 'cursor-default',
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={caseInsensitive}
+                      disabled={!isUser}
+                      onChange={(e) => {
+                        const cur = p.flags ?? ''
+                        const next = e.target.checked
+                          ? cur.includes('i')
+                            ? cur
+                            : cur + 'i'
+                          : cur.replace('i', '')
+                        updatePattern({ flags: next || undefined })
+                      }}
+                      className="h-3 w-3"
+                    />
+                    Case insensitive
+                  </label>
+                </div>
+              ) : null}
             </div>
-            <Input
-              value={p.regex}
-              disabled={!isUser}
-              onChange={(e) =>
-                setDraft({
-                  patterns: patterns.map((pp, ii) =>
-                    ii === i ? { ...pp, regex: e.target.value } : pp,
-                  ),
-                })
-              }
-              className="font-mono text-xs flex-1"
-            />
-            {isUser ? (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="text-red-600"
-                onClick={() => setDraft({ patterns: patterns.filter((_, ii) => ii !== i) })}
-              >
-                ×
-              </Button>
-            ) : null}
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {isUser ? (

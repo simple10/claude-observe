@@ -22,7 +22,12 @@ interface ValidatedInput {
   pillName: string
   display: 'primary' | 'secondary'
   combinator: 'and' | 'or'
-  patterns: { target: 'hook' | 'tool' | 'payload'; regex: string; negate?: boolean }[]
+  patterns: {
+    target: 'hook' | 'tool' | 'payload'
+    regex: string
+    negate?: boolean
+    flags?: string
+  }[]
 }
 
 function validateInput(
@@ -50,21 +55,30 @@ function validateInput(
       return { ok: false, reason: 'each pattern regex must be a non-empty string' }
     if (p.negate !== undefined && typeof p.negate !== 'boolean')
       return { ok: false, reason: 'pattern negate must be a boolean when present' }
+    if (p.flags !== undefined) {
+      if (typeof p.flags !== 'string')
+        return { ok: false, reason: 'pattern flags must be a string when present' }
+      // Restrict to the RE2-portable subset so we don't end up with a
+      // filter that compiles today but breaks on the planned backend.
+      if (!/^[ims]*$/.test(p.flags))
+        return { ok: false, reason: 'pattern flags must contain only i, m, or s' }
+    }
     try {
-      new RegExp(p.regex)
+      new RegExp(p.regex, p.flags ?? '')
     } catch (e) {
       return { ok: false, reason: `invalid regex: ${(e as Error).message}` }
     }
   }
-  // Normalize each pattern so storage receives only known fields. This
-  // also strips `negate: false` so existing rows without the field stay
-  // identical to new defaults.
+  // Normalize each pattern so storage receives only known fields. Also
+  // strips `negate: false` / empty `flags` so existing rows without the
+  // fields stay identical to new defaults.
   const normalizedPatterns = body.patterns.map((p: any) => {
-    const out: { target: string; regex: string; negate?: boolean } = {
+    const out: { target: string; regex: string; negate?: boolean; flags?: string } = {
       target: p.target,
       regex: p.regex,
     }
     if (p.negate === true) out.negate = true
+    if (typeof p.flags === 'string' && p.flags !== '') out.flags = p.flags
     return out
   })
   return {

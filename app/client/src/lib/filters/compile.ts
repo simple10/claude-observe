@@ -36,7 +36,7 @@ export function compileFilters(filters: readonly Filter[]): CompiledFilter[] {
       try {
         patterns.push({
           target: p.target,
-          regex: new RegExp(wrapWithAnchor(p.regex)),
+          regex: new RegExp(wrapWithAnchor(p.regex), p.flags ?? ''),
           ...(p.negate ? { negate: true } : {}),
         })
       } catch {

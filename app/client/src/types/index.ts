@@ -180,6 +180,12 @@ export interface FilterPattern {
    * which has no lookahead support). Default false / absent.
    */
   negate?: boolean
+  /**
+   * Regex flags as a string. RE2-portable subset only: `i`/`m`/`s`.
+   * Passed to `new RegExp(source, flags)` today; on the RE2 backend
+   * we'll inject inline `(?flags)` prefix.
+   */
+  flags?: string
 }
 
 export interface Filter {

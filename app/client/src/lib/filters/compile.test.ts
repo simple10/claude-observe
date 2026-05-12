@@ -90,4 +90,19 @@ describe('compileFilters', () => {
     expect(a[0].patterns[0].negate).toBeUndefined()
     expect(b[0].patterns[0].negate).toBeUndefined()
   })
+
+  test('passes flags through to the compiled RegExp', () => {
+    const out = compileFilters([
+      f({ patterns: [{ target: 'tool', regex: 'bash', flags: 'i' }] }),
+    ])
+    expect(out[0].patterns[0].regex.flags).toContain('i')
+    expect(out[0].patterns[0].regex.test('BASH')).toBe(true)
+    expect(out[0].patterns[0].regex.test('Bash')).toBe(true)
+  })
+
+  test('absent flags compile to a case-sensitive RegExp', () => {
+    const out = compileFilters([f({ patterns: [{ target: 'tool', regex: 'bash' }] })])
+    expect(out[0].patterns[0].regex.flags).not.toContain('i')
+    expect(out[0].patterns[0].regex.test('BASH')).toBe(false)
+  })
 })
