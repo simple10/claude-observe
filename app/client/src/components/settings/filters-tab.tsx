@@ -362,9 +362,22 @@ function FilterEditor({
   }
 
   return (
-    <div className="border border-border/50 rounded-lg h-full flex flex-col overflow-hidden">
+    <div
+      className={cn(
+        'relative border rounded-lg h-full flex flex-col overflow-visible transition-colors',
+        hasDraft ? 'border-violet-500/60' : 'border-border/50',
+      )}
+    >
+      {hasDraft ? (
+        // Float the UNSAVED chip half-over the top-left corner so it
+        // reads as a status badge on the card rather than a chip in the
+        // toolbar. Solid background occludes the border behind it.
+        <span className="absolute -top-2 left-3 z-10 text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-500 text-white shadow-sm">
+          Unsaved
+        </span>
+      ) : null}
       {!isUser ? (
-        <div className="px-4 py-2 bg-red-500/15 border-b border-red-500/40 text-red-700 dark:text-red-400 text-xs font-semibold uppercase tracking-wider text-center">
+        <div className="px-4 py-2 bg-red-500/15 border-b border-red-500/40 text-red-700 dark:text-red-400 text-xs font-semibold uppercase tracking-wider text-center rounded-t-lg">
           Default Filter — Read Only
         </div>
       ) : null}
@@ -392,11 +405,6 @@ function FilterEditor({
             placeholder="Filter name"
             className="flex-1 min-w-[10rem] h-8 text-sm font-semibold"
           />
-          {hasDraft ? (
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-violet-500/20 text-violet-600 shrink-0">
-              UNSAVED
-            </span>
-          ) : null}
           {isUser && hasDraft ? (
             <Button variant="outline" size="sm" onClick={onDiscard}>
               Discard
