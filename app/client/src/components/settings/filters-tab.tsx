@@ -220,7 +220,7 @@ function Row({
           'font-mono text-[9px] px-1 rounded',
           f.display === 'primary'
             ? 'bg-orange-500/20 text-orange-700 dark:text-orange-400'
-            : 'bg-blue-500/20 text-blue-700 dark:text-blue-400',
+            : 'bg-blue-500/20 text-blue-700 dark:text-blue-300',
         )}
         title={f.display === 'primary' ? 'Primary row pill' : 'Secondary row pill'}
       >
@@ -417,7 +417,7 @@ function FilterEditor({
               const activeClass =
                 d === 'primary'
                   ? 'bg-orange-500/20 text-orange-700 dark:text-orange-400'
-                  : 'bg-blue-500/20 text-blue-700 dark:text-blue-400'
+                  : 'bg-blue-500/20 text-blue-700 dark:text-blue-300'
               return (
                 <button
                   key={d}
