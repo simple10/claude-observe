@@ -24,11 +24,10 @@ export const SEED_FILTERS: SeedFilter[] = [
     pillName: '{toolName}',
     display: 'secondary',
     combinator: 'and',
-    // Spawns one pill per distinct tool name; leaving uncolored so the
-    // pills don't all collapse into the same color in the filter bar.
     patterns: [
       { target: 'hook', regex: '^(PreToolUse|PostToolUse|PostToolUseFailure|PostToolBatch)$' },
     ],
+    config: { color: '#475569' }, // slate
   },
   {
     id: 'default-prompts',
@@ -37,7 +36,7 @@ export const SEED_FILTERS: SeedFilter[] = [
     display: 'primary',
     combinator: 'and',
     patterns: [{ target: 'hook', regex: '^(UserPromptSubmit|UserPromptExpansion)$' }],
-    config: { color: '#2563eb' }, // blue
+    config: { color: '#059669' }, // emerald
   },
   {
     id: 'default-tools',
@@ -56,7 +55,7 @@ export const SEED_FILTERS: SeedFilter[] = [
       { target: 'tool', regex: '^.+' },
       { target: 'tool', regex: '^(Agent$|TaskCreate$|TaskUpdate$|mcp__)', negate: true },
     ],
-    config: { color: '#16a34a' }, // green
+    config: { color: '#2563eb' }, // blue
   },
   {
     id: 'default-agents',
@@ -80,7 +79,7 @@ export const SEED_FILTERS: SeedFilter[] = [
       { target: 'hook', regex: '^(TaskCreated|TaskCompleted)$' },
       { target: 'tool', regex: '^Task(Create|Update)$' },
     ],
-    config: { color: '#4f46e5' }, // indigo
+    config: { color: '#7c3aed' }, // violet
   },
   {
     id: 'default-mcp',
@@ -92,7 +91,7 @@ export const SEED_FILTERS: SeedFilter[] = [
       { target: 'hook', regex: '^(Elicitation|ElicitationResult)$' },
       { target: 'tool', regex: '^mcp__' },
     ],
-    config: { color: '#c026d3' }, // fuchsia
+    config: { color: '#2563eb' }, // blue
   },
   {
     id: 'default-session',
@@ -101,7 +100,7 @@ export const SEED_FILTERS: SeedFilter[] = [
     display: 'primary',
     combinator: 'and',
     patterns: [{ target: 'hook', regex: '^(Setup|SessionStart|SessionEnd)$' }],
-    config: { color: '#0891b2' }, // cyan
+    config: { color: '#6b7280' }, // gray
   },
   {
     id: 'default-permissions',
@@ -110,7 +109,7 @@ export const SEED_FILTERS: SeedFilter[] = [
     display: 'primary',
     combinator: 'and',
     patterns: [{ target: 'hook', regex: '^PermissionRequest$' }],
-    config: { color: '#d97706' }, // amber
+    config: { color: '#0891b2' }, // cyan
   },
   {
     id: 'default-notifications',
@@ -119,7 +118,7 @@ export const SEED_FILTERS: SeedFilter[] = [
     display: 'primary',
     combinator: 'and',
     patterns: [{ target: 'hook', regex: '^Notification$' }],
-    config: { color: '#ca8a04' }, // yellow
+    config: { color: '#0891b2' }, // cyan
   },
   {
     id: 'default-stop',
@@ -128,16 +127,16 @@ export const SEED_FILTERS: SeedFilter[] = [
     display: 'primary',
     combinator: 'and',
     patterns: [{ target: 'hook', regex: '^(Stop|StopFailure|SubagentStop|stop_hook_summary)$' }],
-    config: { color: '#475569' }, // slate
+    config: { color: '#6b7280' }, // gray
   },
   {
     id: 'default-compaction',
     name: 'Compaction',
-    pillName: 'Compaction',
+    pillName: 'Compact',
     display: 'primary',
     combinator: 'and',
     patterns: [{ target: 'hook', regex: '^(PreCompact|PostCompact)$' }],
-    config: { color: '#0d9488' }, // teal
+    config: { color: '#6b7280' }, // gray
   },
   {
     id: 'default-config',
@@ -160,6 +159,6 @@ export const SEED_FILTERS: SeedFilter[] = [
       { target: 'payload', regex: '"is_error":\\s*true' },
       { target: 'payload', regex: '"error":\\s*"[^"]+' },
     ],
-    config: { color: '#dc2626' }, // red
+    config: { color: '#e11d48' }, // rose
   },
 ]
