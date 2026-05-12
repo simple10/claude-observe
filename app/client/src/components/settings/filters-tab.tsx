@@ -597,6 +597,78 @@ function FilterEditor({
   )
 }
 
+interface LivePreviewPattern {
+  target: 'hook' | 'tool' | 'payload'
+  regex: string
+  negate?: boolean
+  flags?: string
+}
+
+interface MatchSample {
+  matched: string
+  before: string
+  after: string
+  leading: boolean
+  trailing: boolean
+}
+
+const MAX_MATCH_DISPLAY = 200
+
+function findFirstSample(
+  events: readonly ParsedEvent[],
+  eventStrings: readonly string[],
+  compiledFilter: CompiledFilter,
+  rawPatterns: readonly LivePreviewPattern[],
+): MatchSample | null {
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i]
+    const p = e.payload as Record<string, unknown> | undefined
+    const tn = p?.tool_name
+    const toolName = typeof tn === 'string' ? tn : null
+    const out = applyFilters(e, toolName, [compiledFilter], eventStrings[i])
+    if (out.primary.length + out.secondary.length === 0) continue
+
+    // This event satisfied the filter — find the first non-negated
+    // pattern that has a positive regex hit so we can show what it
+    // matched.
+    for (const rp of rawPatterns) {
+      if (rp.negate) continue
+      let r: RegExp
+      try {
+        r = new RegExp(rp.regex, rp.flags ?? '')
+      } catch {
+        continue
+      }
+      const target =
+        rp.target === 'hook'
+          ? (e.hookName ?? '')
+          : rp.target === 'tool'
+            ? (toolName ?? '')
+            : eventStrings[i]
+      const m = r.exec(target)
+      if (m && m[0]) {
+        const truncated =
+          m[0].length > MAX_MATCH_DISPLAY ? m[0].slice(0, MAX_MATCH_DISPLAY) + '…' : m[0]
+        const start = m.index
+        const end = start + m[0].length
+        const beforeStart = Math.max(0, start - 20)
+        const afterEnd = Math.min(target.length, end + 20)
+        return {
+          matched: truncated,
+          before: target.slice(beforeStart, start),
+          after: target.slice(end, afterEnd),
+          leading: start > 20,
+          trailing: end + 20 < target.length,
+        }
+      }
+    }
+    // Matching event but every contributing pattern was negated — no
+    // positive substring to highlight.
+    return null
+  }
+  return null
+}
+
 function LivePreview({
   pillName,
   display,
@@ -606,7 +678,7 @@ function LivePreview({
   pillName: string
   display: 'primary' | 'secondary'
   combinator: 'and' | 'or'
-  patterns: { target: 'hook' | 'tool' | 'payload'; regex: string }[]
+  patterns: LivePreviewPattern[]
 }) {
   const queryClient = useQueryClient()
   const sessionId = useUIStore((s) => s.selectedSessionId)
@@ -633,8 +705,8 @@ function LivePreview({
     return events.map((e) => JSON.stringify(e))
   }, [events, enabled])
 
-  const count = useMemo(() => {
-    if (!enabled || !sessionId || !eventStrings) return null
+  const result = useMemo(() => {
+    if (!enabled || !sessionId || !eventStrings) return { count: null, sample: null }
     let compiled: CompiledFilter
     try {
       compiled = {
@@ -645,11 +717,12 @@ function LivePreview({
         combinator: debounced.combinator,
         patterns: debounced.patterns.map((p) => ({
           target: p.target,
-          regex: new RegExp(wrapWithAnchor(p.regex)),
+          regex: new RegExp(wrapWithAnchor(p.regex), p.flags ?? ''),
+          ...(p.negate ? { negate: true } : {}),
         })),
       }
     } catch {
-      return null
+      return { count: null as number | null, sample: null as MatchSample | null }
     }
     let total = 0
     for (let i = 0; i < events.length; i++) {
@@ -663,8 +736,12 @@ function LivePreview({
       const out = applyFilters(e, toolName, [compiled], eventStrings[i])
       total += out.primary.length + out.secondary.length
     }
-    return total
+    const sample = total > 0 ? findFirstSample(events, eventStrings, compiled, debounced.patterns) : null
+    return { count: total, sample }
   }, [enabled, events, eventStrings, sessionId, debounced])
+
+  const count = result.count
+  const sample = result.sample
 
   const label = !enabled
     ? 'Preview disabled'
@@ -680,14 +757,30 @@ function LivePreview({
   const showGreen = enabled && typeof count === 'number' && count > 0
 
   return (
-    <label className="mt-6 p-2 rounded bg-muted text-xs text-muted-foreground flex items-center gap-2 cursor-pointer">
-      <input
-        type="checkbox"
-        checked={enabled}
-        onChange={(e) => setEnabled(e.target.checked)}
-        className="h-3 w-3"
-      />
-      <span className={cn(showGreen && 'text-green-600 dark:text-green-400')}>{label}</span>
-    </label>
+    <div className="mt-6 p-2 rounded bg-muted text-xs text-muted-foreground">
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => setEnabled(e.target.checked)}
+          className="h-3 w-3"
+        />
+        <span className={cn(showGreen && 'text-green-600 dark:text-green-400')}>{label}</span>
+      </label>
+      {sample ? (
+        <div className="mt-1 overflow-x-auto whitespace-nowrap font-mono text-[11px] leading-snug">
+          <span className="text-muted-foreground">Matched: </span>
+          <span className="text-foreground">
+            {sample.leading ? '…' : ''}
+            {sample.before}
+            <span className="bg-yellow-500/30 text-foreground rounded px-0.5">
+              {sample.matched}
+            </span>
+            {sample.after}
+            {sample.trailing ? '…' : ''}
+          </span>
+        </div>
+      ) : null}
+    </div>
   )
 }
