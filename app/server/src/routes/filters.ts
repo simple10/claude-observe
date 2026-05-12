@@ -22,7 +22,7 @@ interface ValidatedInput {
   pillName: string
   display: 'primary' | 'secondary'
   combinator: 'and' | 'or'
-  patterns: { target: 'hook' | 'tool' | 'payload'; regex: string }[]
+  patterns: { target: 'hook' | 'tool' | 'payload'; regex: string; negate?: boolean }[]
 }
 
 function validateInput(
@@ -48,12 +48,25 @@ function validateInput(
       return { ok: false, reason: 'each pattern target must be hook, tool, or payload' }
     if (typeof p.regex !== 'string' || p.regex === '')
       return { ok: false, reason: 'each pattern regex must be a non-empty string' }
+    if (p.negate !== undefined && typeof p.negate !== 'boolean')
+      return { ok: false, reason: 'pattern negate must be a boolean when present' }
     try {
       new RegExp(p.regex)
     } catch (e) {
       return { ok: false, reason: `invalid regex: ${(e as Error).message}` }
     }
   }
+  // Normalize each pattern so storage receives only known fields. This
+  // also strips `negate: false` so existing rows without the field stay
+  // identical to new defaults.
+  const normalizedPatterns = body.patterns.map((p: any) => {
+    const out: { target: string; regex: string; negate?: boolean } = {
+      target: p.target,
+      regex: p.regex,
+    }
+    if (p.negate === true) out.negate = true
+    return out
+  })
   return {
     ok: true,
     value: {
@@ -61,7 +74,7 @@ function validateInput(
       pillName,
       display: body.display,
       combinator: body.combinator,
-      patterns: body.patterns,
+      patterns: normalizedPatterns,
     },
   }
 }

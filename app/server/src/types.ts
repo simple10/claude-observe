@@ -165,6 +165,14 @@ export type FilterKind = 'default' | 'user'
 export interface FilterPattern {
   target: FilterTarget
   regex: string
+  /**
+   * Inverts the match result for this pattern: if true, the pattern
+   * "matches" the event when the regex does NOT match the target.
+   * Lets users express negation without lookahead — important for the
+   * planned RE2 backend, which has no lookahead/lookbehind support.
+   * Default is false / absent.
+   */
+  negate?: boolean
 }
 
 export interface Filter {

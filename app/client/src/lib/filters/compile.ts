@@ -34,7 +34,11 @@ export function compileFilters(filters: readonly Filter[]): CompiledFilter[] {
     let ok = true
     for (const p of f.patterns) {
       try {
-        patterns.push({ target: p.target, regex: new RegExp(wrapWithAnchor(p.regex)) })
+        patterns.push({
+          target: p.target,
+          regex: new RegExp(wrapWithAnchor(p.regex)),
+          ...(p.negate ? { negate: true } : {}),
+        })
       } catch {
         ok = false
         break

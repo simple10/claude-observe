@@ -67,7 +67,10 @@ export function applyFilters(
           : p.target === 'tool'
             ? (toolName ?? '')
             : getPayload()
-      const hit = p.regex.test(target)
+      // `negate` inverts the regex result so users can express "doesn't
+      // match X" without lookahead — important for the planned RE2
+      // backend, which omits lookahead/lookbehind entirely.
+      const hit = p.negate ? !p.regex.test(target) : p.regex.test(target)
       if (wantAll && !hit) {
         matched = false
         break

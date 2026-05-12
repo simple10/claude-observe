@@ -74,4 +74,20 @@ describe('compileFilters', () => {
     expect(out[0].patterns[0].regex.test('Read')).toBe(true)
     expect(out[0].patterns[0].regex.test('Edit')).toBe(false)
   })
+
+  test('carries the negate flag through compilation', () => {
+    const out = compileFilters([
+      f({ patterns: [{ target: 'tool', regex: '^Bash$', negate: true }] }),
+    ])
+    expect(out[0].patterns[0].negate).toBe(true)
+  })
+
+  test('omits negate when source pattern has it false / absent', () => {
+    const a = compileFilters([f({ patterns: [{ target: 'tool', regex: '^Bash$' }] })])
+    const b = compileFilters([
+      f({ patterns: [{ target: 'tool', regex: '^Bash$', negate: false }] }),
+    ])
+    expect(a[0].patterns[0].negate).toBeUndefined()
+    expect(b[0].patterns[0].negate).toBeUndefined()
+  })
 })

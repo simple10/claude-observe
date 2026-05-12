@@ -40,9 +40,16 @@ export const SEED_FILTERS: SeedFilter[] = [
     pillName: 'Tools',
     display: 'primary',
     combinator: 'and',
+    // "Tool hooks, with a tool name that isn't Agent / TaskCreate /
+    // TaskUpdate / mcp__*". Expressed as: tool hook + non-empty
+    // tool name + negated match against the excluded set. The
+    // negated pattern was previously a `(?!...)` lookahead; lookahead
+    // isn't supported by RE2 (planned backend), so we use the
+    // explicit `negate` flag instead.
     patterns: [
       { target: 'hook', regex: '^(PreToolUse|PostToolUse|PostToolUseFailure|PostToolBatch)$' },
-      { target: 'tool', regex: '^(?!Agent$|TaskCreate$|TaskUpdate$|mcp__).+' },
+      { target: 'tool', regex: '^.+' },
+      { target: 'tool', regex: '^(Agent$|TaskCreate$|TaskUpdate$|mcp__)', negate: true },
     ],
   },
   {

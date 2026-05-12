@@ -10,6 +10,8 @@ export type FilterKind = 'default' | 'user'
 export interface CompiledPattern {
   target: FilterTarget
   regex: RegExp
+  /** Mirrors `FilterPattern.negate` — applyFilters XORs hit with this. */
+  negate?: boolean
 }
 
 export interface CompiledFilter {

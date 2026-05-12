@@ -173,6 +173,13 @@ import type { FilterTarget, FilterDisplay, FilterCombinator, FilterKind } from '
 export interface FilterPattern {
   target: FilterTarget
   regex: string
+  /**
+   * Inverts the match result for this pattern: the pattern "matches"
+   * when the regex does NOT match the target string. Lets users express
+   * negation without lookahead (important for the planned RE2 backend,
+   * which has no lookahead support). Default false / absent.
+   */
+  negate?: boolean
 }
 
 export interface Filter {

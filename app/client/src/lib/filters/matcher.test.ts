@@ -7,7 +7,7 @@ function compile(opts: {
   pillName?: string
   display?: 'primary' | 'secondary'
   combinator?: 'and' | 'or'
-  patterns: { target: 'hook' | 'tool' | 'payload'; regex: string }[]
+  patterns: { target: 'hook' | 'tool' | 'payload'; regex: string; negate?: boolean }[]
 }): CompiledFilter {
   return {
     id: opts.name,
@@ -15,7 +15,11 @@ function compile(opts: {
     pillName: opts.pillName ?? opts.name,
     display: opts.display ?? 'primary',
     combinator: opts.combinator ?? 'and',
-    patterns: opts.patterns.map((p) => ({ target: p.target, regex: new RegExp(p.regex) })),
+    patterns: opts.patterns.map((p) => ({
+      target: p.target,
+      regex: new RegExp(p.regex),
+      ...(p.negate ? { negate: true } : {}),
+    })),
   }
 }
 
@@ -113,5 +117,35 @@ describe('applyFilters', () => {
   test('literal pillName (no template) always resolves', () => {
     const f = compile({ name: 'Always', patterns: [{ target: 'hook', regex: '.' }] })
     expect(applyFilters(baseRaw, null, [f]).primary).toEqual(['Always'])
+  })
+
+  test('negate inverts a single-pattern match result', () => {
+    const f = compile({
+      name: 'NotBash',
+      patterns: [{ target: 'tool', regex: '^Bash$', negate: true }],
+    })
+    expect(applyFilters(baseRaw, 'Bash', [f]).primary).toEqual([])
+    expect(applyFilters(baseRaw, 'Read', [f]).primary).toEqual(['NotBash'])
+  })
+
+  test('negate participates in AND combinator (Tools-style exclusion)', () => {
+    // Mirrors the rewritten Tools default seed: hook in [...] AND tool
+    // non-empty AND tool NOT in {Agent, TaskCreate, TaskUpdate, mcp__*}.
+    const tools = compile({
+      name: 'Tools',
+      patterns: [
+        { target: 'hook', regex: '^PostToolUse$' },
+        { target: 'tool', regex: '^.+' },
+        { target: 'tool', regex: '^(Agent$|TaskCreate$|TaskUpdate$|mcp__)', negate: true },
+      ],
+    })
+    expect(applyFilters(baseRaw, 'Bash', [tools]).primary).toEqual(['Tools'])
+    expect(applyFilters(baseRaw, 'Agent', [tools]).primary).toEqual([])
+    expect(applyFilters(baseRaw, 'TaskCreate', [tools]).primary).toEqual([])
+    expect(applyFilters(baseRaw, 'mcp__chrome-devtools', [tools]).primary).toEqual([])
+    expect(applyFilters(baseRaw, 'AgentMaker', [tools]).primary).toEqual(['Tools'])
+    // Empty toolName fails the non-empty pattern, so no match even
+    // though the negated check would otherwise pass.
+    expect(applyFilters(baseRaw, '', [tools]).primary).toEqual([])
   })
 })
