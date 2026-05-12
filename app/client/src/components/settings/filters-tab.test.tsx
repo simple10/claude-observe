@@ -10,6 +10,9 @@ vi.mock('@/lib/api-client', () => ({
     createFilter: vi.fn(async (input) => ({
       id: 'new',
       ...input,
+      // Server always returns the parsed config; mirror that here so the
+      // FilterEditor doesn't crash dereferencing `config.color`.
+      config: input.config ?? {},
       kind: 'user',
       enabled: true,
       createdAt: 0,

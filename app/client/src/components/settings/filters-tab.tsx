@@ -7,6 +7,8 @@ import { RE2JS } from 're2js'
 import { applyFilters } from '@/lib/filters/matcher'
 import { flagsStringToRE2, wrapWithAnchor } from '@/lib/filters/compile'
 import type { CompiledFilter } from '@/lib/filters/types'
+import { ColorPicker } from './color-picker'
+import { COLOR_PRESETS } from '@/hooks/use-icon-customizations'
 import type { Filter, ParsedEvent } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,6 +39,9 @@ function draftFromFilter(f: Filter): Draft {
     display: f.display,
     combinator: f.combinator,
     patterns: f.patterns,
+    // Old broadcasts / stale rows may not have config yet — keep the
+    // editor crash-free with a `{}` fallback.
+    config: f.config ?? {},
   }
 }
 
@@ -233,6 +238,56 @@ function EmptyState() {
   )
 }
 
+/**
+ * Filter-editor wrapper around the icon-settings ColorPicker that
+ * round-trips a raw CSS color string (hex, named color, rgb(), etc.)
+ * instead of preset keys. Shows the typed value in a text input
+ * alongside a swatch button that opens the existing preset/custom
+ * picker popover. Submitting a preset writes the preset's swatch hex
+ * back into the input.
+ */
+function CssColorPicker({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string
+  onChange: (next: string) => void
+  disabled?: boolean
+}) {
+  const presetKey = useMemo(() => {
+    if (!value) return undefined
+    const target = value.toLowerCase().trim()
+    for (const [key, p] of Object.entries(COLOR_PRESETS)) {
+      if (p.swatch.toLowerCase() === target) return key
+    }
+    return undefined
+  }, [value])
+
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        value={value}
+        placeholder="#3b82f6"
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className="font-mono text-xs flex-1"
+      />
+      {disabled ? null : (
+        <ColorPicker
+          currentColor={value ? (presetKey ?? 'custom') : undefined}
+          customHex={presetKey ? undefined : value || undefined}
+          onSelect={(name, customHex) => {
+            const next = name === 'custom' ? (customHex ?? '') : (COLOR_PRESETS[name]?.swatch ?? '')
+            onChange(next)
+          }}
+          defaultSwatch={value || undefined}
+        />
+      )}
+    </div>
+  )
+}
+
 function FilterEditor({
   filter,
   draft,
@@ -251,9 +306,17 @@ function FilterEditor({
   // committed filter. Any edit lifts a new draft (seeded from the filter)
   // into the parent.
   const current: Draft = draft ?? draftFromFilter(filter)
-  const { name, pillName, pillNameAutoMirror, display, combinator, patterns } = current
+  const { name, pillName, pillNameAutoMirror, display, combinator, patterns, config } = current
 
   const setDraft = (patch: Partial<Draft>) => onDraftChange({ ...current, ...patch })
+
+  const colorValue = typeof config.color === 'string' ? config.color : ''
+  const setColor = (next: string) => {
+    const nextConfig = { ...config }
+    if (next === '') delete nextConfig.color
+    else nextConfig.color = next
+    setDraft({ config: nextConfig })
+  }
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   // Which pattern rows have their "Advanced" panel expanded. Stored by
@@ -284,7 +347,7 @@ function FilterEditor({
     if (!isUser) return
     if (invalidPattern) return
     if (!hasDraft) return
-    await update(filter.id, { name, pillName, display, combinator, patterns })
+    await update(filter.id, { name, pillName, display, combinator, patterns, config })
     onDiscard() // clears the draft once committed
   }
   async function onDelete() {
@@ -315,12 +378,21 @@ function FilterEditor({
           >
             {filter.enabled ? 'ENABLED' : 'DISABLED'}
           </button>
+          <Input
+            value={name}
+            onChange={(e) => {
+              const v = e.target.value
+              setDraft(pillNameAutoMirror ? { name: v, pillName: v } : { name: v })
+            }}
+            disabled={!isUser}
+            placeholder="Filter name"
+            className="flex-1 min-w-[10rem] h-8 text-sm font-semibold"
+          />
           {hasDraft ? (
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-violet-500/20 text-violet-600">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-violet-500/20 text-violet-600 shrink-0">
               UNSAVED
             </span>
           ) : null}
-          <div className="flex-1" />
           {isUser && hasDraft ? (
             <Button variant="outline" size="sm" onClick={onDiscard}>
               Discard
@@ -379,17 +451,6 @@ function FilterEditor({
         <div className="flex-1 min-h-0 overflow-y-auto pr-1">
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="text-xs uppercase text-muted-foreground">Filter name</label>
-              <Input
-                value={name}
-                onChange={(e) => {
-                  const v = e.target.value
-                  setDraft(pillNameAutoMirror ? { name: v, pillName: v } : { name: v })
-                }}
-                disabled={!isUser}
-              />
-            </div>
-            <div>
               <label className="text-xs uppercase text-muted-foreground">Pill name</label>
               <Input
                 value={pillName}
@@ -422,6 +483,14 @@ function FilterEditor({
                     </button>
                   )
                 })}
+              </div>
+            </div>
+            <div>
+              <label className="text-xs uppercase text-muted-foreground">Color</label>
+              <CssColorPicker value={colorValue} onChange={setColor} disabled={!isUser} />
+              <div className="text-[10px] text-muted-foreground mt-1">
+                Any CSS color (e.g. <code>#ea580c</code>, <code>red</code>,{' '}
+                <code>rgb(255,0,0)</code>)
               </div>
             </div>
           </div>

@@ -197,6 +197,13 @@ export interface Filter {
   patterns: FilterPattern[]
   kind: FilterKind
   enabled: boolean
+  /**
+   * Free-form JSON config bag. Lets new per-filter knobs (color, icon,
+   * ordering, etc.) ship without a schema migration each time. Server
+   * passes the JSON through verbatim. Known keys today:
+   *   - `color`: any valid CSS color string applied to the filter's pill.
+   */
+  config: Record<string, unknown>
   createdAt: number
   updatedAt: number
 }

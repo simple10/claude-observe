@@ -12,6 +12,8 @@ export interface FilterDraft {
   display: 'primary' | 'secondary'
   combinator: 'and' | 'or'
   patterns: FilterPattern[]
+  /** Free-form config bag — color, etc. Mirrors Filter.config. */
+  config: Record<string, unknown>
 }
 
 interface FilterDraftStore {

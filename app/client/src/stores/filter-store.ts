@@ -21,6 +21,7 @@ interface FilterStore {
     display: 'primary' | 'secondary'
     combinator: 'and' | 'or'
     patterns: { target: 'hook' | 'tool' | 'payload'; regex: string }[]
+    config?: Record<string, unknown>
   }) => Promise<Filter>
   update: (
     id: string,
@@ -31,6 +32,7 @@ interface FilterStore {
       combinator: 'and' | 'or'
       patterns: { target: 'hook' | 'tool' | 'payload'; regex: string }[]
       enabled: boolean
+      config: Record<string, unknown>
     }>,
   ) => Promise<Filter>
   remove: (id: string) => Promise<void>

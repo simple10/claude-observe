@@ -13,6 +13,7 @@ function f(opts: Partial<Filter>): Filter {
     patterns: [{ target: 'hook', regex: '.' }],
     kind: 'user',
     enabled: true,
+    config: {},
     createdAt: 0,
     updatedAt: 0,
     ...opts,

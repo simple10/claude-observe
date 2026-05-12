@@ -24,6 +24,7 @@ const FAKE: Filter = {
   patterns: [{ target: 'hook', regex: '.' }],
   kind: 'user',
   enabled: true,
+  config: {},
   createdAt: 0,
   updatedAt: 0,
 }

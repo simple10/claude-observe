@@ -85,6 +85,54 @@ export function EventFilterBar() {
     return m
   }, [filters])
 
+  // Map rendered pill name -> filter.config.color. Two passes:
+  //  - Literal pillNames (no `{var}`) match by exact name.
+  //  - Templated pillNames (e.g. `{toolName}`) match a rendered pill if a
+  //    regex built from the template (with `{var}` → `.+`) accepts it.
+  // Precedence: user-literal > default-literal > user-templated >
+  // default-templated. This way a user filter with the same template as
+  // a default still wins, and a literal match never loses to a wildcard.
+  const pillColorFor = useMemo(() => {
+    type Resolver = {
+      color: string
+      rank: number
+      match: (name: string) => boolean
+    }
+    const resolvers: Resolver[] = []
+    for (const f of filters) {
+      const color = typeof f.config?.color === 'string' ? f.config.color : ''
+      if (!color) continue
+      const hasVars = /\{[a-zA-Z]+\}/.test(f.pillName)
+      if (hasVars) {
+        const escaped = f.pillName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const withWild = escaped.replace(/\\\{[a-zA-Z]+\\\}/g, '.+')
+        let re: RegExp
+        try {
+          re = new RegExp('^' + withWild + '$')
+        } catch {
+          continue
+        }
+        resolvers.push({
+          color,
+          rank: f.kind === 'user' ? 2 : 3,
+          match: (name) => re.test(name),
+        })
+      } else {
+        const literal = f.pillName
+        resolvers.push({
+          color,
+          rank: f.kind === 'user' ? 0 : 1,
+          match: (name) => name === literal,
+        })
+      }
+    }
+    resolvers.sort((a, b) => a.rank - b.rank)
+    return (name: string): string | undefined => {
+      for (const r of resolvers) if (r.match(name)) return r.color
+      return undefined
+    }
+  }, [filters])
+
   const hasAnyFilter = activePrimaryFilters.length > 0 || activeSecondaryFilters.length > 0
 
   return (
@@ -145,6 +193,7 @@ export function EventFilterBar() {
           {primaryNames.map((category) => {
             const isActive = activePrimaryFilters.includes(category)
             const isUser = pillKindByName.get(category) === 'user'
+            const color = pillColorFor(category)
             return (
               <button
                 key={category}
@@ -152,14 +201,23 @@ export function EventFilterBar() {
                 data-filter-row="0"
                 className={cn(
                   'rounded-full px-2.5 py-0.5 text-xs transition-colors border',
-                  isActive
-                    ? isUser
-                      ? 'bg-violet-500 text-white border-violet-500'
-                      : 'bg-primary text-primary-foreground border-primary'
-                    : isUser
-                      ? 'bg-secondary text-secondary-foreground border-violet-500/40 hover:bg-accent'
-                      : 'bg-secondary text-secondary-foreground border-primary/40 hover:bg-accent',
+                  color
+                    ? 'hover:brightness-110'
+                    : isActive
+                      ? isUser
+                        ? 'bg-violet-500 text-white border-violet-500'
+                        : 'bg-primary text-primary-foreground border-primary'
+                      : isUser
+                        ? 'bg-secondary text-secondary-foreground border-violet-500/40 hover:bg-accent'
+                        : 'bg-secondary text-secondary-foreground border-primary/40 hover:bg-accent',
                 )}
+                style={
+                  color
+                    ? isActive
+                      ? { backgroundColor: color, borderColor: color, color: 'white' }
+                      : { borderColor: color, color }
+                    : undefined
+                }
                 onClick={() => togglePrimaryFilter(category)}
               >
                 {category}
@@ -212,6 +270,7 @@ export function EventFilterBar() {
           {secondaryNames.map((name) => {
             const isActive = activeSecondaryFilters.includes(name)
             const isUser = pillKindByName.get(name) === 'user'
+            const color = pillColorFor(name)
             return (
               <button
                 key={name}
@@ -219,14 +278,23 @@ export function EventFilterBar() {
                 data-filter-row="1"
                 className={cn(
                   'rounded-full px-2.5 py-0.5 text-xs transition-colors border',
-                  isUser
-                    ? isActive
-                      ? 'border-violet-500 bg-violet-500/15 text-violet-700 dark:text-violet-400'
-                      : 'border-border text-muted-foreground hover:border-violet-500/50 hover:text-foreground'
-                    : isActive
-                      ? 'border-blue-500 bg-blue-500/15 text-blue-700 dark:text-blue-400'
-                      : 'border-border text-muted-foreground hover:border-blue-500/50 hover:text-foreground',
+                  color
+                    ? 'hover:brightness-110'
+                    : isUser
+                      ? isActive
+                        ? 'border-violet-500 bg-violet-500/15 text-violet-700 dark:text-violet-400'
+                        : 'border-border text-muted-foreground hover:border-violet-500/50 hover:text-foreground'
+                      : isActive
+                        ? 'border-blue-500 bg-blue-500/15 text-blue-700 dark:text-blue-400'
+                        : 'border-border text-muted-foreground hover:border-blue-500/50 hover:text-foreground',
                 )}
+                style={
+                  color
+                    ? isActive
+                      ? { backgroundColor: color, borderColor: color, color: 'white' }
+                      : { borderColor: color, color }
+                    : undefined
+                }
                 onClick={() => toggleSecondaryFilter(name)}
               >
                 {name}

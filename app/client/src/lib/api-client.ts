@@ -199,6 +199,7 @@ export const api = {
     display: 'primary' | 'secondary'
     combinator: 'and' | 'or'
     patterns: { target: 'hook' | 'tool' | 'payload'; regex: string }[]
+    config?: Record<string, unknown>
   }) =>
     fetchJson<Filter>('/filters', {
       method: 'POST',
@@ -214,6 +215,7 @@ export const api = {
       combinator: 'and' | 'or'
       patterns: { target: 'hook' | 'tool' | 'payload'; regex: string }[]
       enabled: boolean
+      config: Record<string, unknown>
     }>,
   ) =>
     fetchJson<Filter>(`/filters/${encodeURIComponent(id)}`, {

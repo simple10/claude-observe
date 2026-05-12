@@ -13,6 +13,8 @@ export interface SeedFilter {
   display: FilterDisplay
   combinator: FilterCombinator
   patterns: FilterPattern[]
+  /** Optional per-filter config bag (color, etc.). Defaults to {}. */
+  config?: Record<string, unknown>
 }
 
 export const SEED_FILTERS: SeedFilter[] = [

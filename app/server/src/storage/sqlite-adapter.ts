@@ -367,8 +367,14 @@ export class SqliteAdapter implements EventStore {
       `)
     }
 
+    // Filters schema is still in flux — drop on every startup so column
+    // changes (e.g. adding `config` JSON) don't need a migration script.
+    // Default seeds are re-inserted by runSeedDefaults() below; user
+    // filters are short-lived during this feature's development. Revisit
+    // before tagging a release that ships filters.
+    this.db.exec('DROP TABLE IF EXISTS filters')
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS filters (
+      CREATE TABLE filters (
         id          TEXT PRIMARY KEY,
         name        TEXT NOT NULL,
         pill_name   TEXT NOT NULL,
@@ -377,6 +383,7 @@ export class SqliteAdapter implements EventStore {
         patterns    TEXT NOT NULL,
         kind        TEXT NOT NULL CHECK(kind IN ('default','user')),
         enabled     INTEGER NOT NULL DEFAULT 1,
+        config      TEXT NOT NULL DEFAULT '{}',
         created_at  INTEGER NOT NULL,
         updated_at  INTEGER NOT NULL
       )
@@ -842,13 +849,14 @@ export class SqliteAdapter implements EventStore {
     display: 'primary' | 'secondary'
     combinator: 'and' | 'or'
     patterns: FilterPattern[]
+    config?: Record<string, unknown>
   }): Promise<Filter> {
     const id = randomUUID()
     const now = Date.now()
     this.db
       .prepare(
-        `INSERT INTO filters (id, name, pill_name, display, combinator, patterns, kind, enabled, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'user', 1, ?, ?)`,
+        `INSERT INTO filters (id, name, pill_name, display, combinator, patterns, kind, enabled, config, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'user', 1, ?, ?, ?)`,
       )
       .run(
         id,
@@ -857,6 +865,7 @@ export class SqliteAdapter implements EventStore {
         input.display,
         input.combinator,
         JSON.stringify(input.patterns),
+        JSON.stringify(input.config ?? {}),
         now,
         now,
       )
@@ -876,6 +885,7 @@ export class SqliteAdapter implements EventStore {
       combinator: 'and' | 'or'
       patterns: FilterPattern[]
       enabled: boolean
+      config: Record<string, unknown>
     }>,
   ): Promise<Filter> {
     const existing = await this.getFilterById(id)
@@ -887,11 +897,12 @@ export class SqliteAdapter implements EventStore {
       combinator: patch.combinator ?? existing.combinator,
       patterns: patch.patterns ?? existing.patterns,
       enabled: patch.enabled ?? existing.enabled,
+      config: patch.config ?? existing.config,
     }
     this.db
       .prepare(
         `UPDATE filters
-         SET name = ?, pill_name = ?, display = ?, combinator = ?, patterns = ?, enabled = ?, updated_at = ?
+         SET name = ?, pill_name = ?, display = ?, combinator = ?, patterns = ?, enabled = ?, config = ?, updated_at = ?
          WHERE id = ?`,
       )
       .run(
@@ -901,6 +912,7 @@ export class SqliteAdapter implements EventStore {
         merged.combinator,
         JSON.stringify(merged.patterns),
         merged.enabled ? 1 : 0,
+        JSON.stringify(merged.config),
         Date.now(),
         id,
       )
@@ -916,19 +928,21 @@ export class SqliteAdapter implements EventStore {
       display: orig.display,
       combinator: orig.combinator,
       patterns: orig.patterns,
+      config: orig.config,
     })
   }
 
   private runSeedDefaults(): void {
     const insert = this.db.prepare(
-      `INSERT INTO filters (id, name, pill_name, display, combinator, patterns, kind, enabled, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'default', 1, ?, ?)
+      `INSERT INTO filters (id, name, pill_name, display, combinator, patterns, kind, enabled, config, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'default', 1, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          name = excluded.name,
          pill_name = excluded.pill_name,
          display = excluded.display,
          combinator = excluded.combinator,
          patterns = excluded.patterns,
+         config = excluded.config,
          updated_at = excluded.updated_at`,
     )
     const now = Date.now()
@@ -941,6 +955,7 @@ export class SqliteAdapter implements EventStore {
           s.display,
           s.combinator,
           JSON.stringify(s.patterns),
+          JSON.stringify(s.config ?? {}),
           now,
           now,
         )
@@ -1320,6 +1335,14 @@ export class SqliteAdapter implements EventStore {
   }
 
   private rowToFilter(row: FilterRow): Filter {
+    let config: Record<string, unknown> = {}
+    try {
+      const parsed = JSON.parse(row.config || '{}')
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) config = parsed
+    } catch {
+      // Bad JSON in the column — surface as an empty config rather than
+      // crashing the list endpoint.
+    }
     return {
       id: row.id,
       name: row.name,
@@ -1329,6 +1352,7 @@ export class SqliteAdapter implements EventStore {
       patterns: JSON.parse(row.patterns),
       kind: row.kind as 'default' | 'user',
       enabled: row.enabled === 1,
+      config,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }

@@ -42,6 +42,7 @@ interface ValidatedInput {
     negate?: boolean
     flags?: string
   }[]
+  config: Record<string, unknown>
 }
 
 function validateInput(
@@ -98,6 +99,16 @@ function validateInput(
     if (typeof p.flags === 'string' && p.flags !== '') out.flags = p.flags
     return out
   })
+  // config is a free-form JSON object. Only the shape (object, not
+  // array, not null) is validated here — the contents are passed
+  // through verbatim. Known keys today: `color` (any CSS color string).
+  let config: Record<string, unknown> = {}
+  if (body.config !== undefined) {
+    if (body.config === null || typeof body.config !== 'object' || Array.isArray(body.config)) {
+      return { ok: false, reason: 'config must be a JSON object when present' }
+    }
+    config = body.config
+  }
   return {
     ok: true,
     value: {
@@ -106,6 +117,7 @@ function validateInput(
       display: body.display,
       combinator: body.combinator,
       patterns: normalizedPatterns,
+      config,
     },
   }
 }
@@ -183,6 +195,12 @@ router.patch('/filters/:id', async (c) => {
     if (body.enabled !== undefined) {
       if (typeof body.enabled !== 'boolean') return apiError(c, 400, 'enabled must be boolean')
       patch.enabled = body.enabled
+    }
+    if (body.config !== undefined) {
+      if (body.config === null || typeof body.config !== 'object' || Array.isArray(body.config)) {
+        return apiError(c, 400, 'config must be a JSON object')
+      }
+      patch.config = body.config
     }
     if (body.kind !== undefined) return apiError(c, 400, 'kind is immutable')
   }
