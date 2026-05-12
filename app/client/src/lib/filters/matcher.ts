@@ -10,17 +10,34 @@ function resolveVar(name: string, raw: RawEvent, toolName: string | null): strin
     case 'toolName':
       return toolName ?? null
     case 'bashCommand': {
-      // In the filter context, "bashCommand" resolves to just the leading
-      // binary token — what gets invoked, not the entire command line.
-      // Otherwise every distinct command becomes its own pill, flooding
-      // the filter bar with thousands of one-off entries (see issue
-      // screenshots from 2026-05-11). Event details rendering still
-      // shows the full command via a separate code path.
+      // In the filter context, "bashCommand" resolves to just the binary
+      // the user invoked — not the entire command line — so the filter
+      // bar collapses to "cat, npm, git, …" instead of one pill per
+      // distinct command string.
+      //
+      // Rules:
+      //  - Skip leading env-var assignments (`FOO=bar`, `wait_id=foo;`).
+      //  - The binary must be purely alphanumeric. Anything else (`[`,
+      //    `./script`, `apt-get`, quoted strings, subshells) is not
+      //    emitted — we accept missing the pill for those rather than
+      //    flooding the bar with shell-syntax tokens.
+      //  - If the first non-env-var token isn't a clean binary, give
+      //    up rather than scanning further into the command (avoids
+      //    misclassifying an arg of `[` as the binary).
+      //
+      // Event details rendering uses the full command via a separate
+      // code path and is unaffected.
       if (toolName !== 'Bash') return null
       const cmd = (raw.payload as Record<string, any>)?.tool_input?.command
       if (typeof cmd !== 'string' || cmd === '') return null
-      const binary = cmd.trim().split(/\s+/)[0]
-      return binary || null
+      const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/
+      const BINARY_RE = /^[A-Za-z0-9]+$/
+      for (const tok of cmd.trim().split(/\s+/)) {
+        if (!tok) continue
+        if (ENV_ASSIGNMENT_RE.test(tok)) continue
+        return BINARY_RE.test(tok) ? tok : null
+      }
+      return null
     }
     default:
       return null

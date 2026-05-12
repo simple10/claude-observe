@@ -130,8 +130,9 @@ describe('applyFilters', () => {
       { command: '\n\tbash scripts/run.sh', expected: 'bash' },
       // Single-word command unchanged.
       { command: 'pwd', expected: 'pwd' },
-      // Multi-line heredoc — binary is still the first token.
-      { command: 'cat <<EOF\nhello\nEOF', expected: 'cat' },
+      // Digit-only and letter+digit names — alphanumeric passes.
+      { command: 'python3 -m venv', expected: 'python3' },
+      { command: '7z x archive.zip', expected: '7z' },
     ]
     for (const { command, expected } of cases) {
       const raw = { ...baseRaw, payload: { tool_input: { command } } }
@@ -139,15 +140,49 @@ describe('applyFilters', () => {
     }
   })
 
-  test('bashCommand returns null for empty/whitespace-only commands', () => {
+  test('bashCommand skips leading env-var assignments before extracting the binary', () => {
     const f = compile({
       name: 'Cmd',
       pillName: '{bashCommand}',
       display: 'secondary',
       patterns: [{ target: 'tool', regex: '^Bash$' }],
     })
-    // Empty / whitespace-only command produces no binary → pill skipped.
-    for (const command of ['', '   ', '\n\n']) {
+    const cases: { command: string; expected: string }[] = [
+      // The example from the screenshot: var=value; cmd …
+      { command: 'wait_id=bqw9ane5o; gcloud sql instances describe', expected: 'gcloud' },
+      // Whitespace-separated env-var prefix.
+      { command: 'FOO=bar BAR=baz cmd --arg', expected: 'cmd' },
+    ]
+    for (const { command, expected } of cases) {
+      const raw = { ...baseRaw, payload: { tool_input: { command } } }
+      expect(applyFilters(raw, 'Bash', [f]).secondary).toEqual([expected])
+    }
+  })
+
+  test('bashCommand returns null when the leading token is non-alphanumeric', () => {
+    // Once env-var prefixes are skipped, the next token has to be a pure
+    // alphanumeric binary name — otherwise no pill. This prevents shell
+    // syntax (`[`, `(`, `./script`, `apt-get`, quoted strings) from
+    // leaking into the filter bar.
+    const f = compile({
+      name: 'Cmd',
+      pillName: '{bashCommand}',
+      display: 'secondary',
+      patterns: [{ target: 'tool', regex: '^Bash$' }],
+    })
+    const noPillCases = [
+      '', // empty
+      '   ', // whitespace only
+      '\n\n', // newlines only
+      'FOO=bar', // env var assignment with no follow-up
+      'wait_id=bqw9ane5o;', // assignment + sequence terminator, no command
+      '[ -d skills ] && ls skills/', // `[` test builtin
+      '( cd /tmp && rm -rf foo )', // leading subshell `(`
+      './script.sh', // path-style invocation has `.` and `/`
+      'apt-get install foo', // hyphenated binary name
+      '"quoted command"', // quoted first token
+    ]
+    for (const command of noPillCases) {
       const raw = { ...baseRaw, payload: { tool_input: { command } } }
       expect(applyFilters(raw, 'Bash', [f]).secondary).toEqual([])
     }

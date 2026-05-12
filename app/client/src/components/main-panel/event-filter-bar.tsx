@@ -203,9 +203,12 @@ export function EventFilterBar() {
         </div>
       </div>
 
-      {/* Row 2: Dynamic tool filters */}
+      {/* Row 2: Dynamic tool filters — caps at ~2 rows of pills, then
+          scrolls vertically. Keeps the filter bar from eating the
+          whole panel when there are many matching secondary pills.
+          max-h-12 = 3rem ≈ 2 × (text-xs pill height + gap-1). */}
       {secondaryNames.length > 0 && (
-        <div className="flex items-center gap-1 flex-wrap">
+        <div className="flex items-start gap-1 flex-wrap max-h-12 overflow-y-auto">
           {secondaryNames.map((name) => {
             const isActive = activeSecondaryFilters.includes(name)
             const isUser = pillKindByName.get(name) === 'user'
