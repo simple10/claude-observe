@@ -216,7 +216,12 @@ function Row({
       ) : null}
       <span className="flex-1 truncate">{f.name}</span>
       <span
-        className="font-mono text-[9px] px-1 rounded bg-muted text-muted-foreground"
+        className={cn(
+          'font-mono text-[9px] px-1 rounded',
+          f.display === 'primary'
+            ? 'bg-orange-500/20 text-orange-700 dark:text-orange-400'
+            : 'bg-blue-500/20 text-blue-700 dark:text-blue-400',
+        )}
         title={f.display === 'primary' ? 'Primary row pill' : 'Secondary row pill'}
       >
         {f.display === 'primary' ? 'P' : 'S'}
@@ -297,7 +302,13 @@ function FilterEditor({
   }
 
   return (
-    <div className="border rounded-lg p-4 h-full flex flex-col">
+    <div className="border rounded-lg h-full flex flex-col overflow-hidden">
+      {!isUser ? (
+        <div className="px-4 py-2 bg-red-500/15 border-b border-red-500/40 text-red-700 dark:text-red-400 text-xs font-semibold uppercase tracking-wider text-center">
+          Default Filter — Read Only
+        </div>
+      ) : null}
+      <div className="p-4 flex flex-col flex-1 min-h-0">
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <button
           onClick={() => void update(filter.id, { enabled: !filter.enabled })}
@@ -311,9 +322,6 @@ function FilterEditor({
         >
           {filter.enabled ? 'ENABLED' : 'DISABLED'}
         </button>
-        {!isUser ? (
-          <span className="text-xs text-muted-foreground">Default — Read Only</span>
-        ) : null}
         {hasDraft ? (
           <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-violet-500/20 text-violet-600">
             UNSAVED
@@ -513,6 +521,7 @@ function FilterEditor({
       {invalidPattern ? (
         <div className="mt-3 text-xs text-red-600">Invalid regex: {invalidPattern}</div>
       ) : null}
+      </div>
       </div>
     </div>
   )
