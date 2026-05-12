@@ -367,27 +367,40 @@ export class SqliteAdapter implements EventStore {
       `)
     }
 
-    // Filters schema is still in flux — drop on every startup so column
-    // changes (e.g. adding `config` JSON) don't need a migration script.
-    // Default seeds are re-inserted by runSeedDefaults() below; user
-    // filters are short-lived during this feature's development. Revisit
-    // before tagging a release that ships filters.
-    this.db.exec('DROP TABLE IF EXISTS filters')
-    this.db.exec(`
-      CREATE TABLE filters (
-        id          TEXT PRIMARY KEY,
-        name        TEXT NOT NULL,
-        pill_name   TEXT NOT NULL,
-        display     TEXT NOT NULL CHECK(display IN ('primary','secondary')),
-        combinator  TEXT NOT NULL CHECK(combinator IN ('and','or')) DEFAULT 'and',
-        patterns    TEXT NOT NULL,
-        kind        TEXT NOT NULL CHECK(kind IN ('default','user')),
-        enabled     INTEGER NOT NULL DEFAULT 1,
-        config      TEXT NOT NULL DEFAULT '{}',
-        created_at  INTEGER NOT NULL,
-        updated_at  INTEGER NOT NULL
-      )
-    `)
+    // First-boot setup for the filters table. We don't have any users
+    // in the wild with a partial filters schema yet (this branch hasn't
+    // shipped), so the install path is intentionally one-shot: create
+    // the table with all current columns, seed the defaults once, then
+    // leave it alone forever. After this, both schema and rows are
+    // user-controlled — seeds don't re-apply on subsequent boots, and
+    // the only way to bring defaults back to their original values is
+    // the "Reload defaults" button (which routes through
+    // resetDefaultFilters → runSeedDefaults with the explicit upsert).
+    //
+    // Side effect: a default the user deletes will stay deleted across
+    // restarts. Users who want to silence a default should disable it
+    // rather than delete it.
+    const filtersTableExists = !!this.db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='filters'")
+      .get()
+    if (!filtersTableExists) {
+      this.db.exec(`
+        CREATE TABLE filters (
+          id          TEXT PRIMARY KEY,
+          name        TEXT NOT NULL,
+          pill_name   TEXT NOT NULL,
+          display     TEXT NOT NULL CHECK(display IN ('primary','secondary')),
+          combinator  TEXT NOT NULL CHECK(combinator IN ('and','or')) DEFAULT 'and',
+          patterns    TEXT NOT NULL,
+          kind        TEXT NOT NULL CHECK(kind IN ('default','user')),
+          enabled     INTEGER NOT NULL DEFAULT 1,
+          config      TEXT NOT NULL DEFAULT '{}',
+          created_at  INTEGER NOT NULL,
+          updated_at  INTEGER NOT NULL
+        )
+      `)
+      this.runSeedDefaults()
+    }
 
     // Create indexes
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_projects_slug ON projects(slug)')
@@ -412,8 +425,6 @@ export class SqliteAdapter implements EventStore {
     this.db.exec(
       'CREATE INDEX IF NOT EXISTS idx_sessions_transcript_path ON sessions(transcript_path)',
     )
-
-    this.runSeedDefaults()
   }
 
   async createProject(slug: string, name: string): Promise<number> {
@@ -932,6 +943,16 @@ export class SqliteAdapter implements EventStore {
     })
   }
 
+  // Insert (or, on explicit reset, upsert) the default filter seeds.
+  // Called from two places:
+  //   1. Constructor — only when the filters table is brand new, so
+  //      the ON CONFLICT branch never fires; this is effectively an
+  //      INSERT seeding a fresh DB.
+  //   2. resetDefaultFilters (the "Reload defaults" button) — here
+  //      the upsert is the point: each default's name, pillName,
+  //      display, combinator, patterns, and config snap back to seed
+  //      values. `enabled` is intentionally NOT touched so a user
+  //      who silenced a default keeps it silenced after a reset.
   private runSeedDefaults(): void {
     const insert = this.db.prepare(
       `INSERT INTO filters (id, name, pill_name, display, combinator, patterns, kind, enabled, config, created_at, updated_at)
