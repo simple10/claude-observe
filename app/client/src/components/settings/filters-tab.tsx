@@ -46,9 +46,10 @@ function draftFromFilter(f: Filter): Draft {
 }
 
 export function FiltersTab() {
-  const { filters, loaded, load } = useFilterStore()
+  const { filters, loaded, load, resetDefaults } = useFilterStore()
   const lastFilterId = useUIStore((s) => s.lastFilterId)
   const setLastFilterId = useUIStore((s) => s.setLastFilterId)
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
   // Seed selection from the persisted last-viewed filter so reopening
   // the modal lands on the same filter. The post-load effect below
   // takes over once filters actually exist.
@@ -81,6 +82,8 @@ export function FiltersTab() {
   useEffect(() => {
     if (!loaded || filters.length === 0) return
     if (selectedId && filters.some((f) => f.id === selectedId)) return
+    // Prefer the persisted last-viewed filter, then the first user
+    // filter, then any filter at all.
     const fallbackId =
       (lastFilterId && filters.some((f) => f.id === lastFilterId) ? lastFilterId : null) ??
       filters.find((f) => f.kind === 'user')?.id ??
@@ -101,8 +104,17 @@ export function FiltersTab() {
     })
   }, [filters, search, drafts])
 
-  const userFilters = filteredList.filter((f) => f.kind === 'user').sort(byName)
-  const defaultFilters = filteredList.filter((f) => f.kind === 'default').sort(byName)
+  // Group by display so the sidebar mirrors how pills are laid out in
+  // the dashboard. Within each group, user filters sort above defaults
+  // (and then by name) so newly-created filters are easy to find.
+  const sortPillish = (a: Filter, b: Filter) => {
+    const ku = a.kind === 'user' ? 0 : 1
+    const kv = b.kind === 'user' ? 0 : 1
+    if (ku !== kv) return ku - kv
+    return a.name.localeCompare(b.name)
+  }
+  const primaryFilters = filteredList.filter((f) => f.display === 'primary').sort(sortPillish)
+  const secondaryFilters = filteredList.filter((f) => f.display === 'secondary').sort(sortPillish)
 
   const selected: Filter | null = useMemo(
     () => filters.find((f) => f.id === selectedId) ?? null,
@@ -121,11 +133,11 @@ export function FiltersTab() {
           />
         </div>
         <div className="flex-1 overflow-y-auto px-2 py-2 text-xs">
-          <Section label="Custom">
-            {userFilters.length === 0 ? (
+          <Section label="Primary" tone="primary">
+            {primaryFilters.length === 0 ? (
               <div className="px-2 py-1 text-muted-foreground italic">(None)</div>
             ) : (
-              userFilters.map((f) => (
+              primaryFilters.map((f) => (
                 <Row
                   key={f.id}
                   f={effective(f)}
@@ -136,19 +148,23 @@ export function FiltersTab() {
               ))
             )}
           </Section>
-          <Section label="Default 🔒" className="mt-7">
-            {defaultFilters.map((f) => (
-              <Row
-                key={f.id}
-                f={effective(f)}
-                selected={selectedId === f.id}
-                modified={drafts.has(f.id)}
-                onSelect={() => setSelectedId(f.id)}
-              />
-            ))}
+          <Section label="Secondary" tone="secondary" className="mt-5">
+            {secondaryFilters.length === 0 ? (
+              <div className="px-2 py-1 text-muted-foreground italic">(None)</div>
+            ) : (
+              secondaryFilters.map((f) => (
+                <Row
+                  key={f.id}
+                  f={effective(f)}
+                  selected={selectedId === f.id}
+                  modified={drafts.has(f.id)}
+                  onSelect={() => setSelectedId(f.id)}
+                />
+              ))
+            )}
           </Section>
         </div>
-        <div className="p-3 border-t border-border">
+        <div className="p-3 border-t border-border flex flex-col gap-2">
           <Button
             size="sm"
             className="w-full"
@@ -170,8 +186,49 @@ export function FiltersTab() {
           >
             + New filter
           </Button>
+          <button
+            type="button"
+            onClick={() => setResetConfirmOpen(true)}
+            className="text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors text-center"
+          >
+            Reload defaults
+          </button>
         </div>
       </aside>
+      <AlertDialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reload default filters?</AlertDialogTitle>
+            <AlertDialogDescription>
+              These {filters.filter((f) => f.kind === 'default').length} default filters will be
+              reset to their original name, patterns, display, and color. User filters and any
+              custom filters you've created stay untouched.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {/* List the defaults so the user sees exactly what's affected. */}
+          <div className="text-xs text-muted-foreground max-h-40 overflow-y-auto border border-border/40 rounded p-2">
+            {filters
+              .filter((f) => f.kind === 'default')
+              .map((f) => f.name)
+              .sort()
+              .map((n) => (
+                <div key={n}>{n}</div>
+              ))}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                setResetConfirmOpen(false)
+                void resetDefaults()
+              }}
+            >
+              Reload
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <main className="flex-1 min-h-0 overflow-y-auto p-4">
         {selected ? (
           <FilterEditor
@@ -189,22 +246,30 @@ export function FiltersTab() {
   )
 }
 
-function byName(a: Filter, b: Filter) {
-  return a.name.localeCompare(b.name)
-}
-
 function Section({
   label,
   className,
+  tone,
   children,
 }: {
   label: string
   className?: string
+  // 'primary' / 'secondary' tints the header to match the editor's
+  // display toggle so the sidebar grouping reads as the same concept.
+  tone?: 'primary' | 'secondary'
   children: React.ReactNode
 }) {
+  const toneClass =
+    tone === 'primary'
+      ? 'text-orange-700 dark:text-orange-400'
+      : tone === 'secondary'
+        ? 'text-blue-700 dark:text-blue-300'
+        : 'text-muted-foreground'
   return (
     <div className={cn('mb-3', className)}>
-      <div className="flex items-center px-2 mb-1 text-[10px] uppercase text-muted-foreground">
+      <div
+        className={cn('flex items-center px-2 mb-1 text-[10px] uppercase font-semibold', toneClass)}
+      >
         <span className="flex-1">{label}</span>
       </div>
       <div className="flex flex-col gap-px">{children}</div>
@@ -236,17 +301,6 @@ function Row({
         <span className="h-1.5 w-1.5 rounded-full bg-violet-500 shrink-0" title="Unsaved changes" />
       ) : null}
       <span className="flex-1 truncate">{f.name}</span>
-      <span
-        className={cn(
-          'font-mono text-[9px] px-1 rounded',
-          f.display === 'primary'
-            ? 'bg-orange-500/20 text-orange-700 dark:text-orange-400'
-            : 'bg-blue-500/20 text-blue-700 dark:text-blue-300',
-        )}
-        title={f.display === 'primary' ? 'Primary row pill' : 'Secondary row pill'}
-      >
-        {f.display === 'primary' ? 'P' : 'S'}
-      </span>
       <input
         type="checkbox"
         checked={f.enabled}
@@ -303,10 +357,10 @@ function CssColorPicker({
       />
       {disabled ? null : (
         <ColorPicker
-          currentColor={value ? presetKey ?? 'custom' : undefined}
+          currentColor={value ? (presetKey ?? 'custom') : undefined}
           customHex={presetKey ? undefined : value || undefined}
           onSelect={(name, customHex) => {
-            const next = name === 'custom' ? customHex ?? '' : COLOR_PRESETS[name]?.swatch ?? ''
+            const next = name === 'custom' ? (customHex ?? '') : (COLOR_PRESETS[name]?.swatch ?? '')
             onChange(next)
           }}
           defaultSwatch={value || undefined}
@@ -330,7 +384,6 @@ function FilterEditor({
   onSelect: (id: string) => void
 }) {
   const { update, remove, duplicate } = useFilterStore()
-  const isUser = filter.kind === 'user'
   const hasDraft = draft !== null
   // The form reads from the draft if one exists, otherwise from the
   // committed filter. Any edit lifts a new draft (seeded from the filter)
@@ -374,7 +427,6 @@ function FilterEditor({
   // refresh on close. No event-pipeline re-pass happens, so the UI
   // stays responsive even on large sessions.
   async function onSave() {
-    if (!isUser) return
     if (invalidPattern) return
     if (!hasDraft) return
     await update(filter.id, { name, pillName, display, combinator, patterns, config })
@@ -403,11 +455,6 @@ function FilterEditor({
           Unsaved
         </span>
       ) : null}
-      {!isUser ? (
-        <div className="px-4 py-2 bg-red-500/15 border-b border-red-500/40 text-red-700 dark:text-red-400 text-xs font-semibold uppercase tracking-wider text-center rounded-t-lg">
-          Default Filter — Read Only
-        </div>
-      ) : null}
       <div className="p-4 flex flex-col flex-1 min-h-0">
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <button
@@ -428,38 +475,33 @@ function FilterEditor({
               const v = e.target.value
               setDraft(pillNameAutoMirror ? { name: v, pillName: v } : { name: v })
             }}
-            disabled={!isUser}
             placeholder="Filter name"
             className="flex-1 min-w-[10rem] h-8 text-sm font-semibold"
           />
-          {isUser && hasDraft ? (
+          {hasDraft ? (
             <Button variant="outline" size="sm" onClick={onDiscard}>
               Discard
             </Button>
           ) : null}
-          {isUser ? (
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!hasDraft || !!invalidPattern}
-              onClick={onSave}
-            >
-              Save
-            </Button>
-          ) : null}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!hasDraft || !!invalidPattern}
+            onClick={onSave}
+          >
+            Save
+          </Button>
           <Button size="sm" variant="outline" onClick={onDuplicate}>
             Duplicate
           </Button>
-          {isUser ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="hover:text-red-600 hover:border-red-500"
-              onClick={() => setConfirmDeleteOpen(true)}
-            >
-              Delete
-            </Button>
-          ) : null}
+          <Button
+            size="sm"
+            variant="outline"
+            className="hover:text-red-600 hover:border-red-500"
+            onClick={() => setConfirmDeleteOpen(true)}
+          >
+            Delete
+          </Button>
         </div>
 
         <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
@@ -494,7 +536,6 @@ function FilterEditor({
               <Input
                 value={pillName}
                 onChange={(e) => setDraft({ pillName: e.target.value, pillNameAutoMirror: false })}
-                disabled={!isUser}
                 className="font-mono text-xs"
               />
             </div>
@@ -510,7 +551,6 @@ function FilterEditor({
                   return (
                     <button
                       key={d}
-                      disabled={!isUser}
                       onClick={() => setDraft({ display: d })}
                       className={cn(
                         'flex-1 flex items-center justify-center px-3',
@@ -525,7 +565,7 @@ function FilterEditor({
             </div>
             <div className="text-right">
               <label className="text-xs uppercase text-muted-foreground">Color</label>
-              <CssColorPicker value={colorValue} onChange={setColor} disabled={!isUser} />
+              <CssColorPicker value={colorValue} onChange={setColor} />
             </div>
           </div>
           {/* Help text spans the full row below all three columns so neither
@@ -549,7 +589,6 @@ function FilterEditor({
               {(['and', 'or'] as const).map((c) => (
                 <button
                   key={c}
-                  disabled={!isUser}
                   onClick={() => setDraft({ combinator: c })}
                   className={cn(
                     'px-2 py-1',
@@ -589,7 +628,6 @@ function FilterEditor({
                       {(['hook', 'tool', 'payload'] as const).map((t) => (
                         <button
                           key={t}
-                          disabled={!isUser}
                           onClick={() => updatePattern({ target: t })}
                           className={cn(
                             'px-2 py-1 capitalize',
@@ -604,7 +642,6 @@ function FilterEditor({
                     </div>
                     <Input
                       value={p.regex}
-                      disabled={!isUser}
                       onChange={(e) => updatePattern({ regex: e.target.value })}
                       className="font-mono text-xs flex-1 border-muted-foreground/50 dark:border-muted-foreground/50"
                     />
@@ -625,16 +662,14 @@ function FilterEditor({
                         <ChevronRight className="h-3.5 w-3.5" />
                       )}
                     </button>
-                    {isUser ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-muted-foreground hover:text-red-600"
-                        onClick={() => setDraft({ patterns: patterns.filter((_, ii) => ii !== i) })}
-                      >
-                        ×
-                      </Button>
-                    ) : null}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-muted-foreground hover:text-red-600"
+                      onClick={() => setDraft({ patterns: patterns.filter((_, ii) => ii !== i) })}
+                    >
+                      ×
+                    </Button>
                   </div>
                   {expanded ? (
                     // pl-[166px] approximates the width of the color dot +
@@ -643,31 +678,21 @@ function FilterEditor({
                     // left edge.
                     <div className="flex gap-4 pl-[166px] py-1 text-xs text-muted-foreground">
                       <label
-                        className={cn(
-                          'flex items-center gap-1.5',
-                          isUser ? 'cursor-pointer' : 'cursor-default',
-                        )}
+                        className="flex items-center gap-1.5 cursor-pointer"
                         title="When checked, the pattern matches events whose target does NOT match the regex"
                       >
                         <input
                           type="checkbox"
                           checked={!!p.negate}
-                          disabled={!isUser}
                           onChange={(e) => updatePattern({ negate: e.target.checked || undefined })}
                           className="h-3 w-3"
                         />
                         Invert match
                       </label>
-                      <label
-                        className={cn(
-                          'flex items-center gap-1.5',
-                          isUser ? 'cursor-pointer' : 'cursor-default',
-                        )}
-                      >
+                      <label className="flex items-center gap-1.5 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={caseInsensitive}
-                          disabled={!isUser}
                           onChange={(e) => {
                             const cur = p.flags ?? ''
                             const next = e.target.checked
@@ -688,15 +713,13 @@ function FilterEditor({
             })}
           </div>
 
-          {isUser ? (
-            <button
-              type="button"
-              className="self-start mt-2 px-2 py-1 text-[10px] rounded border border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
-              onClick={() => setDraft({ patterns: [...patterns, { target: 'hook', regex: '' }] })}
-            >
-              + Add pattern
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className="self-start mt-2 px-2 py-1 text-[10px] rounded border border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+            onClick={() => setDraft({ patterns: [...patterns, { target: 'hook', regex: '' }] })}
+          >
+            + Add pattern
+          </button>
 
           <LivePreview
             pillName={pillName}
@@ -826,7 +849,7 @@ function findHighlightedEvent(
       // <pre>. We don't try to highlight the value's location inside the
       // stringified event because the same string can appear incidentally
       // elsewhere and confuse the visualization.
-      const target = rp.target === 'hook' ? e.hookName ?? '' : toolName ?? ''
+      const target = rp.target === 'hook' ? (e.hookName ?? '') : (toolName ?? '')
       if (r.test(target)) {
         return { patternIdx, kind: rp.target, ranges: [], value: target }
       }
@@ -867,7 +890,7 @@ function LivePreview({
   // This avoids paying JSON.stringify for the full event list on each
   // test run.
   const events = useMemo(
-    () => (sessionId ? queryClient.getQueryData<ParsedEvent[]>(['events', sessionId]) ?? [] : []),
+    () => (sessionId ? (queryClient.getQueryData<ParsedEvent[]>(['events', sessionId]) ?? []) : []),
     [queryClient, sessionId],
   )
   const eventStrings = useMemo(() => {
@@ -986,10 +1009,10 @@ function LivePreview({
   const label = !enabled
     ? 'Preview disabled'
     : !sessionId
-    ? 'Preview: open a session to count matches'
-    : count == null
-    ? 'Preview: invalid regex'
-    : `Preview: ${count} matches across loaded events`
+      ? 'Preview: open a session to count matches'
+      : count == null
+        ? 'Preview: invalid regex'
+        : `Preview: ${count} matches across loaded events`
 
   // Box stays a muted gray in every state except "Preview: N matches"
   // where N > 0. Only the count itself goes green there so the box

@@ -158,52 +158,45 @@ router.patch('/filters/:id', async (c) => {
   }
   if (!body || typeof body !== 'object') return apiError(c, 400, 'Invalid body')
 
+  // Defaults are no longer locked — users can edit any field. `kind`
+  // stays immutable so the reload-defaults flow has a stable set to
+  // operate on; resetDefaultFilters re-runs the seed by id.
   const patch: Record<string, unknown> = {}
-  if (existing.kind === 'default') {
-    // Default filters only allow toggling enabled.
-    const otherKeys = Object.keys(body).filter((k) => k !== 'enabled')
-    if (otherKeys.length > 0) {
-      return apiError(c, 403, `default filters allow only 'enabled' to be patched`)
-    }
+  if (body.name !== undefined) {
+    if (typeof body.name !== 'string' || body.name.trim() === '')
+      return apiError(c, 400, 'name must not be empty')
+    patch.name = body.name.trim()
+  }
+  if (body.pillName !== undefined) {
+    if (typeof body.pillName !== 'string' || body.pillName.trim() === '')
+      return apiError(c, 400, 'pillName must not be empty')
+    patch.pillName = body.pillName.trim()
+  }
+  if (body.display !== undefined) {
+    if (!ALLOWED_DISPLAY.has(body.display)) return apiError(c, 400, 'invalid display')
+    patch.display = body.display
+  }
+  if (body.combinator !== undefined) {
+    if (!ALLOWED_COMBINATOR.has(body.combinator)) return apiError(c, 400, 'invalid combinator')
+    patch.combinator = body.combinator
+  }
+  if (body.patterns !== undefined) {
+    const stub = { ...existing, ...body }
+    const v = validateInput(stub)
+    if (!v.ok) return apiError(c, 400, v.reason)
+    patch.patterns = v.value.patterns
+  }
+  if (body.enabled !== undefined) {
     if (typeof body.enabled !== 'boolean') return apiError(c, 400, 'enabled must be boolean')
     patch.enabled = body.enabled
-  } else {
-    if (body.name !== undefined) {
-      if (typeof body.name !== 'string' || body.name.trim() === '')
-        return apiError(c, 400, 'name must not be empty')
-      patch.name = body.name.trim()
-    }
-    if (body.pillName !== undefined) {
-      if (typeof body.pillName !== 'string' || body.pillName.trim() === '')
-        return apiError(c, 400, 'pillName must not be empty')
-      patch.pillName = body.pillName.trim()
-    }
-    if (body.display !== undefined) {
-      if (!ALLOWED_DISPLAY.has(body.display)) return apiError(c, 400, 'invalid display')
-      patch.display = body.display
-    }
-    if (body.combinator !== undefined) {
-      if (!ALLOWED_COMBINATOR.has(body.combinator)) return apiError(c, 400, 'invalid combinator')
-      patch.combinator = body.combinator
-    }
-    if (body.patterns !== undefined) {
-      const stub = { ...existing, ...body }
-      const v = validateInput(stub)
-      if (!v.ok) return apiError(c, 400, v.reason)
-      patch.patterns = v.value.patterns
-    }
-    if (body.enabled !== undefined) {
-      if (typeof body.enabled !== 'boolean') return apiError(c, 400, 'enabled must be boolean')
-      patch.enabled = body.enabled
-    }
-    if (body.config !== undefined) {
-      if (body.config === null || typeof body.config !== 'object' || Array.isArray(body.config)) {
-        return apiError(c, 400, 'config must be a JSON object')
-      }
-      patch.config = body.config
-    }
-    if (body.kind !== undefined) return apiError(c, 400, 'kind is immutable')
   }
+  if (body.config !== undefined) {
+    if (body.config === null || typeof body.config !== 'object' || Array.isArray(body.config)) {
+      return apiError(c, 400, 'config must be a JSON object')
+    }
+    patch.config = body.config
+  }
+  if (body.kind !== undefined) return apiError(c, 400, 'kind is immutable')
 
   const filter = await store.updateFilter(id, patch as any)
   broadcast({ type: 'filter:updated', filter })
@@ -216,7 +209,8 @@ router.delete('/filters/:id', async (c) => {
   const id = c.req.param('id')
   const existing = await store.getFilterById(id)
   if (!existing) return apiError(c, 404, 'filter not found')
-  if (existing.kind === 'default') return apiError(c, 403, 'default filters cannot be deleted')
+  // Default filters can also be deleted; reload-defaults brings them
+  // back if the user changes their mind.
   await store.deleteFilter(id)
   broadcast({ type: 'filter:deleted', id })
   return c.body(null, 204)

@@ -85,23 +85,28 @@ export function EventFilterBar() {
     return m
   }, [filters])
 
-  // Map rendered pill name -> filter.config.color. Two passes:
-  //  - Literal pillNames (no `{var}`) match by exact name.
-  //  - Templated pillNames (e.g. `{toolName}`) match a rendered pill if a
-  //    regex built from the template (with `{var}` → `.+`) accepts it.
+  // Map rendered pill name -> filter.config.color. Every enabled filter
+  // contributes a resolver, even if it has no color — the first resolver
+  // whose template/literal matches the rendered pill name "owns" that
+  // pill and returns its color (possibly undefined). This prevents a
+  // wildcard templated filter (e.g. `{toolName}` → regex `^.+$`) from
+  // claiming pills produced by a literal filter that just happens to
+  // have no color set.
+  //
   // Precedence: user-literal > default-literal > user-templated >
-  // default-templated. This way a user filter with the same template as
-  // a default still wins, and a literal match never loses to a wildcard.
+  // default-templated. Literals always beat templates, and within each
+  // bucket user filters beat defaults.
   const pillColorFor = useMemo(() => {
     type Resolver = {
-      color: string
+      color: string | undefined
       rank: number
       match: (name: string) => boolean
     }
     const resolvers: Resolver[] = []
     for (const f of filters) {
-      const color = typeof f.config?.color === 'string' ? f.config.color : ''
-      if (!color) continue
+      if (!f.enabled) continue
+      const color =
+        typeof f.config?.color === 'string' && f.config.color ? f.config.color : undefined
       const hasVars = /\{[a-zA-Z]+\}/.test(f.pillName)
       if (hasVars) {
         const escaped = f.pillName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')

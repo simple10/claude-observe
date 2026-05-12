@@ -96,14 +96,17 @@ describe('filter routes', () => {
     expect(res.status).toBe(400)
   })
 
-  test('PATCH /api/filters/:id on default rejects non-enabled fields', async () => {
+  test('PATCH /api/filters/:id on default now accepts arbitrary field updates', async () => {
+    // Defaults aren't locked anymore — users can rename, recolor, edit
+    // patterns, etc. Resetting via /defaults/reset restores seed values.
     mockStore.getFilterById.mockResolvedValue({ id: 'd1', kind: 'default', enabled: true })
+    mockStore.updateFilter.mockResolvedValue({ id: 'd1', name: 'changed', kind: 'default' })
     const res = await app.request('/api/filters/d1', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'changed' }),
     })
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(200)
   })
 
   test('PATCH /api/filters/:id on default accepts enabled toggle', async () => {
@@ -117,10 +120,15 @@ describe('filter routes', () => {
     expect(res.status).toBe(200)
   })
 
-  test('DELETE /api/filters/:id on default returns 403', async () => {
+  test('DELETE /api/filters/:id on default returns 204', async () => {
+    // Defaults are no longer locked — they can be deleted, and the
+    // reload-defaults flow brings them back if the user changes their
+    // mind.
     mockStore.getFilterById.mockResolvedValue({ id: 'd1', kind: 'default' })
+    mockStore.deleteFilter.mockResolvedValue(undefined)
     const res = await app.request('/api/filters/d1', { method: 'DELETE' })
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(204)
+    expect(broadcasts).toContainEqual({ type: 'filter:deleted', id: 'd1' })
   })
 
   test('DELETE /api/filters/:id on user returns 204', async () => {
