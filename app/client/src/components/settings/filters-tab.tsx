@@ -371,11 +371,9 @@ function FilterEditor({
       {hasDraft ? (
         // Float the UNSAVED chip half-over the top-left corner so it
         // reads as a status badge on the card rather than a chip in the
-        // toolbar. Keeps the original tinted look (light violet bg, dark
-        // violet text) so the dark-mode appearance is the same magenta
-        // tone the badge had when it lived in the toolbar.
-        <span className="absolute -top-2 left-3 z-10 text-[10px] font-mono px-2 py-0.5 rounded bg-violet-500/20 text-violet-600">
-          UNSAVED
+        // toolbar. Solid background occludes the border behind it.
+        <span className="absolute -top-2 left-3 z-10 text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-500 text-white shadow-sm">
+          Unsaved
         </span>
       ) : null}
       {!isUser ? (
