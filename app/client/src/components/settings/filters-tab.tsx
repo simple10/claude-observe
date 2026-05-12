@@ -102,7 +102,7 @@ export function FiltersTab() {
               ))
             )}
           </Section>
-          <Section label="Default 🔒" className="mt-5">
+          <Section label="Default 🔒" className="mt-7">
             {defaultFilters.map((f) => (
               <Row
                 key={f.id}
