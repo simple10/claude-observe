@@ -473,7 +473,7 @@ function FilterEditor({
             </div>
             <div>
               <label className="text-xs uppercase text-muted-foreground">Display</label>
-              <div className="flex h-9 border rounded text-xs overflow-hidden">
+              <div className="flex h-9 border border-input rounded-md text-xs overflow-hidden">
                 {(['primary', 'secondary'] as const).map((d) => {
                   const isActive = display === d
                   const activeClass =
