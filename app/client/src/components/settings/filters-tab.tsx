@@ -21,8 +21,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 
-type DisplayTab = 'primary' | 'secondary'
-
 // In-progress edits live in filter-draft-store so the SettingsModal
 // close handler can detect them. Save / Discard removes the entry;
 // selecting a filter without an existing draft falls back to the
@@ -42,7 +40,6 @@ function draftFromFilter(f: Filter): Draft {
 
 export function FiltersTab() {
   const { filters, loaded, load, resetDefaults } = useFilterStore()
-  const [displayTab, setDisplayTab] = useState<DisplayTab>('primary')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const drafts = useFilterDraftStore((s) => s.drafts)
@@ -63,13 +60,12 @@ export function FiltersTab() {
 
   const filteredList = useMemo(() => {
     const q = search.trim().toLowerCase()
+    if (q === '') return filters
     return filters.filter((f) => {
-      if (f.display !== displayTab) return false
-      if (q === '') return true
       const displayName = drafts.get(f.id)?.name ?? f.name
       return displayName.toLowerCase().includes(q)
     })
-  }, [filters, displayTab, search, drafts])
+  }, [filters, search, drafts])
 
   const userFilters = filteredList.filter((f) => f.kind === 'user').sort(byName)
   const defaultFilters = filteredList.filter((f) => f.kind === 'default').sort(byName)
@@ -82,29 +78,7 @@ export function FiltersTab() {
   return (
     <div className="flex flex-1 min-h-0">
       <aside className="w-72 border-r border-border flex flex-col">
-        <div className="p-3 flex gap-2">
-          <Button
-            size="sm"
-            variant={displayTab === 'primary' ? 'default' : 'ghost'}
-            onClick={() => {
-              setDisplayTab('primary')
-              setSelectedId(null)
-            }}
-          >
-            Primary
-          </Button>
-          <Button
-            size="sm"
-            variant={displayTab === 'secondary' ? 'default' : 'ghost'}
-            onClick={() => {
-              setDisplayTab('secondary')
-              setSelectedId(null)
-            }}
-          >
-            Secondary
-          </Button>
-        </div>
-        <div className="px-3">
+        <div className="p-3">
           <Input
             placeholder="Filter…"
             value={search}
@@ -113,7 +87,7 @@ export function FiltersTab() {
           />
         </div>
         <div className="flex-1 overflow-y-auto px-2 py-2 text-xs">
-          <Section label="User">
+          <Section label="Custom">
             {userFilters.length === 0 ? (
               <div className="px-2 py-1 text-muted-foreground italic">(None)</div>
             ) : (
@@ -158,7 +132,9 @@ export function FiltersTab() {
               const f = await useFilterStore.getState().create({
                 name: 'New filter',
                 pillName: 'New filter',
-                display: displayTab,
+                // New filters default to Primary; user can flip via the
+                // editor's Display toggle.
+                display: 'primary',
                 combinator: 'and',
                 // Inert placeholder regex — user replaces this in the editor
                 // before the filter does anything visible. Avoids flooding the
@@ -239,7 +215,12 @@ function Row({
         />
       ) : null}
       <span className="flex-1 truncate">{f.name}</span>
-      <span className="font-mono text-[9px] bg-muted px-1 rounded">{f.patterns.length}</span>
+      <span
+        className="font-mono text-[9px] px-1 rounded bg-muted text-muted-foreground"
+        title={f.display === 'primary' ? 'Primary row pill' : 'Secondary row pill'}
+      >
+        {f.display === 'primary' ? 'P' : 'S'}
+      </span>
       <input
         type="checkbox"
         checked={f.enabled}
@@ -318,14 +299,6 @@ function FilterEditor({
   return (
     <div className="border rounded-lg p-4 h-full flex flex-col">
       <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <span
-          className={cn(
-            'text-[10px] font-mono px-2 py-0.5 rounded',
-            isUser ? 'bg-violet-500/20 text-violet-600' : 'bg-muted text-muted-foreground',
-          )}
-        >
-          {isUser ? 'USER' : 'DEFAULT · READ-ONLY'}
-        </span>
         <button
           onClick={() => void update(filter.id, { enabled: !filter.enabled })}
           className={cn(
@@ -338,6 +311,9 @@ function FilterEditor({
         >
           {filter.enabled ? 'ENABLED' : 'DISABLED'}
         </button>
+        {!isUser ? (
+          <span className="text-xs text-muted-foreground">Default — Read Only</span>
+        ) : null}
         {hasDraft ? (
           <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-violet-500/20 text-violet-600">
             UNSAVED
