@@ -640,11 +640,46 @@ function FilterEditor({
                         </button>
                       ))}
                     </div>
-                    <Input
-                      value={p.regex}
-                      onChange={(e) => updatePattern({ regex: e.target.value })}
-                      className="font-mono text-xs flex-1 border-muted-foreground/50 dark:border-muted-foreground/50"
-                    />
+                    {/* Input-group view of the regex with addons for the
+                        advanced flags. The `!` prefix appears when the
+                        pattern is negated, the `i` suffix appears when
+                        case-insensitive. Both addons share the same
+                        green tone as the Advanced chevron and click to
+                        open the Advanced row so the user can flip them
+                        off. Keeps negation visually distinct from the
+                        regex source so e.g. `!^Bash$` reads as "not
+                        matches `^Bash$`" instead of a broken pattern. */}
+                    <div className="flex flex-1 items-stretch">
+                      {p.negate ? (
+                        <button
+                          type="button"
+                          onClick={toggleExpanded}
+                          title="Negated — click to edit advanced flags"
+                          className="h-9 px-2.5 flex items-center justify-center rounded-l-md border border-green-500/40 bg-green-500/15 text-green-700 dark:text-green-400 font-mono text-xs cursor-pointer"
+                        >
+                          !
+                        </button>
+                      ) : null}
+                      <Input
+                        value={p.regex}
+                        onChange={(e) => updatePattern({ regex: e.target.value })}
+                        className={cn(
+                          'font-mono text-xs flex-1 border-muted-foreground/50 dark:border-muted-foreground/50',
+                          p.negate && 'rounded-l-none border-l-0',
+                          caseInsensitive && 'rounded-r-none border-r-0',
+                        )}
+                      />
+                      {caseInsensitive ? (
+                        <button
+                          type="button"
+                          onClick={toggleExpanded}
+                          title="Case insensitive — click to edit advanced flags"
+                          className="h-9 px-2.5 flex items-center justify-center rounded-r-md border border-green-500/40 bg-green-500/15 text-green-700 dark:text-green-400 font-mono text-xs italic cursor-pointer"
+                        >
+                          i
+                        </button>
+                      ) : null}
+                    </div>
                     <button
                       type="button"
                       title="Advanced"
