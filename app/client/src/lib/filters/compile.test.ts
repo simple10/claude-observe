@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'vitest'
-import { compileFilters, wrapWithAnchor } from './compile'
+import { RE2JS } from 're2js'
+import { compileFilters, flagsStringToRE2, wrapWithAnchor } from './compile'
 import type { Filter } from '@/types'
 
 function f(opts: Partial<Filter>): Filter {
@@ -27,7 +28,7 @@ describe('compileFilters', () => {
   test('compiles regexes from string patterns', () => {
     const out = compileFilters([f({ patterns: [{ target: 'hook', regex: '^x$' }] })])
     expect(out.length).toBe(1)
-    expect(out[0].patterns[0].regex).toBeInstanceOf(RegExp)
+    expect(out[0].patterns[0].regex).toBeInstanceOf(RE2JS)
     expect(out[0].patterns[0].regex.test('x')).toBe(true)
   })
 
@@ -53,9 +54,10 @@ describe('compileFilters', () => {
     expect(wrapWithAnchor('^(PreToolUse|PostToolUse)$')).toBe('^(PreToolUse|PostToolUse)$')
   })
 
-  test('avoids double-backtracking prefix when user starts with .*/.+', () => {
-    // Without this guard, `.*Test` would wrap to `^.*?(?:.*Test)`, where
-    // V8 would backtrack catastrophically on no-match strings.
+  test('avoids doubly-greedy prefix when user starts with .*/.+', () => {
+    // RE2 doesn't backtrack, but keeping the wrap consistent for these
+    // leading-greedy patterns avoids producing the awkward `^.*?(?:.*X)`
+    // form. With the guard, the wrap is the simpler `^.*X`.
     expect(wrapWithAnchor('.*Test')).toBe('^.*Test')
     expect(wrapWithAnchor('.+word')).toBe('^.+word')
     expect(wrapWithAnchor('.*?lazy')).toBe('^.*?lazy')
@@ -91,16 +93,31 @@ describe('compileFilters', () => {
     expect(b[0].patterns[0].negate).toBeUndefined()
   })
 
-  test('passes flags through to the compiled RegExp', () => {
+  test('passes flags through to the compiled regex', () => {
     const out = compileFilters([f({ patterns: [{ target: 'tool', regex: 'bash', flags: 'i' }] })])
-    expect(out[0].patterns[0].regex.flags).toContain('i')
+    expect(out[0].patterns[0].regex.flags() & RE2JS.CASE_INSENSITIVE).toBeTruthy()
     expect(out[0].patterns[0].regex.test('BASH')).toBe(true)
     expect(out[0].patterns[0].regex.test('Bash')).toBe(true)
   })
 
-  test('absent flags compile to a case-sensitive RegExp', () => {
+  test('absent flags compile to a case-sensitive regex', () => {
     const out = compileFilters([f({ patterns: [{ target: 'tool', regex: 'bash' }] })])
-    expect(out[0].patterns[0].regex.flags).not.toContain('i')
+    expect(out[0].patterns[0].regex.flags() & RE2JS.CASE_INSENSITIVE).toBeFalsy()
     expect(out[0].patterns[0].regex.test('BASH')).toBe(false)
+  })
+})
+
+describe('flagsStringToRE2', () => {
+  test('maps i/m/s into the RE2JS bitfield', () => {
+    expect(flagsStringToRE2('')).toBe(0)
+    expect(flagsStringToRE2(undefined)).toBe(0)
+    expect(flagsStringToRE2('i') & RE2JS.CASE_INSENSITIVE).toBeTruthy()
+    expect(flagsStringToRE2('m') & RE2JS.MULTILINE).toBeTruthy()
+    expect(flagsStringToRE2('s') & RE2JS.DOTALL).toBeTruthy()
+    // Combined letters compose to the OR of their flag bits.
+    const all = flagsStringToRE2('ims')
+    expect(all & RE2JS.CASE_INSENSITIVE).toBeTruthy()
+    expect(all & RE2JS.MULTILINE).toBeTruthy()
+    expect(all & RE2JS.DOTALL).toBeTruthy()
   })
 })

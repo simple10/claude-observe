@@ -3,8 +3,9 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useFilterStore } from '@/stores/filter-store'
 import { useFilterDraftStore, type FilterDraft } from '@/stores/filter-draft-store'
 import { useUIStore } from '@/stores/ui-store'
+import { RE2JS } from 're2js'
 import { applyFilters } from '@/lib/filters/matcher'
-import { wrapWithAnchor } from '@/lib/filters/compile'
+import { flagsStringToRE2, wrapWithAnchor } from '@/lib/filters/compile'
 import type { CompiledFilter } from '@/lib/filters/types'
 import type { Filter, ParsedEvent } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -267,7 +268,7 @@ function FilterEditor({
   const invalidPattern = useMemo(() => {
     for (const p of patterns) {
       try {
-        new RegExp(p.regex)
+        RE2JS.compile(p.regex, flagsStringToRE2(p.flags))
       } catch (e) {
         return (e as Error).message
       }
@@ -675,24 +676,27 @@ function findHighlightedEvent(
       if (!rp.regex) {
         return { patternIdx, kind: 'invalid', ranges: [], value: null }
       }
-      // Force the `g` flag so exec() walks the whole target instead of
-      // stopping at the first hit. The user-supplied subset (i/m/s) is
-      // appended on top.
-      let r: RegExp
+      // Compile the user's raw regex (not the auto-anchored variant) so
+      // the position ranges below line up with what the user actually
+      // wrote. Matching is linear in the input under RE2.
+      let r: RE2JS
       try {
-        r = new RegExp(rp.regex, 'g' + (rp.flags ?? '').replace(/g/g, ''))
+        r = RE2JS.compile(rp.regex, flagsStringToRE2(rp.flags))
       } catch {
         return { patternIdx, kind: 'invalid', ranges: [], value: null }
       }
       if (rp.target === 'payload') {
         const ranges: { start: number; end: number }[] = []
-        let m: RegExpExecArray | null
-        while ((m = r.exec(text)) !== null) {
-          if (m[0].length > 0) {
-            ranges.push({ start: m.index, end: m.index + m[0].length })
+        const matcher = r.matcher(text)
+        while (matcher.find()) {
+          const start = matcher.start()
+          const end = matcher.end()
+          if (end > start) {
+            ranges.push({ start, end })
           } else {
-            // Zero-length match — advance to avoid infinite loop.
-            r.lastIndex++
+            // Zero-length match — bail rather than loop. RE2's matcher
+            // doesn't auto-advance past empty hits.
+            break
           }
           if (ranges.length >= MAX_RANGES_PER_PATTERN) break
         }
@@ -768,7 +772,7 @@ function LivePreview({
         combinator: debounced.combinator,
         patterns: debounced.patterns.map((p) => ({
           target: p.target,
-          regex: new RegExp(wrapWithAnchor(p.regex), p.flags ?? ''),
+          regex: RE2JS.compile(wrapWithAnchor(p.regex), flagsStringToRE2(p.flags)),
           ...(p.negate ? { negate: true } : {}),
         })),
       }
@@ -857,8 +861,7 @@ function LivePreview({
       const preRect = pre.getBoundingClientRect()
       const visible = rangeRect.top >= preRect.top && rangeRect.bottom <= preRect.bottom
       if (!visible) {
-        const delta =
-          rangeRect.top + rangeRect.height / 2 - (preRect.top + preRect.height / 2)
+        const delta = rangeRect.top + rangeRect.height / 2 - (preRect.top + preRect.height / 2)
         pre.scrollBy({ top: delta, behavior: 'instant' })
       }
     }

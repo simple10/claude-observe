@@ -1,12 +1,29 @@
 import type { Filter } from '@/types'
+import { RE2JS } from 're2js'
 import type { CompiledFilter, CompiledPattern } from './types'
 
 /**
+ * Translate the i/m/s string subset we accept on FilterPattern.flags
+ * into RE2JS's numeric bitfield. Unknown letters are ignored — the
+ * server validator rejects anything outside [ims] before storage, so
+ * this is a defensive no-op for those.
+ */
+export function flagsStringToRE2(flags: string | undefined): number {
+  if (!flags) return 0
+  let f = 0
+  if (flags.includes('i')) f |= RE2JS.CASE_INSENSITIVE
+  if (flags.includes('m')) f |= RE2JS.MULTILINE
+  if (flags.includes('s')) f |= RE2JS.DOTALL
+  return f
+}
+
+/**
  * Wrap a user-authored regex source so it's anchored at the start with
- * a non-greedy "skip" prefix. Critical because the matcher runs against
- * JSON-stringified events (kilobytes long), and an unanchored pattern
- * like `h` would make V8 retry at every start position — O(N^2) per
- * call.
+ * a non-greedy "skip" prefix. RE2 matches in linear time regardless, so
+ * this is no longer a perf hedge — we keep the wrap purely to preserve
+ * the historical "match-from-the-start" anchoring semantics that
+ * downstream tests rely on. (Stripping it would change where a `.test()`
+ * match nominally begins; safe but a behavior change worth its own PR.)
  *
  * The wrap preserves "matches anywhere in the string" semantics:
  *   user regex `is_error`        →  `^.*?(?:is_error)`
@@ -15,10 +32,7 @@ import type { CompiledFilter, CompiledPattern } from './types'
  * Two cases skip the wrap:
  *  - User explicitly anchored with `^` — respect their intent.
  *  - User's pattern already starts with `.*`, `.+`, `.*?`, or `.+?`.
- *    They've expressed "match anywhere at start" themselves; wrapping
- *    with another `.*?` would create a doubly-backtracking prefix
- *    (e.g. `^.*?(?:.*Test)`) and trigger O(N^2) on payloads that don't
- *    contain the target literal. Just anchor it directly with `^`.
+ *    Just anchor it directly with `^` so we don't doubly-greedy match.
  */
 export function wrapWithAnchor(source: string): string {
   if (source.startsWith('^')) return source
@@ -36,7 +50,7 @@ export function compileFilters(filters: readonly Filter[]): CompiledFilter[] {
       try {
         patterns.push({
           target: p.target,
-          regex: new RegExp(wrapWithAnchor(p.regex), p.flags ?? ''),
+          regex: RE2JS.compile(wrapWithAnchor(p.regex), flagsStringToRE2(p.flags)),
           ...(p.negate ? { negate: true } : {}),
         })
       } catch {

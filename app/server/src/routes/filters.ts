@@ -1,7 +1,21 @@
 import { Hono } from 'hono'
+import { RE2JS } from 're2js'
 import type { EventStore } from '../storage/types'
 import type { Filter } from '../types'
 import { apiError } from '../errors'
+
+// Mirror of the client-side helper. Kept inline rather than imported
+// because client/server don't share a module tree. The accepted letter
+// set is constrained upstream (see flags regex below) so we only need
+// to handle i/m/s.
+function flagsStringToRE2(flags: string | undefined): number {
+  if (!flags) return 0
+  let f = 0
+  if (flags.includes('i')) f |= RE2JS.CASE_INSENSITIVE
+  if (flags.includes('m')) f |= RE2JS.MULTILINE
+  if (flags.includes('s')) f |= RE2JS.DOTALL
+  return f
+}
 
 type Env = {
   Variables: {
@@ -64,7 +78,10 @@ function validateInput(
         return { ok: false, reason: 'pattern flags must contain only i, m, or s' }
     }
     try {
-      new RegExp(p.regex, p.flags ?? '')
+      // Validate against the same engine that runs in the client. Stops
+      // a user from authoring a pattern that the JS RegExp parser accepts
+      // (e.g. with a lookahead) but RE2 rejects at runtime.
+      RE2JS.compile(p.regex, flagsStringToRE2(p.flags))
     } catch (e) {
       return { ok: false, reason: `invalid regex: ${(e as Error).message}` }
     }

@@ -1,4 +1,5 @@
 import { describe, test, expect, vi } from 'vitest'
+import { RE2JS } from 're2js'
 import { applyFilters } from './matcher'
 import type { CompiledFilter } from './types'
 
@@ -17,7 +18,7 @@ function compile(opts: {
     combinator: opts.combinator ?? 'and',
     patterns: opts.patterns.map((p) => ({
       target: p.target,
-      regex: new RegExp(p.regex),
+      regex: RE2JS.compile(p.regex),
       ...(p.negate ? { negate: true } : {}),
     })),
   }
