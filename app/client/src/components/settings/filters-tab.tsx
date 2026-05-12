@@ -496,7 +496,7 @@ function FilterEditor({
                 })}
               </div>
             </div>
-            <div>
+            <div className="text-right">
               <label className="text-xs uppercase text-muted-foreground">Color</label>
               <CssColorPicker value={colorValue} onChange={setColor} disabled={!isUser} />
             </div>
