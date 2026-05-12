@@ -412,19 +412,26 @@ function FilterEditor({
         <div>
           <label className="text-xs uppercase text-muted-foreground">Display</label>
           <div className="flex border rounded text-xs overflow-hidden">
-            {(['primary', 'secondary'] as const).map((d) => (
-              <button
-                key={d}
-                disabled={!isUser}
-                onClick={() => setDraft({ display: d })}
-                className={cn(
-                  'px-3 py-1 flex-1',
-                  display === d ? 'bg-violet-500 text-white' : 'bg-transparent',
-                )}
-              >
-                {d}
-              </button>
-            ))}
+            {(['primary', 'secondary'] as const).map((d) => {
+              const isActive = display === d
+              const activeClass =
+                d === 'primary'
+                  ? 'bg-orange-500/20 text-orange-700 dark:text-orange-400'
+                  : 'bg-blue-500/20 text-blue-700 dark:text-blue-400'
+              return (
+                <button
+                  key={d}
+                  disabled={!isUser}
+                  onClick={() => setDraft({ display: d })}
+                  className={cn(
+                    'px-3 py-1 flex-1',
+                    isActive ? activeClass : 'bg-transparent',
+                  )}
+                >
+                  {d === 'primary' ? 'Primary' : 'Secondary'}
+                </button>
+              )
+            })}
           </div>
         </div>
       </div>
