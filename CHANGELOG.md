@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.9.5 — Customizable filters system
+
+This release introduces a complete Filters system in Settings, letting you create, edit, and manage custom event filters with a live-preview editor. All filters are now RE2-backed regex pattern matching. Default filters are seeded automatically.
+
+### Features
+
+- New **Filters** tab in Settings with editor for customizing filters.
+- Per-filter config including color, display style (primary/secondary), and pill-name templating.
+- Dynamic filter pill name support for hook name, tool name, and bash command
+- RE2-backed pattern matching (via `re2js`) for linear-time evaluation, with anchored user regexes and double-backtracking prefix avoidance.
+- Live preview pane showing matched substrings with surrounding context and per-pattern match highlighting.
+- Compiled filters are pinned at page load with a prompt to refresh when they change.
+- Full server + client plumbing: filters table, REST routes, WS messages, filter store, compiled-filter context threaded through event processing, and `event.filters` populated by the default and claude-code agents.
+
+### Usage Notes
+
+Filters are pre-configured regex searches. They make it easy to quickly filter the event stream to find events of interest. The new system supports filtering on the hook names, tool names, and raw event payloads for unlimited customization. The dynamic filter vars allow auto creating of filter pills based on tool name or bash command.
+
+The filter defaults preserve the behavior of previous releases but now supports full customization. Enjoy!
+
 ## v0.9.4 — Improved logs modal search navigation
 
 This release enhances the logs modal search experience by visually highlighting rows that match the search query and enabling quick navigation from a matched row directly to the corresponding event in the stream.
