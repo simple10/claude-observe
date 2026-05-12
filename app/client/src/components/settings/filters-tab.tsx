@@ -297,7 +297,7 @@ function FilterEditor({
   }
 
   return (
-    <div className="border rounded-lg h-full flex flex-col overflow-hidden">
+    <div className="border border-border/50 rounded-lg h-full flex flex-col overflow-hidden">
       {!isUser ? (
         <div className="px-4 py-2 bg-red-500/15 border-b border-red-500/40 text-red-700 dark:text-red-400 text-xs font-semibold uppercase tracking-wider text-center">
           Default Filter — Read Only
@@ -345,7 +345,7 @@ function FilterEditor({
           <Button
             size="sm"
             variant="outline"
-            className="text-red-600 border-red-300"
+            className="hover:text-red-600 hover:border-red-500"
             onClick={() => setConfirmDeleteOpen(true)}
           >
             Delete
@@ -513,7 +513,7 @@ function FilterEditor({
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="text-red-600"
+                    className="text-muted-foreground hover:text-red-600"
                     onClick={() => setDraft({ patterns: patterns.filter((_, ii) => ii !== i) })}
                   >
                     ×
@@ -521,7 +521,10 @@ function FilterEditor({
                 ) : null}
               </div>
               {expanded ? (
-                <div className="flex gap-4 px-1 py-1 text-xs text-muted-foreground">
+                // pl-[148px] approximates the width of the [Hook|Tool|Payload]
+                // target picker + the row's gap-2, so the checkboxes line up
+                // with the regex input's left edge.
+                <div className="flex gap-4 pl-[148px] py-1 text-xs text-muted-foreground">
                   <label
                     className={cn(
                       'flex items-center gap-1.5',
@@ -569,14 +572,13 @@ function FilterEditor({
       </div>
 
       {isUser ? (
-        <Button
-          size="sm"
-          variant="outline"
-          className="mt-2"
+        <button
+          type="button"
+          className="self-start mt-2 px-2 py-1 text-[10px] rounded border border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
           onClick={() => setDraft({ patterns: [...patterns, { target: 'hook', regex: '' }] })}
         >
           + Add pattern
-        </Button>
+        </button>
       ) : null}
 
       <LivePreview
@@ -672,19 +674,20 @@ function LivePreview({
         ? 'Preview: invalid regex'
         : `Preview: ${count} matches across loaded events`
 
-  const boxClass = enabled
-    ? 'mt-3 p-2 rounded text-xs bg-green-500/10 border border-green-500/30 text-green-700 dark:text-green-400'
-    : 'mt-3 p-2 rounded text-xs bg-muted text-muted-foreground'
+  // Box stays a muted gray in every state except "Preview: N matches"
+  // where N > 0. Only the count itself goes green there so the box
+  // doesn't visually compete with the rest of the editor.
+  const showGreen = enabled && typeof count === 'number' && count > 0
 
   return (
-    <label className={cn(boxClass, 'flex items-center gap-2 cursor-pointer')}>
+    <label className="mt-6 p-2 rounded bg-muted text-xs text-muted-foreground flex items-center gap-2 cursor-pointer">
       <input
         type="checkbox"
         checked={enabled}
         onChange={(e) => setEnabled(e.target.checked)}
         className="h-3 w-3"
       />
-      <span>{label}</span>
+      <span className={cn(showGreen && 'text-green-600 dark:text-green-400')}>{label}</span>
     </label>
   )
 }
