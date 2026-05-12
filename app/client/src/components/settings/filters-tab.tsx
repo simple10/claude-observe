@@ -266,7 +266,7 @@ function CssColorPicker({
   }, [value])
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center justify-end gap-2">
       <Input
         value={value}
         placeholder="#3b82f6"
@@ -276,10 +276,10 @@ function CssColorPicker({
       />
       {disabled ? null : (
         <ColorPicker
-          currentColor={value ? (presetKey ?? 'custom') : undefined}
+          currentColor={value ? presetKey ?? 'custom' : undefined}
           customHex={presetKey ? undefined : value || undefined}
           onSelect={(name, customHex) => {
-            const next = name === 'custom' ? (customHex ?? '') : (COLOR_PRESETS[name]?.swatch ?? '')
+            const next = name === 'custom' ? customHex ?? '' : COLOR_PRESETS[name]?.swatch ?? ''
             onChange(next)
           }}
           defaultSwatch={value || undefined}
@@ -510,8 +510,7 @@ function FilterEditor({
               <code>{'{bashCommand}'}</code>
             </span>
             <span>
-              Any CSS color (e.g. <code>#ea580c</code>, <code>red</code>,{' '}
-              <code>rgb(255,0,0)</code>)
+              Any CSS color: <code>#ea580c</code>, <code>red</code>, etc.
             </span>
           </div>
 
@@ -800,7 +799,7 @@ function findHighlightedEvent(
       // <pre>. We don't try to highlight the value's location inside the
       // stringified event because the same string can appear incidentally
       // elsewhere and confuse the visualization.
-      const target = rp.target === 'hook' ? (e.hookName ?? '') : (toolName ?? '')
+      const target = rp.target === 'hook' ? e.hookName ?? '' : toolName ?? ''
       if (r.test(target)) {
         return { patternIdx, kind: rp.target, ranges: [], value: target }
       }
@@ -841,7 +840,7 @@ function LivePreview({
   // This avoids paying JSON.stringify for the full event list on each
   // test run.
   const events = useMemo(
-    () => (sessionId ? (queryClient.getQueryData<ParsedEvent[]>(['events', sessionId]) ?? []) : []),
+    () => (sessionId ? queryClient.getQueryData<ParsedEvent[]>(['events', sessionId]) ?? [] : []),
     [queryClient, sessionId],
   )
   const eventStrings = useMemo(() => {
@@ -960,10 +959,10 @@ function LivePreview({
   const label = !enabled
     ? 'Preview disabled'
     : !sessionId
-      ? 'Preview: open a session to count matches'
-      : count == null
-        ? 'Preview: invalid regex'
-        : `Preview: ${count} matches across loaded events`
+    ? 'Preview: open a session to count matches'
+    : count == null
+    ? 'Preview: invalid regex'
+    : `Preview: ${count} matches across loaded events`
 
   // Box stays a muted gray in every state except "Preview: N matches"
   // where N > 0. Only the count itself goes green there so the box
