@@ -43,6 +43,9 @@ describe('FiltersTab', () => {
     await act(async () => {})
 
     expect(screen.getByText('New filter')).toBeInTheDocument()
-    expect(screen.getByText('USER')).toBeInTheDocument()
+    // User filters render Save / Delete buttons; default filters don't.
+    // Use the latter as a proxy that this is opened as a user filter.
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
   })
 })

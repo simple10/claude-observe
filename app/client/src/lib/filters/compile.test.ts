@@ -92,9 +92,7 @@ describe('compileFilters', () => {
   })
 
   test('passes flags through to the compiled RegExp', () => {
-    const out = compileFilters([
-      f({ patterns: [{ target: 'tool', regex: 'bash', flags: 'i' }] }),
-    ])
+    const out = compileFilters([f({ patterns: [{ target: 'tool', regex: 'bash', flags: 'i' }] })])
     expect(out[0].patterns[0].regex.flags).toContain('i')
     expect(out[0].patterns[0].regex.test('BASH')).toBe(true)
     expect(out[0].patterns[0].regex.test('Bash')).toBe(true)

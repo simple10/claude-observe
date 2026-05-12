@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useFilterStore } from '@/stores/filter-store'
 import { useFilterDraftStore, type FilterDraft } from '@/stores/filter-draft-store'
@@ -199,10 +199,7 @@ function Row({
       )}
     >
       {modified ? (
-        <span
-          className="h-1.5 w-1.5 rounded-full bg-violet-500 shrink-0"
-          title="Unsaved changes"
-        />
+        <span className="h-1.5 w-1.5 rounded-full bg-violet-500 shrink-0" title="Unsaved changes" />
       ) : null}
       <span className="flex-1 truncate">{f.name}</span>
       <span
@@ -304,294 +301,298 @@ function FilterEditor({
         </div>
       ) : null}
       <div className="p-4 flex flex-col flex-1 min-h-0">
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <button
-          onClick={() => void update(filter.id, { enabled: !filter.enabled })}
-          className={cn(
-            'text-[10px] font-mono px-2 py-0.5 rounded border transition-colors',
-            filter.enabled
-              ? 'border-green-500/40 bg-green-500/15 text-green-700 dark:text-green-400'
-              : 'border-border text-muted-foreground hover:bg-accent',
-          )}
-          title="Click to toggle"
-        >
-          {filter.enabled ? 'ENABLED' : 'DISABLED'}
-        </button>
-        {hasDraft ? (
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-violet-500/20 text-violet-600">
-            UNSAVED
-          </span>
-        ) : null}
-        <div className="flex-1" />
-        {isUser && hasDraft ? (
-          <Button variant="outline" size="sm" onClick={onDiscard}>
-            Discard
-          </Button>
-        ) : null}
-        {isUser ? (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!hasDraft || !!invalidPattern}
-            onClick={onSave}
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <button
+            onClick={() => void update(filter.id, { enabled: !filter.enabled })}
+            className={cn(
+              'text-[10px] font-mono px-2 py-0.5 rounded border transition-colors',
+              filter.enabled
+                ? 'border-green-500/40 bg-green-500/15 text-green-700 dark:text-green-400'
+                : 'border-border text-muted-foreground hover:bg-accent',
+            )}
+            title="Click to toggle"
           >
-            Save
+            {filter.enabled ? 'ENABLED' : 'DISABLED'}
+          </button>
+          {hasDraft ? (
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-violet-500/20 text-violet-600">
+              UNSAVED
+            </span>
+          ) : null}
+          <div className="flex-1" />
+          {isUser && hasDraft ? (
+            <Button variant="outline" size="sm" onClick={onDiscard}>
+              Discard
+            </Button>
+          ) : null}
+          {isUser ? (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!hasDraft || !!invalidPattern}
+              onClick={onSave}
+            >
+              Save
+            </Button>
+          ) : null}
+          <Button size="sm" variant="outline" onClick={onDuplicate}>
+            Duplicate
           </Button>
-        ) : null}
-        <Button size="sm" variant="outline" onClick={onDuplicate}>
-          Duplicate
-        </Button>
-        {isUser ? (
-          <Button
-            size="sm"
-            variant="outline"
-            className="hover:text-red-600 hover:border-red-500"
-            onClick={() => setConfirmDeleteOpen(true)}
-          >
-            Delete
-          </Button>
-        ) : null}
-      </div>
-
-      <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete filter “{filter.name}”?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This permanently removes the filter. Events that currently match it will lose their
-              “{filter.pillName}” pill. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={(e) => {
-                e.preventDefault()
-                setConfirmDeleteOpen(false)
-                void onDelete()
-              }}
+          {isUser ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="hover:text-red-600 hover:border-red-500"
+              onClick={() => setConfirmDeleteOpen(true)}
             >
               Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            </Button>
+          ) : null}
+        </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
-      <div className="grid grid-cols-3 gap-3">
-        <div>
-          <label className="text-xs uppercase text-muted-foreground">Filter name</label>
-          <Input
-            value={name}
-            onChange={(e) => {
-              const v = e.target.value
-              setDraft(pillNameAutoMirror ? { name: v, pillName: v } : { name: v })
-            }}
-            disabled={!isUser}
-          />
-        </div>
-        <div>
-          <label className="text-xs uppercase text-muted-foreground">Pill name</label>
-          <Input
-            value={pillName}
-            onChange={(e) => setDraft({ pillName: e.target.value, pillNameAutoMirror: false })}
-            disabled={!isUser}
-            className="font-mono text-xs"
-          />
-          <div className="text-[10px] text-muted-foreground mt-1">
-            Vars: <code>{'{hookName}'}</code> <code>{'{toolName}'}</code>{' '}
-            <code>{'{bashCommand}'}</code>
+        <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete filter “{filter.name}”?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This permanently removes the filter. Events that currently match it will lose their
+                “{filter.pillName}” pill. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={(e) => {
+                  e.preventDefault()
+                  setConfirmDeleteOpen(false)
+                  void onDelete()
+                }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs uppercase text-muted-foreground">Filter name</label>
+              <Input
+                value={name}
+                onChange={(e) => {
+                  const v = e.target.value
+                  setDraft(pillNameAutoMirror ? { name: v, pillName: v } : { name: v })
+                }}
+                disabled={!isUser}
+              />
+            </div>
+            <div>
+              <label className="text-xs uppercase text-muted-foreground">Pill name</label>
+              <Input
+                value={pillName}
+                onChange={(e) => setDraft({ pillName: e.target.value, pillNameAutoMirror: false })}
+                disabled={!isUser}
+                className="font-mono text-xs"
+              />
+              <div className="text-[10px] text-muted-foreground mt-1">
+                Vars: <code>{'{hookName}'}</code> <code>{'{toolName}'}</code>{' '}
+                <code>{'{bashCommand}'}</code>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs uppercase text-muted-foreground">Display</label>
+              <div className="flex border rounded text-xs overflow-hidden">
+                {(['primary', 'secondary'] as const).map((d) => {
+                  const isActive = display === d
+                  const activeClass =
+                    d === 'primary'
+                      ? 'bg-orange-500/20 text-orange-700 dark:text-orange-400'
+                      : 'bg-blue-500/20 text-blue-700 dark:text-blue-300'
+                  return (
+                    <button
+                      key={d}
+                      disabled={!isUser}
+                      onClick={() => setDraft({ display: d })}
+                      className={cn('px-3 py-1 flex-1', isActive ? activeClass : 'bg-transparent')}
+                    >
+                      {d === 'primary' ? 'Primary' : 'Secondary'}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </div>
-        </div>
-        <div>
-          <label className="text-xs uppercase text-muted-foreground">Display</label>
-          <div className="flex border rounded text-xs overflow-hidden">
-            {(['primary', 'secondary'] as const).map((d) => {
-              const isActive = display === d
-              const activeClass =
-                d === 'primary'
-                  ? 'bg-orange-500/20 text-orange-700 dark:text-orange-400'
-                  : 'bg-blue-500/20 text-blue-700 dark:text-blue-300'
-              return (
+
+          <div className="mt-4 flex items-center gap-3">
+            <label className="text-xs uppercase text-muted-foreground">Patterns</label>
+            <span className="text-xs text-muted-foreground">·</span>
+            <span className="text-xs text-muted-foreground">combine with:</span>
+            <div className="flex border rounded text-[10px] overflow-hidden">
+              {(['and', 'or'] as const).map((c) => (
                 <button
-                  key={d}
+                  key={c}
                   disabled={!isUser}
-                  onClick={() => setDraft({ display: d })}
+                  onClick={() => setDraft({ combinator: c })}
                   className={cn(
-                    'px-3 py-1 flex-1',
-                    isActive ? activeClass : 'bg-transparent',
+                    'px-2 py-1',
+                    combinator === c ? 'bg-muted-foreground text-background' : 'bg-transparent',
                   )}
                 >
-                  {d === 'primary' ? 'Primary' : 'Secondary'}
+                  {c.toUpperCase()}
                 </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 mt-2">
+            {patterns.map((p, i) => {
+              const expanded = expandedRows.has(i)
+              const caseInsensitive = (p.flags ?? '').includes('i')
+              const hasAdvanced = !!p.negate || caseInsensitive
+              const toggleExpanded = () =>
+                setExpandedRows((prev) => {
+                  const next = new Set(prev)
+                  if (next.has(i)) next.delete(i)
+                  else next.add(i)
+                  return next
+                })
+              const updatePattern = (changes: Partial<(typeof patterns)[number]>) =>
+                setDraft({
+                  patterns: patterns.map((pp, ii) => (ii === i ? { ...pp, ...changes } : pp)),
+                })
+              return (
+                <div key={i} className="flex flex-col gap-1">
+                  <div className="flex gap-2 items-center">
+                    <span
+                      className={cn('h-2.5 w-2.5 rounded-sm shrink-0', patternPaletteClass(i))}
+                      title={`Pattern ${i + 1} highlight color (used in preview)`}
+                    />
+                    <div className="flex border rounded text-[10px] overflow-hidden">
+                      {(['hook', 'tool', 'payload'] as const).map((t) => (
+                        <button
+                          key={t}
+                          disabled={!isUser}
+                          onClick={() => updatePattern({ target: t })}
+                          className={cn(
+                            'px-2 py-1 capitalize',
+                            p.target === t
+                              ? 'bg-muted-foreground text-background'
+                              : 'bg-transparent',
+                          )}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                    <Input
+                      value={p.regex}
+                      disabled={!isUser}
+                      onChange={(e) => updatePattern({ regex: e.target.value })}
+                      className="font-mono text-xs flex-1 border-muted-foreground/50 dark:border-muted-foreground/50"
+                    />
+                    <button
+                      type="button"
+                      title="Advanced"
+                      onClick={toggleExpanded}
+                      className={cn(
+                        'h-7 w-7 flex items-center justify-center rounded border transition-colors',
+                        hasAdvanced
+                          ? 'border-green-500/40 bg-green-500/15 text-green-700 dark:text-green-400'
+                          : 'border-border text-muted-foreground hover:bg-accent',
+                      )}
+                    >
+                      {expanded ? (
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      ) : (
+                        <ChevronRight className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                    {isUser ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-muted-foreground hover:text-red-600"
+                        onClick={() => setDraft({ patterns: patterns.filter((_, ii) => ii !== i) })}
+                      >
+                        ×
+                      </Button>
+                    ) : null}
+                  </div>
+                  {expanded ? (
+                    // pl-[166px] approximates the width of the color dot +
+                    // the [Hook|Tool|Payload] target picker plus the row's
+                    // gap-2s, so the checkboxes line up with the regex input's
+                    // left edge.
+                    <div className="flex gap-4 pl-[166px] py-1 text-xs text-muted-foreground">
+                      <label
+                        className={cn(
+                          'flex items-center gap-1.5',
+                          isUser ? 'cursor-pointer' : 'cursor-default',
+                        )}
+                        title="When checked, the pattern matches events whose target does NOT match the regex"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!!p.negate}
+                          disabled={!isUser}
+                          onChange={(e) => updatePattern({ negate: e.target.checked || undefined })}
+                          className="h-3 w-3"
+                        />
+                        Invert match
+                      </label>
+                      <label
+                        className={cn(
+                          'flex items-center gap-1.5',
+                          isUser ? 'cursor-pointer' : 'cursor-default',
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={caseInsensitive}
+                          disabled={!isUser}
+                          onChange={(e) => {
+                            const cur = p.flags ?? ''
+                            const next = e.target.checked
+                              ? cur.includes('i')
+                                ? cur
+                                : cur + 'i'
+                              : cur.replace('i', '')
+                            updatePattern({ flags: next || undefined })
+                          }}
+                          className="h-3 w-3"
+                        />
+                        Case insensitive
+                      </label>
+                    </div>
+                  ) : null}
+                </div>
               )
             })}
           </div>
-        </div>
-      </div>
 
-      <div className="mt-4 flex items-center gap-3">
-        <label className="text-xs uppercase text-muted-foreground">Patterns</label>
-        <span className="text-xs text-muted-foreground">·</span>
-        <span className="text-xs text-muted-foreground">combine with:</span>
-        <div className="flex border rounded text-[10px] overflow-hidden">
-          {(['and', 'or'] as const).map((c) => (
+          {isUser ? (
             <button
-              key={c}
-              disabled={!isUser}
-              onClick={() => setDraft({ combinator: c })}
-              className={cn(
-                'px-2 py-1',
-                combinator === c ? 'bg-muted-foreground text-background' : 'bg-transparent',
-              )}
+              type="button"
+              className="self-start mt-2 px-2 py-1 text-[10px] rounded border border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+              onClick={() => setDraft({ patterns: [...patterns, { target: 'hook', regex: '' }] })}
             >
-              {c.toUpperCase()}
+              + Add pattern
             </button>
-          ))}
+          ) : null}
+
+          <LivePreview
+            pillName={pillName}
+            display={display}
+            combinator={combinator}
+            patterns={patterns}
+          />
+
+          {invalidPattern ? (
+            <div className="mt-3 text-xs text-red-600">Invalid regex: {invalidPattern}</div>
+          ) : null}
         </div>
-      </div>
-
-      <div className="flex flex-col gap-3 mt-2">
-        {patterns.map((p, i) => {
-          const expanded = expandedRows.has(i)
-          const caseInsensitive = (p.flags ?? '').includes('i')
-          const hasAdvanced = !!p.negate || caseInsensitive
-          const toggleExpanded = () =>
-            setExpandedRows((prev) => {
-              const next = new Set(prev)
-              if (next.has(i)) next.delete(i)
-              else next.add(i)
-              return next
-            })
-          const updatePattern = (changes: Partial<(typeof patterns)[number]>) =>
-            setDraft({
-              patterns: patterns.map((pp, ii) => (ii === i ? { ...pp, ...changes } : pp)),
-            })
-          return (
-            <div key={i} className="flex flex-col gap-1">
-              <div className="flex gap-2 items-center">
-                <div className="flex border rounded text-[10px] overflow-hidden">
-                  {(['hook', 'tool', 'payload'] as const).map((t) => (
-                    <button
-                      key={t}
-                      disabled={!isUser}
-                      onClick={() => updatePattern({ target: t })}
-                      className={cn(
-                        'px-2 py-1 capitalize',
-                        p.target === t ? 'bg-muted-foreground text-background' : 'bg-transparent',
-                      )}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-                <Input
-                  value={p.regex}
-                  disabled={!isUser}
-                  onChange={(e) => updatePattern({ regex: e.target.value })}
-                  className="font-mono text-xs flex-1 border-muted-foreground/50 dark:border-muted-foreground/50"
-                />
-                <button
-                  type="button"
-                  title="Advanced"
-                  onClick={toggleExpanded}
-                  className={cn(
-                    'h-7 w-7 flex items-center justify-center rounded border transition-colors',
-                    hasAdvanced
-                      ? 'border-green-500/40 bg-green-500/15 text-green-700 dark:text-green-400'
-                      : 'border-border text-muted-foreground hover:bg-accent',
-                  )}
-                >
-                  {expanded ? (
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  ) : (
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  )}
-                </button>
-                {isUser ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-muted-foreground hover:text-red-600"
-                    onClick={() => setDraft({ patterns: patterns.filter((_, ii) => ii !== i) })}
-                  >
-                    ×
-                  </Button>
-                ) : null}
-              </div>
-              {expanded ? (
-                // pl-[148px] approximates the width of the [Hook|Tool|Payload]
-                // target picker + the row's gap-2, so the checkboxes line up
-                // with the regex input's left edge.
-                <div className="flex gap-4 pl-[148px] py-1 text-xs text-muted-foreground">
-                  <label
-                    className={cn(
-                      'flex items-center gap-1.5',
-                      isUser ? 'cursor-pointer' : 'cursor-default',
-                    )}
-                    title="When checked, the pattern matches events whose target does NOT match the regex"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={!!p.negate}
-                      disabled={!isUser}
-                      onChange={(e) => updatePattern({ negate: e.target.checked || undefined })}
-                      className="h-3 w-3"
-                    />
-                    Invert match
-                  </label>
-                  <label
-                    className={cn(
-                      'flex items-center gap-1.5',
-                      isUser ? 'cursor-pointer' : 'cursor-default',
-                    )}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={caseInsensitive}
-                      disabled={!isUser}
-                      onChange={(e) => {
-                        const cur = p.flags ?? ''
-                        const next = e.target.checked
-                          ? cur.includes('i')
-                            ? cur
-                            : cur + 'i'
-                          : cur.replace('i', '')
-                        updatePattern({ flags: next || undefined })
-                      }}
-                      className="h-3 w-3"
-                    />
-                    Case insensitive
-                  </label>
-                </div>
-              ) : null}
-            </div>
-          )
-        })}
-      </div>
-
-      {isUser ? (
-        <button
-          type="button"
-          className="self-start mt-2 px-2 py-1 text-[10px] rounded border border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
-          onClick={() => setDraft({ patterns: [...patterns, { target: 'hook', regex: '' }] })}
-        >
-          + Add pattern
-        </button>
-      ) : null}
-
-      <LivePreview
-        pillName={pillName}
-        display={display}
-        combinator={combinator}
-        patterns={patterns}
-      />
-
-      {invalidPattern ? (
-        <div className="mt-3 text-xs text-red-600">Invalid regex: {invalidPattern}</div>
-      ) : null}
-      </div>
       </div>
     </div>
   )
@@ -604,22 +605,57 @@ interface LivePreviewPattern {
   flags?: string
 }
 
-interface MatchSample {
-  matched: string
-  before: string
-  after: string
-  leading: boolean
-  trailing: boolean
+// Cap on the rendered payload text so a multi-MB event can't lock the
+// browser. 32KB is comfortably more than any real Claude Code event we
+// see, while still bounding the worst case for Range construction.
+const MAX_PREVIEW_TEXT = 32_000
+
+// Max ranges we'll register per pattern. Real payloads rarely have more
+// than a handful — this is purely an O(N) safety belt against pathological
+// regexes (e.g. `.` against a 32KB string).
+const MAX_RANGES_PER_PATTERN = 1000
+
+// Number of `::highlight(filter-preview-N)` slots defined in index.css.
+// Pattern index modulo this size determines its color.
+export const PREVIEW_PALETTE_SIZE = 5
+
+// Tailwind background classes matching index.css's
+// ::highlight(filter-preview-N) rules. Used for the inline legend dots
+// in both the FilterEditor pattern rows and the LivePreview labels so
+// users can map color → pattern at a glance.
+const PREVIEW_PALETTE_BG = [
+  'bg-purple-500',
+  'bg-sky-400',
+  'bg-lime-500',
+  'bg-amber-500',
+  'bg-pink-500',
+] as const
+
+function patternPaletteClass(patternIdx: number): string {
+  return PREVIEW_PALETTE_BG[patternIdx % PREVIEW_PALETTE_SIZE]
 }
 
-const MAX_MATCH_DISPLAY = 200
+interface PatternHighlight {
+  patternIdx: number
+  kind: 'payload' | 'hook' | 'tool' | 'negated' | 'no-match' | 'invalid'
+  // For payload-target patterns: byte ranges within the displayed text.
+  ranges: { start: number; end: number }[]
+  // For hook/tool: the target value (e.g. 'Stop'). For other kinds: null.
+  value: string | null
+}
 
-function findFirstSample(
+interface HighlightedEvent {
+  text: string
+  truncated: boolean
+  highlights: PatternHighlight[]
+}
+
+function findHighlightedEvent(
   events: readonly ParsedEvent[],
   eventStrings: readonly string[],
   compiledFilter: CompiledFilter,
   rawPatterns: readonly LivePreviewPattern[],
-): MatchSample | null {
+): HighlightedEvent | null {
   for (let i = 0; i < events.length; i++) {
     const e = events[i]
     const p = e.payload as Record<string, unknown> | undefined
@@ -628,43 +664,57 @@ function findFirstSample(
     const out = applyFilters(e, toolName, [compiledFilter], eventStrings[i])
     if (out.primary.length + out.secondary.length === 0) continue
 
-    // This event satisfied the filter — find the first non-negated
-    // pattern that has a positive regex hit so we can show what it
-    // matched.
-    for (const rp of rawPatterns) {
-      if (rp.negate) continue
+    const stringified = eventStrings[i]
+    const truncated = stringified.length > MAX_PREVIEW_TEXT
+    const text = truncated ? stringified.slice(0, MAX_PREVIEW_TEXT) : stringified
+
+    const highlights: PatternHighlight[] = rawPatterns.map((rp, patternIdx) => {
+      if (rp.negate) {
+        return { patternIdx, kind: 'negated', ranges: [], value: null }
+      }
+      if (!rp.regex) {
+        return { patternIdx, kind: 'invalid', ranges: [], value: null }
+      }
+      // Force the `g` flag so exec() walks the whole target instead of
+      // stopping at the first hit. The user-supplied subset (i/m/s) is
+      // appended on top.
       let r: RegExp
       try {
-        r = new RegExp(rp.regex, rp.flags ?? '')
+        r = new RegExp(rp.regex, 'g' + (rp.flags ?? '').replace(/g/g, ''))
       } catch {
-        continue
+        return { patternIdx, kind: 'invalid', ranges: [], value: null }
       }
-      const target =
-        rp.target === 'hook'
-          ? (e.hookName ?? '')
-          : rp.target === 'tool'
-            ? (toolName ?? '')
-            : eventStrings[i]
-      const m = r.exec(target)
-      if (m && m[0]) {
-        const truncated =
-          m[0].length > MAX_MATCH_DISPLAY ? m[0].slice(0, MAX_MATCH_DISPLAY) + '…' : m[0]
-        const start = m.index
-        const end = start + m[0].length
-        const beforeStart = Math.max(0, start - 20)
-        const afterEnd = Math.min(target.length, end + 20)
+      if (rp.target === 'payload') {
+        const ranges: { start: number; end: number }[] = []
+        let m: RegExpExecArray | null
+        while ((m = r.exec(text)) !== null) {
+          if (m[0].length > 0) {
+            ranges.push({ start: m.index, end: m.index + m[0].length })
+          } else {
+            // Zero-length match — advance to avoid infinite loop.
+            r.lastIndex++
+          }
+          if (ranges.length >= MAX_RANGES_PER_PATTERN) break
+        }
         return {
-          matched: truncated,
-          before: target.slice(beforeStart, start),
-          after: target.slice(end, afterEnd),
-          leading: start > 20,
-          trailing: end + 20 < target.length,
+          patternIdx,
+          kind: ranges.length > 0 ? 'payload' : 'no-match',
+          ranges,
+          value: null,
         }
       }
-    }
-    // Matching event but every contributing pattern was negated — no
-    // positive substring to highlight.
-    return null
+      // hook / tool — match the small target string, label outside the
+      // <pre>. We don't try to highlight the value's location inside the
+      // stringified event because the same string can appear incidentally
+      // elsewhere and confuse the visualization.
+      const target = rp.target === 'hook' ? (e.hookName ?? '') : (toolName ?? '')
+      if (r.test(target)) {
+        return { patternIdx, kind: rp.target, ranges: [], value: target }
+      }
+      return { patternIdx, kind: 'no-match', ranges: [], value: null }
+    })
+
+    return { text, truncated, highlights }
   }
   return null
 }
@@ -684,6 +734,7 @@ function LivePreview({
   const sessionId = useUIStore((s) => s.selectedSessionId)
   const [enabled, setEnabled] = useState(true)
   const [debounced, setDebounced] = useState({ pillName, display, combinator, patterns })
+  const preRef = useRef<HTMLPreElement>(null)
 
   // 500ms debounce on input changes — only fires when preview is on.
   useEffect(() => {
@@ -705,8 +756,8 @@ function LivePreview({
     return events.map((e) => JSON.stringify(e))
   }, [events, enabled])
 
-  const result = useMemo(() => {
-    if (!enabled || !sessionId || !eventStrings) return { count: null, sample: null }
+  const result = useMemo<{ count: number | null; highlighted: HighlightedEvent | null }>(() => {
+    if (!enabled || !sessionId || !eventStrings) return { count: null, highlighted: null }
     let compiled: CompiledFilter
     try {
       compiled = {
@@ -722,7 +773,7 @@ function LivePreview({
         })),
       }
     } catch {
-      return { count: null as number | null, sample: null as MatchSample | null }
+      return { count: null, highlighted: null }
     }
     let total = 0
     for (let i = 0; i < events.length; i++) {
@@ -736,12 +787,83 @@ function LivePreview({
       const out = applyFilters(e, toolName, [compiled], eventStrings[i])
       total += out.primary.length + out.secondary.length
     }
-    const sample = total > 0 ? findFirstSample(events, eventStrings, compiled, debounced.patterns) : null
-    return { count: total, sample }
+    const highlighted =
+      total > 0 ? findHighlightedEvent(events, eventStrings, compiled, debounced.patterns) : null
+    return { count: total, highlighted }
   }, [enabled, events, eventStrings, sessionId, debounced])
 
   const count = result.count
-  const sample = result.sample
+  const highlighted = result.highlighted
+
+  // Register Range-based highlights against the <pre>'s text node after
+  // render. Re-runs whenever the highlighted event changes, which only
+  // happens on the 500ms debounced filter input or when new events arrive
+  // while the preview is on.
+  useEffect(() => {
+    if (!('highlights' in CSS)) return // graceful degrade on older browsers
+    const clear = () => {
+      for (let i = 0; i < PREVIEW_PALETTE_SIZE; i++) {
+        CSS.highlights.delete(`filter-preview-${i}`)
+      }
+    }
+    clear()
+    if (!highlighted) return
+    const pre = preRef.current
+    if (!pre) return
+    // Walk siblings instead of assuming firstChild is the text node —
+    // mirrors the logs-modal approach to dodge Suspense/comment markers.
+    let textNode: Text | null = null
+    for (let n: Node | null = pre.firstChild; n; n = n.nextSibling) {
+      if (n.nodeType === Node.TEXT_NODE) {
+        textNode = n as Text
+        break
+      }
+    }
+    if (!textNode) return
+    const textLen = textNode.textContent?.length ?? 0
+    const bySlot = new Map<number, Range[]>()
+    // Track the first Range we create in pattern order so we can scroll
+    // it into view once highlights are registered — without this, a
+    // match near the bottom of the truncated text is invisible until the
+    // user scrolls the preview manually.
+    let firstRange: Range | null = null
+    for (const h of highlighted.highlights) {
+      if (h.kind !== 'payload') continue
+      const slot = h.patternIdx % PREVIEW_PALETTE_SIZE
+      let arr = bySlot.get(slot)
+      if (!arr) bySlot.set(slot, (arr = []))
+      for (const { start, end } of h.ranges) {
+        if (start >= textLen || end > textLen) continue
+        const range = document.createRange()
+        try {
+          range.setStart(textNode, start)
+          range.setEnd(textNode, end)
+          arr.push(range)
+          if (!firstRange) firstRange = range
+        } catch {
+          // Offsets stale or out-of-bounds — skip silently.
+        }
+      }
+    }
+    for (const [slot, ranges] of bySlot) {
+      const h = new Highlight()
+      for (const r of ranges) h.add(r)
+      CSS.highlights.set(`filter-preview-${slot}`, h)
+    }
+    if (firstRange) {
+      // Only scroll if the match falls outside the visible band — keeps
+      // matches already near the top from snapping the view downward.
+      const rangeRect = firstRange.getBoundingClientRect()
+      const preRect = pre.getBoundingClientRect()
+      const visible = rangeRect.top >= preRect.top && rangeRect.bottom <= preRect.bottom
+      if (!visible) {
+        const delta =
+          rangeRect.top + rangeRect.height / 2 - (preRect.top + preRect.height / 2)
+        pre.scrollBy({ top: delta, behavior: 'instant' })
+      }
+    }
+    return clear
+  }, [highlighted])
 
   const label = !enabled
     ? 'Preview disabled'
@@ -767,20 +889,77 @@ function LivePreview({
         />
         <span className={cn(showGreen && 'text-green-600 dark:text-green-400')}>{label}</span>
       </label>
-      {sample ? (
-        <div className="mt-1 overflow-x-auto whitespace-nowrap font-mono text-[11px] leading-snug">
-          <span className="text-muted-foreground">Matched: </span>
-          <span className="text-foreground">
-            {sample.leading ? '…' : ''}
-            {sample.before}
-            <span className="bg-yellow-500/30 text-foreground rounded px-0.5">
-              {sample.matched}
-            </span>
-            {sample.after}
-            {sample.trailing ? '…' : ''}
-          </span>
+      {highlighted ? (
+        <div className="mt-2 flex flex-col gap-2">
+          <div className="flex flex-col gap-0.5">
+            {highlighted.highlights.map((h) => (
+              <PatternLegendRow key={h.patternIdx} h={h} />
+            ))}
+          </div>
+          <pre
+            ref={preRef}
+            // ~5 lines at text-[11px] leading-snug (~15px line-height)
+            // plus p-2 vertical padding ≈ 91px. Set explicitly so the
+            // preview never grows tall enough to push other editor
+            // content out of view.
+            className="max-h-[91px] overflow-auto rounded bg-background/60 border border-border/40 p-2 font-mono text-[11px] leading-snug whitespace-pre-wrap break-all text-muted-foreground"
+          >
+            {highlighted.text}
+          </pre>
+          {highlighted.truncated ? (
+            <div className="text-[10px] italic">
+              Showing first {MAX_PREVIEW_TEXT.toLocaleString()} characters
+            </div>
+          ) : null}
         </div>
       ) : null}
+    </div>
+  )
+}
+
+function PatternLegendRow({ h }: { h: PatternHighlight }) {
+  const dotColor = patternPaletteClass(h.patternIdx)
+  const name = `Pattern ${h.patternIdx + 1}`
+  // Match-count patterns get a solid swatch to mirror the in-payload
+  // highlight; other states stay outlined so the user reads them as
+  // status rather than a color key.
+  const dot =
+    h.kind === 'payload' ? (
+      <span className={cn('h-2.5 w-2.5 rounded-sm shrink-0', dotColor)} />
+    ) : (
+      <span className="h-2.5 w-2.5 rounded-sm shrink-0 border border-muted-foreground/40" />
+    )
+
+  const body = (() => {
+    switch (h.kind) {
+      case 'payload':
+        return `${h.ranges.length} match${h.ranges.length === 1 ? '' : 'es'} in payload`
+      case 'hook':
+        return (
+          <>
+            matched hook <code className="font-mono text-foreground">{h.value}</code>
+          </>
+        )
+      case 'tool':
+        return (
+          <>
+            matched tool <code className="font-mono text-foreground">{h.value}</code>
+          </>
+        )
+      case 'negated':
+        return 'negated (not highlighted)'
+      case 'invalid':
+        return 'invalid regex'
+      case 'no-match':
+        return 'no match in this event'
+    }
+  })()
+
+  return (
+    <div className="flex items-center gap-2 text-[11px]">
+      {dot}
+      <span className="text-foreground">{name}</span>
+      <span className="text-muted-foreground">— {body}</span>
     </div>
   )
 }

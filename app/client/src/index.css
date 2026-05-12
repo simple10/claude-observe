@@ -101,6 +101,32 @@
   color: black;
 }
 
+/* Filter editor live-preview — one color per pattern index in the
+   compiled filter. Patterns beyond index 4 cycle back to slot 0. The
+   <pre> body is rendered in muted gray; each rule re-asserts
+   `var(--foreground)` so matched bytes stay crisp against the colored
+   background. */
+::highlight(filter-preview-0) {
+  background-color: rgb(168 85 247 / 0.35);
+  color: var(--foreground);
+}
+::highlight(filter-preview-1) {
+  background-color: rgb(56 189 248 / 0.35);
+  color: var(--foreground);
+}
+::highlight(filter-preview-2) {
+  background-color: rgb(132 204 22 / 0.35);
+  color: var(--foreground);
+}
+::highlight(filter-preview-3) {
+  background-color: rgb(245 158 11 / 0.35);
+  color: var(--foreground);
+}
+::highlight(filter-preview-4) {
+  background-color: rgb(236 72 153 / 0.35);
+  color: var(--foreground);
+}
+
 /* Pointer cursor on the interactive bits the user can click/toggle.
    - `[data-filter-pill]` matches both filter-bar pill rows.
    - Checkboxes and the All button (which sets type="button" implicitly)
