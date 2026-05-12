@@ -39,7 +39,7 @@ function draftFromFilter(f: Filter): Draft {
 }
 
 export function FiltersTab() {
-  const { filters, loaded, load, resetDefaults } = useFilterStore()
+  const { filters, loaded, load } = useFilterStore()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const drafts = useFilterDraftStore((s) => s.drafts)
@@ -102,17 +102,7 @@ export function FiltersTab() {
               ))
             )}
           </Section>
-          <Section
-            label="Default 🔒"
-            right={
-              <button
-                className="text-[10px] text-muted-foreground hover:underline"
-                onClick={() => resetDefaults()}
-              >
-                ↻ Reset all
-              </button>
-            }
-          >
+          <Section label="Default 🔒" className="mt-5">
             {defaultFilters.map((f) => (
               <Row
                 key={f.id}
@@ -170,18 +160,17 @@ function byName(a: Filter, b: Filter) {
 
 function Section({
   label,
-  right,
+  className,
   children,
 }: {
   label: string
-  right?: React.ReactNode
+  className?: string
   children: React.ReactNode
 }) {
   return (
-    <div className="mb-3">
+    <div className={cn('mb-3', className)}>
       <div className="flex items-center px-2 mb-1 text-[10px] uppercase text-muted-foreground">
         <span className="flex-1">{label}</span>
-        {right}
       </div>
       <div className="flex flex-col gap-px">{children}</div>
     </div>
