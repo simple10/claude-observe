@@ -115,6 +115,44 @@ describe('applyFilters', () => {
     expect(applyFilters(baseRaw, 'Bash', [f])).toEqual({ primary: [], secondary: ['ls'] })
   })
 
+  test('bashCommand strips arguments and resolves to the leading binary', () => {
+    const f = compile({
+      name: 'Cmd',
+      pillName: '{bashCommand}',
+      display: 'secondary',
+      patterns: [{ target: 'tool', regex: '^Bash$' }],
+    })
+    const cases: { command: string; expected: string }[] = [
+      { command: 'ls -la foo', expected: 'ls' },
+      { command: 'npm run lint -- --fix', expected: 'npm' },
+      { command: '  cat /tmp/x  ', expected: 'cat' },
+      // Leading newline / tab — same trim + split rule.
+      { command: '\n\tbash scripts/run.sh', expected: 'bash' },
+      // Single-word command unchanged.
+      { command: 'pwd', expected: 'pwd' },
+      // Multi-line heredoc — binary is still the first token.
+      { command: 'cat <<EOF\nhello\nEOF', expected: 'cat' },
+    ]
+    for (const { command, expected } of cases) {
+      const raw = { ...baseRaw, payload: { tool_input: { command } } }
+      expect(applyFilters(raw, 'Bash', [f]).secondary).toEqual([expected])
+    }
+  })
+
+  test('bashCommand returns null for empty/whitespace-only commands', () => {
+    const f = compile({
+      name: 'Cmd',
+      pillName: '{bashCommand}',
+      display: 'secondary',
+      patterns: [{ target: 'tool', regex: '^Bash$' }],
+    })
+    // Empty / whitespace-only command produces no binary → pill skipped.
+    for (const command of ['', '   ', '\n\n']) {
+      const raw = { ...baseRaw, payload: { tool_input: { command } } }
+      expect(applyFilters(raw, 'Bash', [f]).secondary).toEqual([])
+    }
+  })
+
   test('literal pillName (no template) always resolves', () => {
     const f = compile({ name: 'Always', patterns: [{ target: 'hook', regex: '.' }] })
     expect(applyFilters(baseRaw, null, [f]).primary).toEqual(['Always'])

@@ -10,9 +10,17 @@ function resolveVar(name: string, raw: RawEvent, toolName: string | null): strin
     case 'toolName':
       return toolName ?? null
     case 'bashCommand': {
+      // In the filter context, "bashCommand" resolves to just the leading
+      // binary token — what gets invoked, not the entire command line.
+      // Otherwise every distinct command becomes its own pill, flooding
+      // the filter bar with thousands of one-off entries (see issue
+      // screenshots from 2026-05-11). Event details rendering still
+      // shows the full command via a separate code path.
       if (toolName !== 'Bash') return null
       const cmd = (raw.payload as Record<string, any>)?.tool_input?.command
-      return typeof cmd === 'string' && cmd !== '' ? cmd : null
+      if (typeof cmd !== 'string' || cmd === '') return null
+      const binary = cmd.trim().split(/\s+/)[0]
+      return binary || null
     }
     default:
       return null
