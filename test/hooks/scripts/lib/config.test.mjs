@@ -1,8 +1,14 @@
 // test/config.test.mjs
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 // Snapshot and restore all env vars we touch
 const envKeys = [
+  // HOME is overridden per-test to isolate from any real ~/.claude/plugins
+  // install on the dev machine — resolvePluginDataDir probes the filesystem.
+  'HOME',
   'CLAUDE_PLUGIN_DATA',
   'AGENTS_OBSERVE_SERVER_PORT',
   'AGENTS_OBSERVE_API_BASE_URL',
@@ -22,6 +28,7 @@ const envKeys = [
 ]
 
 let savedEnv
+let tmpHome
 
 beforeEach(() => {
   savedEnv = {}
@@ -29,12 +36,18 @@ beforeEach(() => {
     savedEnv[k] = process.env[k]
     delete process.env[k]
   }
+  tmpHome = mkdtempSync(join(tmpdir(), 'agents-observe-test-home-'))
+  process.env.HOME = tmpHome
 })
 
 afterEach(() => {
   for (const k of envKeys) {
     if (savedEnv[k] === undefined) delete process.env[k]
     else process.env[k] = savedEnv[k]
+  }
+  if (tmpHome) {
+    rmSync(tmpHome, { recursive: true, force: true })
+    tmpHome = null
   }
 })
 
