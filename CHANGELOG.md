@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.9.6 — Hook path fix and test isolation
+
+This release fixes the UserPromptExpansion hook so it resolves correctly from the plugin root, and hardens the config test suite so it no longer depends on a real plugin install.
+
+Versions 0.9.1-0.9.5 should be upgraded. UserPromptExpansion hook is triggered when a skill is invoked that injects context into claude before reaching the LLM. The UserPromptExpansion events were not being logged properly.
+
+### Other
+
+- Isolated config tests from the real plugin install for more reliable test runs.
+
 ## v0.9.5 — Customizable filters system
 
 This release introduces a complete Filters system in Settings, letting you create, edit, and manage custom event filters with a live-preview editor. All filters are now RE2-backed regex pattern matching. Default filters are seeded automatically.
